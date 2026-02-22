@@ -1,0 +1,37 @@
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    /**
+     * Run the migrations.
+     */
+    public function up(): void
+    {
+        Schema::create('seguimiento_servicio', function (Blueprint $table) {
+            $table->id('id_seguimiento'); // PK
+            $table->unsignedBigInteger('id_orden_servicio'); // FK to orden_servicio
+            $table->string('imagen')->nullable(); // Imagen del seguimiento
+            $table->string('observaciones')->nullable(); // Descripción del seguimiento   
+            $table->string('comentarios')->nullable(); // Descripción del seguimiento 
+            $table->timestamps();
+
+            // Foreign key constraints
+            $table->foreign('id_orden_servicio')
+                ->references('id_orden_servicio')
+                ->on('orden_servicio')
+                ->onDelete('cascade');
+        });
+    }
+
+    /**
+     * Reverse the migrations.
+     */
+    public function down(): void
+    {
+        Schema::dropIfExists('seguimiento_servicio');
+    }
+};
