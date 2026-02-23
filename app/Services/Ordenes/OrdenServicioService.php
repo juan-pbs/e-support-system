@@ -1342,7 +1342,41 @@ class OrdenServicioService
      * ✅ Actualiza stock_total del producto SIN eliminar inventario.
      * Para serial-controlados: stock_total = totalSeriales - asignados (SerieReserva.estado=asignado)
      */
-    public function refreshProductStockTotals(int $codigoProducto): void
+    /**
+     * Pool de seriales reales para un producto.
+     * - inventario.numero_serie (tu caso principal)
+     * - fallback: tabla numeros_serie (si se usa)
+     */
+    protected function serialPoolForProduct(int $codigoProducto): array
+    {
+        $fromInv = Inventario::where('codigo_producto', $codigoProducto)
+            ->whereNotNull('numero_serie')
+            ->where('numero_serie', '!=', '')
+            ->orderBy('id')
+            ->pluck('numero_serie')
+            ->toArray();
+
+        $invIds = Inventario::where('codigo_producto', $codigoProducto)
+            ->orderBy('id')
+            ->pluck('id');
+
+        $fromTable = [];
+        if ($invIds->isNotEmpty()) {
+            $fromTable = NumeroSerie::whereIn('inventario_id', $invIds)
+                ->orderBy('inventario_id')
+                ->orderBy('id')
+                ->pluck('numero_serie')
+                ->toArray();
+        }
+
+        $all = array_merge($fromInv, $fromTable);
+        $all = array_map(fn($s) => trim((string) $s), $all);
+        $all = array_values(array_unique(array_filter($all, fn($s) => $s !== '')));
+
+        return $all;
+    }
+
+    function refreshProductStockTotals(int $codigoProducto): void
     {
         $entradas = Inventario::where('codigo_producto', $codigoProducto)->get([
             'id',
@@ -1363,31 +1397,7 @@ class OrdenServicioService
             return;
         }
 
-        // total seriales (inventario.numero_serie o numeros_serie)
-        $serialFromInv = $entradas->filter(function ($e) {
-            $ns = $e->numero_serie ?? null;
-            return $ns !== null && trim((string)$ns) !== '';
-        })->count();
-
-        $serialFromTable = 0;
-        if ($serialFromInv <= 0) {
-            $invIds = $entradas->pluck('id');
-            $serialFromTable = $invIds->isNotEmpty()
-                ? (int) NumeroSerie::whereIn('inventario_id', $invIds)->count()
-                : 0;
-        }
-
-        $totalSeriales = $serialFromInv > 0 ? $serialFromInv : $serialFromTable;
-
-        // asignados (permanentes)
-        $asignados = 0;
-        try {
-            $asignados = (int) SerieReserva::where('codigo_producto', $codigoProducto)->where('estado', 'asignado')->count();
-        } catch (\Throwable $e) {
-            $asignados = 0;
-        }
-
-        // no-serial
+        // ===== NO SERIAL =====
         $paquetes = 0;
         $sueltas  = 0;
         $total    = 0;
@@ -1415,9 +1425,24 @@ class OrdenServicioService
             $total += $slt;
         }
 
-        // Si el producto es serial-controlado, el total disponible = totalSeriales - asignados
+        // ===== SERIAL (FIX: solo restar seriales asignados que existan en el pool real) =====
         if ($this->productHasSerial($codigoProducto)) {
-            $available = max((int) $totalSeriales - (int) $asignados, 0);
+            $pool = $this->serialPoolForProduct($codigoProducto);
+
+            $asignados = [];
+            try {
+                $asignados = SerieReserva::where('codigo_producto', $codigoProducto)
+                    ->where('estado', 'asignado')
+                    ->pluck('numero_serie')
+                    ->toArray();
+            } catch (\Throwable $e) {
+                $asignados = [];
+            }
+
+            $asgSet = array_flip(array_map('strval', (array) $asignados));
+            $disponibles = array_values(array_filter($pool, fn($ns) => !isset($asgSet[(string)$ns])));
+
+            $available = count($disponibles);
             $total    = $available;
             $paquetes = 0;
             $sueltas  = $available;
@@ -1463,22 +1488,6 @@ class OrdenServicioService
 
         if ($entradas->isEmpty()) return 0;
 
-        // ===== SERIAL (dos formatos) =====
-        $serialFromInv = $entradas->filter(function ($e) {
-            $ns = $e->numero_serie ?? null;
-            return $ns !== null && trim((string)$ns) !== '';
-        })->count();
-
-        $serialFromTable = 0;
-        if ($serialFromInv <= 0) {
-            $invIds = $entradas->pluck('id');
-            $serialFromTable = $invIds->isNotEmpty()
-                ? (int) NumeroSerie::whereIn('inventario_id', $invIds)->count()
-                : 0;
-        }
-
-        $stockSerialTotal = $serialFromInv > 0 ? $serialFromInv : $serialFromTable;
-
         // ===== NO SERIAL =====
         $stockNoSerial = 0;
         foreach ($entradas as $e) {
@@ -1506,11 +1515,17 @@ class OrdenServicioService
             $stockNoSerial += $piezas;
         }
 
+        // ===== SERIAL (FIX: por intersección, no por "count") =====
         if ($this->productHasSerial($codigo)) {
-            $ocupados = $this->serialesNoDisponibles($codigo, $token);
-            $ocupados = array_values(array_unique(array_filter($ocupados, fn($s) => (string)$s !== '')));
-            $disponible = max((int) $stockSerialTotal - (int) count($ocupados), 0);
-            return $disponible;
+            $pool = $this->serialPoolForProduct($codigo);
+            if (empty($pool)) return 0;
+
+            $bloqueados = $this->serialesNoDisponibles($codigo, $token);
+            $bloqSet = array_flip(array_map('strval', (array) $bloqueados));
+
+            $disponibles = array_values(array_filter($pool, fn($ns) => !isset($bloqSet[(string)$ns])));
+
+            return count($disponibles);
         }
 
         return max((int) $stockNoSerial, 0);

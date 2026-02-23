@@ -278,7 +278,10 @@ class OrdenServicioController extends Controller
         } catch (\Throwable $e) {
             // ✅ Robustez: si algo falla, liberar reservas del token (no asignadas) para no “atorar” N/S.
             if ($token) {
-                try { $this->svc->releaseSeries($token); } catch (\Throwable $t) {}
+                try {
+                    $this->svc->releaseSeries($token);
+                } catch (\Throwable $t) {
+                }
             }
             throw $e;
         }
@@ -468,7 +471,10 @@ class OrdenServicioController extends Controller
             });
         } catch (\Throwable $e) {
             if ($token) {
-                try { $this->svc->releaseSeries($token); } catch (\Throwable $t) {}
+                try {
+                    $this->svc->releaseSeries($token);
+                } catch (\Throwable $t) {
+                }
             }
             throw $e;
         }
@@ -517,7 +523,7 @@ class OrdenServicioController extends Controller
         $this->svc->failIfShortage($check);
 
         try {
-            DB::transaction(function () use ($orden, $data, $request) {
+            DB::transaction(function () use ($orden, $data, $request, $token) {
 
                 $this->svc->fillOrden($orden, $data);
                 $this->svc->handleUploads($orden, $request);
@@ -531,8 +537,21 @@ class OrdenServicioController extends Controller
                     $orden->tecnicos()->sync([]);
                 }
 
-                $productos = $data['productos'] ?? [];
+                $productosIn   = $data['productos'] ?? [];
+                $productosFinal = $this->svc->prepareLineItemsWithSerials($productosIn, $token);
 
+                // ✅ Limpiar reservas anteriores del mismo token (evita "asignar" N/S sobrantes)
+                if ($token) {
+                    try {
+                        $this->svc->releaseSeries($token);
+                    } catch (\Throwable $t) {
+                    }
+                }
+
+                // ✅ Liberar asignados anteriores de ESTA orden (si la edición cambia N/S)
+                $this->svc->deleteAssignedSeriesBySource('orden_servicio', (int) $orden->getKey());
+
+                // Borrar detalles anteriores
                 $detIds = DetalleOrdenProducto::where('id_orden_servicio', $orden->getKey())
                     ->pluck('id_orden_producto');
 
@@ -542,9 +561,42 @@ class OrdenServicioController extends Controller
 
                 DetalleOrdenProducto::where('id_orden_servicio', $orden->getKey())->delete();
 
-                if (!empty($productos)) {
-                    // update NO consume inventario
-                    $this->svc->insertDetallesOrden($orden, $productos, $orden->moneda ?? 'MXN');
+                // Insertar nuevos detalles (NO eliminamos inventario)
+                if (!empty($productosFinal)) {
+
+                    // ✅ Reservar explícitamente los N/S seleccionados (robusto)
+                    if ($token) {
+                        foreach ($productosFinal as $it) {
+                            $codigo   = (int) ($it['codigo_producto'] ?? 0);
+                            $seriales = array_values(array_filter((array) ($it['ns_asignados'] ?? [])));
+
+                            if ($codigo > 0 && !empty($seriales)) {
+                                $res = $this->svc->reserveSeries($codigo, $seriales, (string) $token, auth()->id() ?? null);
+                                $taken = array_values(array_filter((array) ($res['taken'] ?? [])));
+                                if (!empty($taken)) {
+                                    throw new HttpResponseException(response()->json([
+                                        'message' => 'Algunos números de serie ya no están disponibles.',
+                                        'errors'  => ['productos' => ['N/S ocupados: ' . implode(', ', $taken)]],
+                                    ], 422));
+                                }
+                            }
+                        }
+                    }
+
+                    $this->svc->insertDetallesOrden($orden, $productosFinal, $orden->moneda ?? 'MXN');
+
+                    // ✅ Finalizar reservas (marcar como "asignado" para auditoría / stock)
+                    if ($token) {
+                        $this->svc->finalizeSeries($token, 'orden_servicio', (int) $orden->getKey());
+                    }
+
+                    // ✅ Refrescar stock_total del producto (seriales: pool - asignados)
+                    foreach ($productosFinal as $it) {
+                        $codigo = (int) ($it['codigo_producto'] ?? 0);
+                        if ($codigo > 0) {
+                            $this->svc->refreshProductStockTotals($codigo);
+                        }
+                    }
                 }
 
                 $adicional = 0.0;
@@ -556,14 +608,14 @@ class OrdenServicioController extends Controller
 
                 $this->svc->recalcularYGuardarImpuestos(
                     $orden,
-                    $productos,
+                    $productosFinal,
                     $orden->precio,
                     $orden->costo_operativo,
                     $adicional
                 );
 
                 $totales = $this->svc->calculateTotals(
-                    $productos,
+                    $productosFinal,
                     $orden->precio,
                     $orden->costo_operativo,
                     $adicional
@@ -574,7 +626,10 @@ class OrdenServicioController extends Controller
             });
         } catch (\Throwable $e) {
             if ($token) {
-                try { $this->svc->releaseSeries($token); } catch (\Throwable $t) {}
+                try {
+                    $this->svc->releaseSeries($token);
+                } catch (\Throwable $t) {
+                }
             }
             throw $e;
         }

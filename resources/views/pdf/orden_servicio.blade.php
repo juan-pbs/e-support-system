@@ -233,6 +233,7 @@
         return trim((string)($limpio ?? ''));
     };
 
+
     // Extraer N/S desde texto (fallback legacy: cuando vienen embebidos como "NS: 123, 456")
     $extraerNS = function (?string $texto) {
         if (!$texto) return [];
@@ -410,8 +411,6 @@
 
                 $nombreMostrar = $producto->nombre_producto ?? ($producto->descripcion ?? 'Producto');
                 $descMostrar   = $descripcionSinNS($producto->descripcion ?? null);
-
-                // seriales: soporta ns_asignados (array/string), relation series, or fallback parse "NS:"
                 $serialsMostrar = [];
                 if (isset($producto->ns_asignados)) {
                     if (is_array($producto->ns_asignados)) {
@@ -420,20 +419,13 @@
                         $serialsMostrar = array_map('trim', explode(',', $producto->ns_asignados));
                     }
                 }
-                // relation possibilities
-                foreach (['series', 'seriesAsignadas', 'detalleSeries', 'serials'] as $rel) {
-                    if (empty($serialsMostrar) && isset($producto->$rel) && $producto->$rel instanceof \Illuminate\Support\Collection) {
-                        $serialsMostrar = $producto->$rel->map(function($x){
-                            return $x->numero_serie ?? $x->serie ?? $x->serial ?? null;
-                        })->filter()->values()->all();
-                    }
-                }
                 if (empty($serialsMostrar)) {
                     $serialsMostrar = $extraerNS($producto->descripcion ?? '');
                 }
                 $serialsMostrar = array_values(array_filter(array_map('trim', (array)$serialsMostrar), function ($s) {
                     return $s !== '';
                 }));
+
             @endphp
             <tr>
                 <td class="wrap">

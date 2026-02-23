@@ -980,6 +980,7 @@ const clientesCatalog = {
 
 {{-- Lógica de catálogo: filtros, stock y modal de cantidad --}}
 <script>
+(function(){
   // (misma lógica que create) — se mantiene completa para no depender de includes.
   const quantityModal   = document.getElementById('quantityModal');
   const qmBody          = document.getElementById('qmBody');
@@ -1402,10 +1403,20 @@ const clientesCatalog = {
       navigator.sendBeacon(LIBERAR_SERIES_URL, blob);
     } catch(err) {}
   });
+
+  // Export a window para onclick=... (y para evitar 'openQuantityModal is not defined')
+  window.openQuantityModal = openQuantityModal;
+  window.closeQuantityModal = closeQuantityModal;
+  window.addSelectedProduct = addSelectedProduct;
+  // Export para otros scripts (evita 'getFormComponent is not defined')
+  window.getFormComponent = getFormComponent;
+  window.getSerialToken = getSerialToken;
+})();
 </script>
 
 {{-- Lógica principal del formulario (Alpine) --}}
 <script>
+(function(){
   const OLD_TIPO_PAGO = @json(old('tipo_pago', $orden->tipo_pago ?? 'efectivo'));
 
   // ✅ OLD Anticipo
@@ -1959,5 +1970,11 @@ const clientesCatalog = {
       if (comp && typeof comp.saveOrden === 'function') comp.saveOrden(true);
     });
   });
+
+  // Export a window para Alpine (x-data) y botones onclick
+  window.formOrdenServicio = formOrdenServicio;
+  window.closePdfModal = closePdfModal;
+  window.closeStockShortageModal = closeStockShortageModal;
+})();
 </script>
 @endsection
