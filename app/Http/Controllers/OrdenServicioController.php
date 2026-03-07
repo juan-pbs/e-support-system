@@ -278,10 +278,7 @@ class OrdenServicioController extends Controller
         } catch (\Throwable $e) {
             // ✅ Robustez: si algo falla, liberar reservas del token (no asignadas) para no “atorar” N/S.
             if ($token) {
-                try {
-                    $this->svc->releaseSeries($token);
-                } catch (\Throwable $t) {
-                }
+                try { $this->svc->releaseSeries($token); } catch (\Throwable $t) {}
             }
             throw $e;
         }
@@ -471,10 +468,7 @@ class OrdenServicioController extends Controller
             });
         } catch (\Throwable $e) {
             if ($token) {
-                try {
-                    $this->svc->releaseSeries($token);
-                } catch (\Throwable $t) {
-                }
+                try { $this->svc->releaseSeries($token); } catch (\Throwable $t) {}
             }
             throw $e;
         }
@@ -542,10 +536,7 @@ class OrdenServicioController extends Controller
 
                 // ✅ Limpiar reservas anteriores del mismo token (evita "asignar" N/S sobrantes)
                 if ($token) {
-                    try {
-                        $this->svc->releaseSeries($token);
-                    } catch (\Throwable $t) {
-                    }
+                    try { $this->svc->releaseSeries($token); } catch (\Throwable $t) {}
                 }
 
                 // ✅ Liberar asignados anteriores de ESTA orden (si la edición cambia N/S)
@@ -626,10 +617,7 @@ class OrdenServicioController extends Controller
             });
         } catch (\Throwable $e) {
             if ($token) {
-                try {
-                    $this->svc->releaseSeries($token);
-                } catch (\Throwable $t) {
-                }
+                try { $this->svc->releaseSeries($token); } catch (\Throwable $t) {}
             }
             throw $e;
         }
