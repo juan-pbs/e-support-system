@@ -17,10 +17,7 @@
                class="w-full sm:w-auto text-center bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
                 Nueva entrada
             </a>
-            <a href="{{ route('cargaRapidaProd.index') }}"
-               class="w-full sm:w-auto text-center bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg">
-                Carga rápida
-            </a>
+
         </div>
     </div>
 
