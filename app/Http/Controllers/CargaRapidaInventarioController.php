@@ -11,6 +11,12 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class CargaRapidaInventarioController extends Controller
 {
@@ -27,6 +33,163 @@ class CargaRapidaInventarioController extends Controller
         ]);
     }
 
+    public function plantilla(): StreamedResponse
+    {
+        $spreadsheet = new Spreadsheet();
+
+        // =========================
+        // Hoja 1: Plantilla
+        // =========================
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Plantilla');
+
+        $headers = [
+            'numero_parte',
+            'codigo_producto',
+            'proveedor',
+            'rfc',
+            'costo',
+            'precio',
+            'tipo_control',
+            'cantidad',
+            'piezas_por_paquete',
+            'numeros_serie',
+            'fecha_entrada',
+            'fecha_caducidad',
+        ];
+
+        foreach ($headers as $index => $header) {
+            $sheet->setCellValueByColumnAndRow($index + 1, 1, $header);
+        }
+
+        $sheet->freezePane('A2');
+        $this->styleTemplateHeader(
+            $sheet,
+            'A1:L1',
+            ['A', 'G'],
+            ['B', 'C', 'D', 'E', 'F', 'H', 'I', 'J', 'K', 'L']
+        );
+        $this->autoSizeColumns($sheet, 'A', 'L');
+
+        // =========================
+        // Hoja 2: Instrucciones
+        // =========================
+        $guide = $spreadsheet->createSheet();
+        $guide->setTitle('Instrucciones');
+
+        $guide->setCellValue('A1', 'Plantilla de carga rápida de inventario');
+        $guide->mergeCells('A1:F1');
+        $guide->setCellValue('A3', 'Campo');
+        $guide->setCellValue('B3', 'Obligatorio');
+        $guide->setCellValue('C3', 'Puede ir en blanco');
+        $guide->setCellValue('D3', 'Descripción');
+        $guide->setCellValue('E3', 'Aplica cuando');
+        $guide->setCellValue('F3', 'Ejemplo');
+
+        $rows = [
+            ['numero_parte', 'Sí*', 'No', 'Número de parte del producto existente.', 'Usa este campo o codigo_producto', 'SWT-24G-TP'],
+            ['codigo_producto', 'Sí*', 'Sí', 'ID del producto existente.', 'Usa este campo o numero_parte', '15'],
+            ['proveedor', 'No', 'Sí', 'Nombre del proveedor.', 'Siempre', 'Cisco'],
+            ['rfc', 'No', 'Sí', 'RFC del proveedor.', 'Siempre', 'XAXX010101000'],
+            ['costo', 'No', 'Sí', 'Costo unitario.', 'Siempre', '1250.50'],
+            ['precio', 'No', 'Sí', 'Precio de venta unitario.', 'Siempre', '1699.00'],
+            ['tipo_control', 'Sí', 'No', 'PIEZAS, PAQUETES o SERIE.', 'Siempre', 'PIEZAS'],
+            ['cantidad', 'Sí**', 'Depende', 'Cantidad de entrada.', 'PIEZAS o PAQUETES', '12'],
+            ['piezas_por_paquete', 'Sí***', 'Depende', 'Piezas que contiene cada paquete.', 'PAQUETES', '20'],
+            ['numeros_serie', 'Sí****', 'Depende', 'Series separadas por coma o salto de línea.', 'SERIE', 'SN001,SN002,SN003'],
+            ['fecha_entrada', 'No', 'Sí', 'Fecha de entrada.', 'Siempre', '2026-03-08'],
+            ['fecha_caducidad', 'No', 'Sí', 'Fecha de caducidad si aplica.', 'Opcional', '2027-03-08'],
+        ];
+
+        $row = 4;
+        foreach ($rows as $r) {
+            $guide->fromArray($r, null, 'A' . $row);
+            $row++;
+        }
+
+        $guide->setCellValue('A18', '*');
+        $guide->setCellValue('B18', 'Debes capturar numero_parte o codigo_producto.');
+        $guide->setCellValue('A19', '**');
+        $guide->setCellValue('B19', 'En SERIE, la cantidad se toma del número de series.');
+        $guide->setCellValue('A20', '***');
+        $guide->setCellValue('B20', 'Solo aplica cuando tipo_control = PAQUETES.');
+        $guide->setCellValue('A21', '****');
+        $guide->setCellValue('B21', 'Solo aplica cuando tipo_control = SERIE.');
+
+        $this->styleGuideSheet($guide, 'A3:F3', 'A4:F15');
+        $guide->getStyle('A1')->getFont()->setBold(true)->setSize(14);
+        $guide->getStyle('A18:B21')->getFont()->setBold(true);
+        $guide->setAutoFilter('A3:F15');
+        $this->autoSizeColumns($guide, 'A', 'F');
+
+        // =========================
+        // Hoja 3: Ejemplos
+        // =========================
+        $examples = $spreadsheet->createSheet();
+        $examples->setTitle('Ejemplos');
+
+        foreach ($headers as $index => $header) {
+            $examples->setCellValueByColumnAndRow($index + 1, 1, $header);
+        }
+
+        // Ejemplo completo
+        $examples->fromArray([
+            'SWT-24G-TP',
+            '',
+            'Cisco',
+            'XAXX010101000',
+            1250.50,
+            1699.00,
+            'PAQUETES',
+            5,
+            20,
+            '',
+            '2026-03-08',
+            '',
+        ], null, 'A2');
+
+        // Ejemplo mínimo
+        $examples->fromArray([
+            'MOUSE-USB-BASICO',
+            '',
+            '',
+            '',
+            '',
+            '',
+            'PIEZAS',
+            10,
+            '',
+            '',
+            '',
+            '',
+        ], null, 'A3');
+
+        $examples->setCellValue('N1', 'Fila 2');
+        $examples->setCellValue('O1', 'Ejemplo completo');
+        $examples->setCellValue('N2', 'Fila 3');
+        $examples->setCellValue('O2', 'Ejemplo mínimo');
+
+        $this->styleTemplateHeader(
+            $examples,
+            'A1:L1',
+            ['A', 'G'],
+            ['B', 'C', 'D', 'E', 'F', 'H', 'I', 'J', 'K', 'L']
+        );
+        $examples->getStyle('N1:O2')->getFont()->setBold(true);
+        $examples->getStyle('N1:O2')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFF8FAFC');
+        $examples->getStyle('N1:O2')->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        $this->autoSizeColumns($examples, 'A', 'O');
+
+        $spreadsheet->setActiveSheetIndex(0);
+
+        return response()->streamDownload(function () use ($spreadsheet) {
+            $writer = new Xlsx($spreadsheet);
+            $writer->save('php://output');
+        }, 'plantilla_carga_rapida_inventario.xlsx', [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ]);
+    }
+
     public function preview(Request $request)
     {
         $request->validate([
@@ -38,25 +201,25 @@ class CargaRapidaInventarioController extends Controller
             $this->aliases()
         );
 
-        $items       = [];
-        $seenSeries  = [];
+        $items      = [];
+        $seenSeries = [];
 
         foreach ($parsed['rows'] as $row) {
-            $codigoProducto   = $this->parseInt($row['codigo_producto'] ?? null);
-            $numeroParte      = $this->sanitizeText($row['numero_parte'] ?? '');
-            $nombreProducto   = $this->sanitizeText($row['producto'] ?? '');
-            $producto         = $this->findProduct($codigoProducto, $numeroParte, $nombreProducto);
+            $codigoProducto  = $this->parseInt($row['codigo_producto'] ?? null);
+            $numeroParte     = $this->sanitizeText($row['numero_parte'] ?? '');
+            $nombreProducto  = $this->sanitizeText($row['producto'] ?? '');
+            $producto        = $this->findProduct($codigoProducto, $numeroParte, $nombreProducto);
 
-            $proveedorNombre  = $this->sanitizeText($row['proveedor'] ?? '');
-            $proveedorRfc     = $this->normalizeRfc($row['rfc'] ?? '');
-            $costo            = $this->parseMoney($row['costo'] ?? 0);
-            $precio           = $this->parseMoney($row['precio'] ?? $costo);
-            $tipoControl      = $this->normalizeTipoControl($row['tipo_control'] ?? '');
-            $cantidad         = $this->parseInt($row['cantidad'] ?? 0);
-            $piezasPaquete    = $this->parseInt($row['piezas_por_paquete'] ?? 0);
-            $fechaEntrada     = $this->normalizeDate($row['fecha_entrada'] ?? '') ?: now()->toDateString();
-            $fechaCaducidad   = $this->normalizeDate($row['fecha_caducidad'] ?? '');
-            $series           = $this->parseSeries($row['numeros_serie'] ?? '');
+            $proveedorNombre = $this->sanitizeText($row['proveedor'] ?? '');
+            $proveedorRfc    = $this->normalizeRfc($row['rfc'] ?? '');
+            $costo           = $this->parseMoney($row['costo'] ?? 0);
+            $precio          = $this->parseMoney($row['precio'] ?? $costo);
+            $tipoControl     = $this->normalizeTipoControl($row['tipo_control'] ?? '');
+            $cantidad        = $this->parseInt($row['cantidad'] ?? 0);
+            $piezasPaquete   = $this->parseInt($row['piezas_por_paquete'] ?? 0);
+            $fechaEntrada    = $this->normalizeDate($row['fecha_entrada'] ?? '') ?: now()->toDateString();
+            $fechaCaducidad  = $this->normalizeDate($row['fecha_caducidad'] ?? '');
+            $series          = $this->parseSeries($row['numeros_serie'] ?? '');
 
             $estado = 'ACEPTAR';
             $motivo = null;
@@ -173,22 +336,22 @@ class CargaRapidaInventarioController extends Controller
 
             try {
                 DB::transaction(function () use ($item) {
-                    $producto = Producto::findOrFail($item['producto_id']);
+                    $producto  = Producto::findOrFail($item['producto_id']);
                     $proveedor = $this->resolveProveedor(
                         (string) ($item['proveedor'] ?? ''),
                         (string) ($item['rfc'] ?? '')
                     );
 
-                    $base = [
-                        'codigo_producto'   => $producto->codigo_producto,
-                        'clave_proveedor'   => $proveedor?->clave_proveedor,
-                        'costo'             => (float) ($item['costo'] ?? 0),
-                        'precio'            => (float) ($item['precio'] ?? 0),
-                        'tipo_control'      => $item['tipo_control'],
-                        'fecha_entrada'     => $item['fecha_entrada'] ?: now()->toDateString(),
-                        'hora_entrada'      => now()->format('H:i:s'),
-                        'fecha_caducidad'   => $item['fecha_caducidad'] ?: null,
-                    ];
+                    $base = $this->filterInventarioColumns([
+                        'codigo_producto' => $producto->codigo_producto,
+                        'clave_proveedor' => $proveedor?->clave_proveedor,
+                        'costo'           => (float) ($item['costo'] ?? 0),
+                        'precio'          => (float) ($item['precio'] ?? 0),
+                        'tipo_control'    => $item['tipo_control'],
+                        'fecha_entrada'   => $item['fecha_entrada'] ?: now()->toDateString(),
+                        'hora_entrada'    => now()->format('H:i:s'),
+                        'fecha_caducidad' => $item['fecha_caducidad'] ?: null,
+                    ]);
 
                     if ($item['tipo_control'] === 'SERIE') {
                         $series = $this->parseSeriesFromPayload($item['numeros_serie'] ?? []);
@@ -201,30 +364,36 @@ class CargaRapidaInventarioController extends Controller
                         }
 
                         foreach ($series as $serie) {
-                            Inventario::create(array_merge($base, [
-                                'cantidad_ingresada'   => 1,
-                                'piezas_por_paquete'   => null,
-                                'paquetes_restantes'   => 0,
-                                'piezas_sueltas'       => 1,
-                                'numero_serie'         => $serie,
+                            $payload = $this->filterInventarioColumns(array_merge($base, [
+                                'cantidad_ingresada' => 1,
+                                'piezas_por_paquete' => null,
+                                'paquetes_restantes' => 0,
+                                'piezas_sueltas'     => 1,
+                                'numero_serie'       => $serie,
                             ]));
+
+                            Inventario::create($payload);
                         }
                     } elseif ($item['tipo_control'] === 'PAQUETES') {
-                        Inventario::create(array_merge($base, [
-                            'cantidad_ingresada'   => (int) $item['cantidad'],
-                            'piezas_por_paquete'   => (int) $item['piezas_por_paquete'],
-                            'paquetes_restantes'   => (int) $item['cantidad'],
-                            'piezas_sueltas'       => 0,
-                            'numero_serie'         => null,
+                        $payload = $this->filterInventarioColumns(array_merge($base, [
+                            'cantidad_ingresada' => (int) $item['cantidad'],
+                            'piezas_por_paquete' => (int) $item['piezas_por_paquete'],
+                            'paquetes_restantes' => (int) $item['cantidad'],
+                            'piezas_sueltas'     => 0,
+                            'numero_serie'       => null,
                         ]));
+
+                        Inventario::create($payload);
                     } else {
-                        Inventario::create(array_merge($base, [
-                            'cantidad_ingresada'   => (int) $item['cantidad'],
-                            'piezas_por_paquete'   => null,
-                            'paquetes_restantes'   => 0,
-                            'piezas_sueltas'       => (int) $item['cantidad'],
-                            'numero_serie'         => null,
+                        $payload = $this->filterInventarioColumns(array_merge($base, [
+                            'cantidad_ingresada' => (int) $item['cantidad'],
+                            'piezas_por_paquete' => null,
+                            'paquetes_restantes' => 0,
+                            'piezas_sueltas'     => (int) $item['cantidad'],
+                            'numero_serie'       => null,
                         ]));
+
+                        Inventario::create($payload);
                     }
 
                     $this->recalcularStockProducto((int) $producto->codigo_producto);
@@ -243,9 +412,6 @@ class CargaRapidaInventarioController extends Controller
             ->with('import_errors', $errors);
     }
 
-    /**
-     * @return array<string, array<int, string>>
-     */
     private function aliases(): array
     {
         return [
@@ -325,10 +491,6 @@ class CargaRapidaInventarioController extends Controller
         ];
     }
 
-    /**
-     * @param array<int, array<string, mixed>> $items
-     * @return array<string, int>
-     */
     private function buildStats(array $items): array
     {
         $stats = [
@@ -387,7 +549,6 @@ class CargaRapidaInventarioController extends Controller
                     $prov->nombre = $nombre;
                     $prov->save();
                 }
-
                 return $prov;
             }
         }
@@ -399,7 +560,6 @@ class CargaRapidaInventarioController extends Controller
                     $prov->rfc = $rfc;
                     $prov->save();
                 }
-
                 return $prov;
             }
         }
@@ -415,10 +575,6 @@ class CargaRapidaInventarioController extends Controller
         ]);
     }
 
-    /**
-     * @param array<int, string> $series
-     * @return array<int, string>
-     */
     private function seriesDuplicadasEnBd(array $series): array
     {
         if (empty($series)) {
@@ -466,6 +622,17 @@ class CargaRapidaInventarioController extends Controller
         $producto->save();
     }
 
+    private function filterInventarioColumns(array $payload): array
+    {
+        $filtered = [];
+        foreach ($payload as $column => $value) {
+            if (Schema::hasColumn('inventario', $column)) {
+                $filtered[$column] = $value;
+            }
+        }
+        return $filtered;
+    }
+
     private function sanitizeText(mixed $value): string
     {
         return trim((string) $value);
@@ -510,7 +677,6 @@ class CargaRapidaInventarioController extends Controller
         }
 
         $n = preg_replace('/[^\d\-]/', '', (string) $value) ?? '0';
-
         return max(0, (int) $n);
     }
 
@@ -533,9 +699,6 @@ class CargaRapidaInventarioController extends Controller
         return mb_strtoupper($v, 'UTF-8');
     }
 
-    /**
-     * @return array<int, string>
-     */
     private function parseSeries(mixed $value): array
     {
         $value = trim((string) $value);
@@ -551,10 +714,6 @@ class CargaRapidaInventarioController extends Controller
         }, $parts))));
     }
 
-    /**
-     * @param mixed $value
-     * @return array<int, string>
-     */
     private function parseSeriesFromPayload(mixed $value): array
     {
         if (is_array($value)) {
@@ -584,6 +743,39 @@ class CargaRapidaInventarioController extends Controller
             return Carbon::parse((string) $value)->format('Y-m-d');
         } catch (\Throwable) {
             return null;
+        }
+    }
+
+    private function styleTemplateHeader($sheet, string $range, array $requiredCols, array $optionalCols): void
+    {
+        $sheet->getStyle($range)->getFont()->setBold(true)->getColor()->setARGB('FFFFFFFF');
+        $sheet->getStyle($range)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $sheet->getStyle($range)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+
+        foreach ($requiredCols as $col) {
+            $sheet->getStyle($col . '1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFDC2626');
+        }
+
+        foreach ($optionalCols as $col) {
+            $sheet->getStyle($col . '1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FF2563EB');
+        }
+    }
+
+    private function styleGuideSheet($sheet, string $headerRange, string $bodyRange): void
+    {
+        $sheet->getStyle($headerRange)->getFont()->setBold(true)->getColor()->setARGB('FFFFFFFF');
+        $sheet->getStyle($headerRange)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FF0F172A');
+        $sheet->getStyle($headerRange)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $sheet->getStyle($headerRange)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+
+        $sheet->getStyle($bodyRange)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        $sheet->getStyle($bodyRange)->getAlignment()->setVertical(Alignment::VERTICAL_CENTER);
+    }
+
+    private function autoSizeColumns($sheet, string $from, string $to): void
+    {
+        foreach (range($from, $to) as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
         }
     }
 }

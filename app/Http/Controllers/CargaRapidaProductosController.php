@@ -10,7 +10,7 @@ class CargaRapidaProductosController extends Controller
     {
         return redirect()
             ->route('inventario.carga_rapida.index')
-            ->with('success', 'La carga híbrida fue reemplazada por la nueva interfaz de carga rápida de inventario.');
+            ->with('success', 'La carga híbrida anterior fue reemplazada por la nueva carga rápida de inventario.');
     }
 
     public function procesar(Request $request)

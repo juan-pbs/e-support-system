@@ -7,6 +7,12 @@ use App\Services\Importacion\ArchivoImportService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class CargaRapidaCatalogoController extends Controller
 {
@@ -20,6 +26,132 @@ class CargaRapidaCatalogoController extends Controller
             'preview' => false,
             'items'   => [],
             'stats'   => null,
+        ]);
+    }
+
+    public function plantilla(): StreamedResponse
+    {
+        $spreadsheet = new Spreadsheet();
+
+        // =========================
+        // Hoja 1: Plantilla
+        // =========================
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Plantilla');
+
+        $headers = [
+            'nombre',
+            'numero_parte',
+            'categoria',
+            'clave_prodserv',
+            'unidad',
+            'stock_seguridad',
+            'descripcion',
+            'require_serie',
+            'activo',
+        ];
+
+        foreach ($headers as $index => $header) {
+            $sheet->setCellValueByColumnAndRow($index + 1, 1, $header);
+        }
+
+        $sheet->freezePane('A2');
+        $this->styleTemplateHeader($sheet, 'A1:I1', ['A'], ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I']);
+        $this->autoSizeColumns($sheet, 'A', 'I');
+
+        // =========================
+        // Hoja 2: Instrucciones
+        // =========================
+        $guide = $spreadsheet->createSheet();
+        $guide->setTitle('Instrucciones');
+
+        $guide->setCellValue('A1', 'Plantilla de carga rápida de catálogo');
+        $guide->mergeCells('A1:E1');
+        $guide->setCellValue('A3', 'Campo');
+        $guide->setCellValue('B3', 'Obligatorio');
+        $guide->setCellValue('C3', 'Puede ir en blanco');
+        $guide->setCellValue('D3', 'Descripción');
+        $guide->setCellValue('E3', 'Ejemplo');
+
+        $rows = [
+            ['nombre', 'Sí', 'No', 'Nombre del producto.', 'Cable UTP Cat6 305m'],
+            ['numero_parte', 'No', 'Sí', 'Si no lo capturas, el sistema puede generarlo automáticamente.', 'CBL-UTP-CAT6-305'],
+            ['categoria', 'No', 'Sí', 'Categoría del producto.', 'Redes'],
+            ['clave_prodserv', 'No', 'Sí', 'Clave SAT o equivalente si la manejas.', '26121609'],
+            ['unidad', 'No', 'Sí', 'Unidad del producto. Si lo dejas vacío, se usa PZA.', 'PZA'],
+            ['stock_seguridad', 'No', 'Sí', 'Stock mínimo recomendado.', '10'],
+            ['descripcion', 'No', 'Sí', 'Descripción larga del producto.', 'Bobina de cable UTP categoría 6'],
+            ['require_serie', 'No', 'Sí', '1/si/true si requiere control por serie.', '0'],
+            ['activo', 'No', 'Sí', '1/si/true para activo. Si se deja vacío, se toma como activo.', '1'],
+        ];
+
+        $row = 4;
+        foreach ($rows as $r) {
+            $guide->fromArray($r, null, 'A' . $row);
+            $row++;
+        }
+
+        $guide->setCellValue('A15', 'Nota');
+        $guide->setCellValue('B15', 'La hoja "Plantilla" es la que debes llenar. Las hojas "Instrucciones" y "Ejemplos" son solo referencia.');
+
+        $this->styleGuideSheet($guide, 'A3:E3', 'A4:E14');
+        $guide->getStyle('A1')->getFont()->setBold(true)->setSize(14);
+        $guide->getStyle('A15:B15')->getFont()->setBold(true);
+        $guide->setAutoFilter('A3:E14');
+        $this->autoSizeColumns($guide, 'A', 'E');
+
+        // =========================
+        // Hoja 3: Ejemplos
+        // =========================
+        $examples = $spreadsheet->createSheet();
+        $examples->setTitle('Ejemplos');
+
+        foreach ($headers as $index => $header) {
+            $examples->setCellValueByColumnAndRow($index + 1, 1, $header);
+        }
+
+        $examples->fromArray([
+            'Switch 24 puertos Gigabit',
+            'SWT-24G-TP',
+            'Redes',
+            '43222612',
+            'PZA',
+            3,
+            'Switch administrable de 24 puertos',
+            0,
+            1,
+        ], null, 'A2');
+
+        $examples->fromArray([
+            'Mouse alámbrico USB',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+            '',
+        ], null, 'A3');
+
+        $examples->setCellValue('K1', 'Fila 2');
+        $examples->setCellValue('L1', 'Ejemplo completo');
+        $examples->setCellValue('K2', 'Fila 3');
+        $examples->setCellValue('L2', 'Ejemplo mínimo');
+
+        $this->styleTemplateHeader($examples, 'A1:I1', ['A'], ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I']);
+        $examples->getStyle('K1:L2')->getFont()->setBold(true);
+        $examples->getStyle('K1:L2')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFF8FAFC');
+        $examples->getStyle('K1:L2')->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        $this->autoSizeColumns($examples, 'A', 'L');
+
+        $spreadsheet->setActiveSheetIndex(0);
+
+        return response()->streamDownload(function () use ($spreadsheet) {
+            $writer = new Xlsx($spreadsheet);
+            $writer->save('php://output');
+        }, 'plantilla_carga_rapida_catalogo.xlsx', [
+            'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
         ]);
     }
 
@@ -162,7 +294,6 @@ class CargaRapidaCatalogoController extends Controller
                         $producto->stock_piezas_sueltas = (int) ($producto->stock_piezas_sueltas ?? 0);
 
                         $producto->save();
-
                         return;
                     }
 
@@ -174,18 +305,18 @@ class CargaRapidaCatalogoController extends Controller
                     $numeroParte = $this->uniqueNumeroParte($numeroParte);
 
                     Producto::create([
-                        'nombre'                => $item['nombre'],
-                        'numero_parte'          => $numeroParte,
-                        'categoria'             => $item['categoria'] ?: null,
-                        'clave_prodserv'        => $item['clave_prodserv'] ?: null,
-                        'unidad'                => $item['unidad'] ?: 'PZA',
-                        'stock_seguridad'       => (int) ($item['stock_seguridad'] ?? 0),
-                        'descripcion'           => $item['descripcion'] ?: null,
-                        'activo'                => (bool) ($item['activo'] ?? true),
-                        'require_serie'         => (bool) ($item['require_serie'] ?? false),
-                        'stock_total'           => 0,
-                        'stock_paquetes'        => 0,
-                        'stock_piezas_sueltas'  => 0,
+                        'nombre'               => $item['nombre'],
+                        'numero_parte'         => $numeroParte,
+                        'categoria'            => $item['categoria'] ?: null,
+                        'clave_prodserv'       => $item['clave_prodserv'] ?: null,
+                        'unidad'               => $item['unidad'] ?: 'PZA',
+                        'stock_seguridad'      => (int) ($item['stock_seguridad'] ?? 0),
+                        'descripcion'          => $item['descripcion'] ?: null,
+                        'activo'               => (bool) ($item['activo'] ?? true),
+                        'require_serie'        => (bool) ($item['require_serie'] ?? false),
+                        'stock_total'          => 0,
+                        'stock_paquetes'       => 0,
+                        'stock_piezas_sueltas' => 0,
                     ]);
                 });
 
@@ -202,9 +333,6 @@ class CargaRapidaCatalogoController extends Controller
             ->with('import_errors', $errors);
     }
 
-    /**
-     * @return array<string, array<int, string>>
-     */
     private function aliases(): array
     {
         return [
@@ -274,10 +402,6 @@ class CargaRapidaCatalogoController extends Controller
         ];
     }
 
-    /**
-     * @param array<int, array<string, mixed>> $items
-     * @return array<string, int>
-     */
     private function buildStats(array $items): array
     {
         $stats = [
@@ -332,7 +456,6 @@ class CargaRapidaCatalogoController extends Controller
     private function normalizeUnidad(mixed $value): string
     {
         $v = trim((string) $value);
-
         return $v !== '' ? mb_strtoupper($v, 'UTF-8') : 'PZA';
     }
 
@@ -343,13 +466,16 @@ class CargaRapidaCatalogoController extends Controller
         }
 
         $n = preg_replace('/[^\d\-]/', '', (string) $value) ?? '0';
-
         return max(0, (int) $n);
     }
 
     private function parseBool(mixed $value): bool
     {
         $v = mb_strtolower(trim((string) $value), 'UTF-8');
+
+        if ($v === '') {
+            return false;
+        }
 
         return in_array($v, ['1', 'true', 'si', 'sí', 'yes', 'activo', 'activa', 'on'], true);
     }
@@ -358,9 +484,7 @@ class CargaRapidaCatalogoController extends Controller
     {
         $v = trim((string) $value);
         $v = preg_replace('/\s+/', '', $v) ?? '';
-        $v = mb_strtoupper($v, 'UTF-8');
-
-        return $v;
+        return mb_strtoupper($v, 'UTF-8');
     }
 
     private function generateNumeroParte(string $nombre, int $row): string
@@ -410,5 +534,38 @@ class CargaRapidaCatalogoController extends Controller
         }
 
         return $candidate;
+    }
+
+    private function styleTemplateHeader($sheet, string $range, array $requiredCols, array $optionalCols): void
+    {
+        $sheet->getStyle($range)->getFont()->setBold(true)->getColor()->setARGB('FFFFFFFF');
+        $sheet->getStyle($range)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $sheet->getStyle($range)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+
+        foreach ($requiredCols as $col) {
+            $sheet->getStyle($col . '1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFDC2626');
+        }
+
+        foreach ($optionalCols as $col) {
+            $sheet->getStyle($col . '1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FF2563EB');
+        }
+    }
+
+    private function styleGuideSheet($sheet, string $headerRange, string $bodyRange): void
+    {
+        $sheet->getStyle($headerRange)->getFont()->setBold(true)->getColor()->setARGB('FFFFFFFF');
+        $sheet->getStyle($headerRange)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FF0F172A');
+        $sheet->getStyle($headerRange)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $sheet->getStyle($headerRange)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+
+        $sheet->getStyle($bodyRange)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        $sheet->getStyle($bodyRange)->getAlignment()->setVertical(Alignment::VERTICAL_CENTER);
+    }
+
+    private function autoSizeColumns($sheet, string $from, string $to): void
+    {
+        foreach (range($from, $to) as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
     }
 }

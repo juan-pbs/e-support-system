@@ -302,12 +302,11 @@ Route::middleware(['auth', 'gerente'])->group(function () {
         Route::post('/salidas', [SalidaInventarioController::class, 'store'])->name('inventario.salidas.store');
         Route::get('/salidas/series', [SalidaInventarioController::class, 'seriesPorProducto'])->name('inventario.salidas.series');
 
-        // Nueva carga rápida exclusiva de inventario
         Route::get('/carga-rapida', [CargaRapidaInventarioController::class, 'index'])->name('inventario.carga_rapida.index');
+        Route::get('/carga-rapida/plantilla', [CargaRapidaInventarioController::class, 'plantilla'])->name('inventario.carga_rapida.plantilla');
         Route::post('/carga-rapida/preview', [CargaRapidaInventarioController::class, 'preview'])->name('inventario.carga_rapida.preview');
         Route::post('/carga-rapida/confirmar', [CargaRapidaInventarioController::class, 'confirm'])->name('inventario.carga_rapida.confirmar');
 
-        // Compatibilidad con la carga híbrida anterior
         Route::get('/carga-rapida-productos', [CargaRapidaProductosController::class, 'index'])->name('cargaRapidaProd.index');
         Route::post('/carga-rapida-productos', [CargaRapidaProductosController::class, 'procesar'])->name('cargaRapidaProd.procesar');
     });
@@ -319,12 +318,11 @@ Route::middleware(['auth', 'gerente'])->group(function () {
         Route::get('/crear', [CatalogoProductoController::class, 'crear'])->name('producto.crear');
         Route::post('/guardar', [CatalogoProductoController::class, 'guardar'])->name('producto.guardar');
 
-        // Nueva carga rápida exclusiva de catálogo
         Route::get('/carga-rapida', [CargaRapidaCatalogoController::class, 'index'])->name('catalogo.carga_rapida.index');
+        Route::get('/carga-rapida/plantilla', [CargaRapidaCatalogoController::class, 'plantilla'])->name('catalogo.carga_rapida.plantilla');
         Route::post('/carga-rapida/preview', [CargaRapidaCatalogoController::class, 'preview'])->name('catalogo.carga_rapida.preview');
         Route::post('/carga-rapida/confirmar', [CargaRapidaCatalogoController::class, 'confirm'])->name('catalogo.carga_rapida.confirmar');
 
-        // Alias para no romper formularios viejos que hacían POST a /catalogo/importar
         Route::post('/importar', [CargaRapidaCatalogoController::class, 'preview'])->name('catalogo.importar');
 
         Route::get('/exportar', [CatalogoProductoController::class, 'exportar'])->name('catalogo.exportar');
