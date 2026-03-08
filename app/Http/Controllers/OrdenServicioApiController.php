@@ -194,8 +194,13 @@ class OrdenServicioApiController extends Controller
             $stock = (int) $this->svc->calculateAvailableForProduct($codigo, $token ? (string)$token : null);
             $hasSerial = (bool) $this->svc->productHasSerial($codigo);
         } catch (\Throwable $e) {
+            \Log::error('apiProductoStock error', ['codigo' => $codigo, 'token' => $token, 'error' => $e->getMessage()]);
             $stock = 0;
-            $hasSerial = false;
+            try {
+                $hasSerial = (bool) $this->svc->productHasSerial($codigo);
+            } catch (\Throwable $t) {
+                $hasSerial = false;
+            }
         }
 
         return response()->json([

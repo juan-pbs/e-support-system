@@ -389,14 +389,6 @@
   const deleteForm  = document.getElementById('deleteForm');
   const delFolioEl  = document.getElementById('delFolio');
 
-  function closePdf(){
-    pdfModal.classList.add('hidden');
-    pdfFrame.src = '';
-  }
-  function closeDelete(){
-    deleteModal.classList.add('hidden');
-  }
-
   document.addEventListener('click', (e)=>{
     const btn = e.target.closest('[data-action="open-pdf"]');
     if (!btn) return;
@@ -416,7 +408,8 @@
   document.addEventListener('click', (e)=>{
     const btn = e.target.closest('[data-action="close-pdf"]');
     if (!btn) return;
-    closePdf();
+    pdfModal.classList.add('hidden');
+    pdfFrame.src = '';
   });
 
   document.addEventListener('click', (e)=>{
@@ -435,7 +428,7 @@
   document.addEventListener('click', (e)=>{
     const btn = e.target.closest('[data-action="close-delete"]');
     if (!btn) return;
-    closeDelete();
+    deleteModal.classList.add('hidden');
   });
 
   [pdfModal, deleteModal].forEach(modal=>{
@@ -445,14 +438,6 @@
         if (modal === pdfModal) pdfFrame.src = '';
       }
     });
-  });
-
-  // Escape key support
-  document.addEventListener('keydown', (e)=>{
-    if (e.key === 'Escape') {
-      if (!pdfModal.classList.contains('hidden')) closePdf();
-      if (!deleteModal.classList.contains('hidden')) closeDelete();
-    }
   });
 
   // Auto-hide alerts

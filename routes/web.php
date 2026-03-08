@@ -31,6 +31,8 @@ use App\Http\Controllers\SeguimientoServiciosController;
 use App\Http\Controllers\OrdenMaterialExtraController;
 use App\Http\Controllers\CargaRapidaProductosController;
 use App\Http\Controllers\ActaConformidadController;
+use App\Http\Controllers\CargaRapidaCatalogoController;
+use App\Http\Controllers\CargaRapidaInventarioController;
 
 // ✅ nuevos
 use App\Http\Controllers\OrdenServicioPdfController;
@@ -280,50 +282,59 @@ Route::middleware(['auth', 'gerente'])->group(function () {
     Route::get('/empleados/autocomplete', [EmpleadoController::class, 'autocomplete'])->name('empleados.autocomplete');
 
     /* ======================= INVENTARIO ======================= */
-
     Route::prefix('inventario')->group(function () {
-
         Route::get('/', [InventarioController::class, 'index'])->name('inventario');
 
-        Route::get('/entrada',                 [InventarioController::class, 'entrada'])->name('entrada');
-        Route::get('/entrada/autocomplete',    [InventarioController::class, 'autocomplete'])->name('entrada.autocomplete');
+        Route::get('/entrada', [InventarioController::class, 'entrada'])->name('entrada');
+        Route::get('/entrada/autocomplete', [InventarioController::class, 'autocomplete'])->name('entrada.autocomplete');
         Route::get('/entrada/ultima-entrada/{codigo}', [InventarioController::class, 'ultimaEntrada'])->name('entrada.ultima_entrada');
-
         Route::get('/entrada/{codigo_producto}', [InventarioController::class, 'entradaPorProducto'])
             ->whereNumber('codigo_producto')
             ->name('inventario.entrada');
-
         Route::post('/entrada', [InventarioController::class, 'registrarEntrada'])->name('entrada.store');
 
-        Route::get('/ver/{id}',        [InventarioController::class, 'show'])->name('inventario.ver');
-        Route::get('/editar/{id}',     [InventarioController::class, 'editar'])->name('inventario.editar');
+        Route::get('/ver/{id}', [InventarioController::class, 'show'])->name('inventario.ver');
+        Route::get('/editar/{id}', [InventarioController::class, 'editar'])->name('inventario.editar');
         Route::put('/{id}/actualizar', [InventarioController::class, 'actualizar'])->name('inventario.actualizar');
         Route::delete('/{id}/eliminar', [InventarioController::class, 'eliminar'])->name('inventario.eliminar');
 
-        Route::get('/salidas',        [SalidaInventarioController::class, 'index'])->name('inventario.salidas');
-        Route::post('/salidas',       [SalidaInventarioController::class, 'store'])->name('inventario.salidas.store');
+        Route::get('/salidas', [SalidaInventarioController::class, 'index'])->name('inventario.salidas');
+        Route::post('/salidas', [SalidaInventarioController::class, 'store'])->name('inventario.salidas.store');
         Route::get('/salidas/series', [SalidaInventarioController::class, 'seriesPorProducto'])->name('inventario.salidas.series');
 
-        Route::get('/carga-rapida-productos',  [CargaRapidaProductosController::class, 'index'])->name('cargaRapidaProd.index');
+        Route::get('/carga-rapida', [CargaRapidaInventarioController::class, 'index'])->name('inventario.carga_rapida.index');
+        Route::get('/carga-rapida/plantilla', [CargaRapidaInventarioController::class, 'plantilla'])->name('inventario.carga_rapida.plantilla');
+        Route::post('/carga-rapida/preview', [CargaRapidaInventarioController::class, 'preview'])->name('inventario.carga_rapida.preview');
+        Route::post('/carga-rapida/confirmar', [CargaRapidaInventarioController::class, 'confirm'])->name('inventario.carga_rapida.confirmar');
+
+        Route::get('/carga-rapida-productos', [CargaRapidaProductosController::class, 'index'])->name('cargaRapidaProd.index');
         Route::post('/carga-rapida-productos', [CargaRapidaProductosController::class, 'procesar'])->name('cargaRapidaProd.procesar');
     });
 
     /* ======================= CATÁLOGO ======================== */
-
     Route::prefix('catalogo')->group(function () {
-        Route::get('/',                    [CatalogoProductoController::class, 'index'])->name('catalogo.index');
-        Route::get('/crear',               [CatalogoProductoController::class, 'crear'])->name('producto.crear');
-        Route::post('/guardar',            [CatalogoProductoController::class, 'guardar'])->name('producto.guardar');
-        Route::post('/importar',           [CatalogoProductoController::class, 'importar'])->name('catalogo.importar');
-        Route::get('/exportar',            [CatalogoProductoController::class, 'exportar'])->name('catalogo.exportar');
-        Route::get('/inactivos',           [CatalogoProductoController::class, 'inactivos'])->name('catalogo.inactivos');
-        Route::get('/plantilla',           [CatalogoProductoController::class, 'plantilla'])->name('catalogo.plantilla');
-        Route::get('/autocomplete',        [CatalogoProductoController::class, 'autocomplete'])->name('catalogo.autocomplete');
-        Route::put('/producto/activar/{id}',     [CatalogoProductoController::class, 'activar'])->name('producto.activar');
+        Route::get('/', [CatalogoProductoController::class, 'index'])->name('catalogo.index');
+
+        Route::get('/crear', [CatalogoProductoController::class, 'crear'])->name('producto.crear');
+        Route::post('/guardar', [CatalogoProductoController::class, 'guardar'])->name('producto.guardar');
+
+        Route::get('/carga-rapida', [CargaRapidaCatalogoController::class, 'index'])->name('catalogo.carga_rapida.index');
+        Route::get('/carga-rapida/plantilla', [CargaRapidaCatalogoController::class, 'plantilla'])->name('catalogo.carga_rapida.plantilla');
+        Route::post('/carga-rapida/preview', [CargaRapidaCatalogoController::class, 'preview'])->name('catalogo.carga_rapida.preview');
+        Route::post('/carga-rapida/confirmar', [CargaRapidaCatalogoController::class, 'confirm'])->name('catalogo.carga_rapida.confirmar');
+
+        Route::post('/importar', [CargaRapidaCatalogoController::class, 'preview'])->name('catalogo.importar');
+
+        Route::get('/exportar', [CatalogoProductoController::class, 'exportar'])->name('catalogo.exportar');
+        Route::get('/plantilla', [CatalogoProductoController::class, 'plantilla'])->name('catalogo.plantilla');
+        Route::get('/inactivos', [CatalogoProductoController::class, 'inactivos'])->name('catalogo.inactivos');
+
+        Route::put('/producto/activar/{id}', [CatalogoProductoController::class, 'activar'])->name('producto.activar');
         Route::delete('/producto/eliminar/{id}', [CatalogoProductoController::class, 'eliminar'])->name('producto.eliminar');
-        Route::put('/producto/desactivar/{id}',  [CatalogoProductoController::class, 'desactivar'])->name('producto.desactivar');
-        Route::get('/producto/editar/{id}',      [CatalogoProductoController::class, 'editar'])->name('producto.editar');
-        Route::put('/producto/actualizar/{id}',  [CatalogoProductoController::class, 'actualizar'])->name('producto.actualizar');
+        Route::put('/producto/desactivar/{id}', [CatalogoProductoController::class, 'desactivar'])->name('producto.desactivar');
+        Route::get('/producto/editar/{id}', [CatalogoProductoController::class, 'editar'])->name('producto.editar');
+        Route::put('/producto/actualizar/{id}', [CatalogoProductoController::class, 'actualizar'])->name('producto.actualizar');
+        Route::get('/autocomplete', [CatalogoProductoController::class, 'autocomplete'])->name('catalogo.autocomplete');
     });
 
     /* ======================= PROVEEDORES ===================== */

@@ -88,6 +88,7 @@
            class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2">
             <i class="fas fa-sign-in-alt"></i> Nueva entrada
         </a>
+
     </div>
 
     {{-- Grid --}}
