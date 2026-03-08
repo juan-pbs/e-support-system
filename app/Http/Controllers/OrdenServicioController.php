@@ -1,24 +1,21 @@
 <?php
 
-declare(strict_types=1);
-
 namespace App\Http\Controllers;
 
+use App\Models\Cliente;
+use App\Models\Cotizacion;
+use App\Models\CreditoCliente;
+use App\Models\DetalleOrdenProducto;
+use App\Models\DetalleOrdenProductoSerie;
+use App\Models\OrdenServicio;
+use App\Models\User;
+use App\Services\Ordenes\OrdenServicioService;
+use Carbon\Carbon;
+use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
-use Carbon\Carbon;
-use Illuminate\Http\Exceptions\HttpResponseException;
-
-use App\Models\User;
-use App\Models\Cliente;
-use App\Models\Cotizacion;
-use App\Models\OrdenServicio;
-use App\Models\DetalleOrdenProducto;
-use App\Models\DetalleOrdenProductoSerie;
-use App\Models\CreditoCliente;
-
-use App\Services\Ordenes\OrdenServicioService;
+use Illuminate\Support\Str;
 
 class OrdenServicioController extends Controller
 {
@@ -52,15 +49,17 @@ class OrdenServicioController extends Controller
                         ->orWhere('estado', 'like', $like)
                         ->orWhereHas('cliente', function ($c) use ($like) {
                             $c->where('nombre', 'like', $like)
-                                ->orWhere('nombre_empresa', 'like', $like);
+                              ->orWhere('nombre_empresa', 'like', $like);
                         });
 
                     if (Schema::hasColumn('orden_servicio', 'servicio')) {
                         $sub->orWhere('servicio', 'like', $like);
                     }
+
                     if (Schema::hasColumn('orden_servicio', 'descripcion')) {
                         $sub->orWhere('descripcion', 'like', $like);
                     }
+
                     if (Schema::hasColumn('orden_servicio', 'descripcion_servicio')) {
                         $sub->orWhere('descripcion_servicio', 'like', $like);
                     }
@@ -72,55 +71,53 @@ class OrdenServicioController extends Controller
         return view('vistas-gerente.orden-servicio.index', compact('ordenes'));
     }
 
+    /* ==================== Crear ==================== */
+
     public function create()
     {
         $data  = $this->svc->commonFormData();
         $firma = $this->svc->getFirma();
 
         $data['firmaFromCotizacion'] = false;
+        $data['serialToken']         = $this->makeSerialToken('ord-create');
 
-        return view('vistas-gerente.orden-servicio.create', $data + ['firma' => $firma]);
+        return view('vistas-gerente.orden-servicio.create', $data + [
+            'firma' => $firma,
+        ]);
     }
 
-    /**
-     * ✅ Vista de edición
-     * - Replica la vista de create
-     * - Precarga TODOS los datos de la orden (incluyendo N/S en cada línea)
-     */
     public function edit($id)
     {
         $orden = OrdenServicio::with(['cliente', 'tecnico', 'tecnicos'])->findOrFail($id);
 
         if ($orden->acta_estado === 'firmada') {
-            return redirect()->route('ordenes.index')
+            return redirect()
+                ->route('ordenes.index')
                 ->with('error', 'La orden está cerrada por acta firmada y no puede modificarse.');
         }
 
         $data  = $this->svc->commonFormData();
         $firma = $this->svc->getFirma();
 
-        // ===== Detalles + seriales (para que se vean en la tabla) =====
-        $detalles = DetalleOrdenProducto::where('id_orden_servicio', $orden->getKey())->get();
+        $detalles   = DetalleOrdenProducto::where('id_orden_servicio', $orden->getKey())->get();
+        $seriesMap  = [];
+        $detalleIds = $detalles->pluck('id_orden_producto')->filter();
 
-        $seriesMap = [];
-        $detIds = $detalles->pluck('id_orden_producto')->filter();
-        if ($detIds->isNotEmpty()) {
-            $rows = DetalleOrdenProductoSerie::whereIn('id_orden_producto', $detIds)
+        if ($detalleIds->isNotEmpty()) {
+            $rows = DetalleOrdenProductoSerie::whereIn('id_orden_producto', $detalleIds)
                 ->get(['id_orden_producto', 'numero_serie']);
 
             $rows->groupBy('id_orden_producto')->each(function ($col, $k) use (&$seriesMap) {
-                $seriesMap[(int)$k] = $col->pluck('numero_serie')->filter()->values()->toArray();
+                $seriesMap[(int) $k] = $col->pluck('numero_serie')->filter()->values()->toArray();
             });
         }
 
         $productosPrefill = $detalles->map(function ($d) use ($seriesMap) {
-            $serials = $seriesMap[(int)$d->id_orden_producto] ?? [];
-
-            $codigo = $d->codigo_producto ? (int)$d->codigo_producto : null;
+            $serials   = $seriesMap[(int) $d->id_orden_producto] ?? [];
+            $codigo    = $d->codigo_producto ? (int) $d->codigo_producto : null;
             $hasSerial = !empty($serials);
+            $stock     = null;
 
-            // stock disponible para mostrar (no bloquea por N/S asignados; solo informativo)
-            $stock = null;
             if ($codigo) {
                 try {
                     $stock = $this->svc->calculateAvailableForProduct($codigo);
@@ -129,26 +126,27 @@ class OrdenServicioController extends Controller
                 }
             }
 
-            $qty = $hasSerial ? count($serials) : (float)($d->cantidad ?? 0);
+            $qty = $hasSerial ? count($serials) : (float) ($d->cantidad ?? 0);
 
             return [
-                'codigo_producto'   => $codigo ?: null,
-                'nombre_producto'   => $d->nombre_producto ?? null,
-                'descripcion'       => (string)($d->descripcion ?? ''),
-                'cantidad'          => $qty,
-                'precio'            => (float)($d->precio_unitario ?? 0),
-                'ns_asignados'      => $serials,
-                'stock_disponible'  => $stock,
-                'stock'             => $stock,
-                'disponible'        => $stock,
-                'stock_max'         => $stock,
-                'faltante'          => 0,
-                'sin_stock'         => false,
-                'has_serial'        => $hasSerial,
+                'codigo_producto'  => $codigo ?: null,
+                'nombre_producto'  => $d->nombre_producto ?? null,
+                'descripcion'      => (string) ($d->descripcion ?? ''),
+                'cantidad'         => $qty,
+                'precio'           => (float) ($d->precio_unitario ?? 0),
+                'ns_asignados'     => $serials,
+                'stock_disponible' => $stock,
+                'stock'            => $stock,
+                'disponible'       => $stock,
+                'stock_max'        => $stock,
+                'faltante'         => 0,
+                'sin_stock'        => false,
+                'has_serial'       => $hasSerial,
             ];
         })->values()->toArray();
 
         $data['firmaFromCotizacion'] = false;
+        $data['serialToken']         = $this->makeSerialToken('ord-edit-' . $orden->getKey());
 
         return view('vistas-gerente.orden-servicio.edit', $data + [
             'firma'            => $firma,
@@ -157,56 +155,44 @@ class OrdenServicioController extends Controller
         ]);
     }
 
-    /* ==================== Guardar (manual) ==================== */
+    /* ==================== Guardar manual ==================== */
 
     public function store(Request $request)
     {
         $data  = $this->svc->validateOrden($request, false);
-        $token = !empty($data['serial_token']) ? (string)$data['serial_token'] : null;
+        $token = $this->resolveToken($data);
 
-        // ✅ Stock check (considera reservas por token)
         $check = $this->svc->preflightStockCheck($data['productos'] ?? [], $token);
         $this->svc->failIfShortage($check);
 
-        $ordenId = null;
+        $ordenId      = null;
+        $payloadCodes = $this->collectCodigosFromPayload($data['productos'] ?? []);
 
         try {
             DB::transaction(function () use ($data, $request, $token, &$ordenId) {
                 $orden = new OrdenServicio();
-                $this->svc->fillOrden($orden, $data);
 
+                $this->svc->fillOrden($orden, $data);
                 $orden->id_cotizacion  = null;
                 $orden->autorizado_por = auth()->id();
 
                 $this->svc->handleUploads($orden, $request);
                 $orden->save();
 
-                if (!empty($data['tecnicos_ids'])) {
-                    $orden->tecnicos()->sync($data['tecnicos_ids']);
-                } elseif (!empty($data['id_tecnico'])) {
-                    $orden->tecnicos()->sync([$data['id_tecnico']]);
-                } else {
-                    $orden->tecnicos()->sync([]);
-                }
+                $this->syncTecnicosCompat($orden, $data);
 
-                $productos           = $data['productos'] ?? [];
+                $productos = $data['productos'] ?? [];
                 $productosConsumidos = $this->svc->consumeAndPrepareLineItems($productos, $token);
 
                 if (!empty($productosConsumidos)) {
                     $this->svc->insertDetallesOrden($orden, $productosConsumidos, $orden->moneda ?? 'MXN');
                 }
 
-                // ✅ Finalizar reservas de N/S (marcar como asignado para auditoría)
                 if ($token) {
                     $this->svc->finalizeSeries($token, 'orden_servicio', (int) $orden->getKey());
                 }
 
-                $adicional = 0.0;
-                try {
-                    $adicional = (float) $orden->total_adicional;
-                } catch (\Throwable $e) {
-                    $adicional = 0.0;
-                }
+                $adicional = (float) ($orden->total_adicional ?? 0);
 
                 $this->svc->recalcularYGuardarImpuestos(
                     $orden,
@@ -226,62 +212,23 @@ class OrdenServicioController extends Controller
                 $anticipoInfo = $this->svc->applyAnticipoToOrden($orden, $data, $totales);
                 $orden->save();
 
-                if ((string) $orden->tipo_pago === 'credito_cliente') {
+                $this->applyCreditoIfNeeded($orden, $anticipoInfo);
 
-                    $importeParaCreditoMXN = (float) ($anticipoInfo['saldo_mxn'] ?? 0);
-                    if ($importeParaCreditoMXN <= 0) {
-                        $ordenId = $orden->getKey();
-                        return;
-                    }
-
-                    if (strtoupper((string) $orden->moneda) === 'USD' && (float) $orden->tasa_cambio <= 0) {
-                        throw new HttpResponseException(response()->json([
-                            'message' => 'Tipo de cambio inválido para usar crédito en USD.',
-                            'errors'  => ['tasa_cambio' => ['Tipo de cambio inválido.']],
-                        ], 422));
-                    }
-
-                    $credito = CreditoCliente::where('clave_cliente', $orden->id_cliente)
-                        ->lockForUpdate()
-                        ->first();
-
-                    if (!$credito) {
-                        throw new HttpResponseException(response()->json([
-                            'message' => 'El cliente no tiene línea de crédito asignada.',
-                            'errors'  => ['tipo_pago' => ['Cliente sin línea de crédito.']],
-                        ], 422));
-                    }
-
-                    $venc = $this->svc->checkCreditoVencido($credito);
-                    if ($venc['expired'] === true) {
-                        throw new HttpResponseException(response()->json([
-                            'message' => 'El crédito del cliente está vencido. No es posible usarlo para esta orden.',
-                            'errors'  => ['tipo_pago' => ['Crédito vencido.']],
-                        ], 422));
-                    }
-
-                    $disponible = max((float) $credito->monto_maximo - (float) $credito->monto_usado, 0);
-
-                    if ($importeParaCreditoMXN > $disponible) {
-                        throw new HttpResponseException(response()->json([
-                            'message' => 'Crédito insuficiente para cubrir el saldo pendiente de la orden.',
-                            'errors'  => ['tipo_pago' => ['Crédito insuficiente.']],
-                        ], 422));
-                    }
-
-                    $credito->monto_usado = round((float) $credito->monto_usado + $importeParaCreditoMXN, 2);
-                    $credito->save();
-                }
-
-                $ordenId = $orden->getKey();
+                $ordenId = (int) $orden->getKey();
             });
         } catch (\Throwable $e) {
-            // ✅ Robustez: si algo falla, liberar reservas del token (no asignadas) para no “atorar” N/S.
             if ($token) {
-                try { $this->svc->releaseSeries($token); } catch (\Throwable $t) {}
+                try {
+                    $this->svc->releaseSeries($token);
+                } catch (\Throwable $t) {
+                    // noop
+                }
             }
+
             throw $e;
         }
+
+        $this->refreshCodigos($payloadCodes);
 
         if (!$ordenId) {
             throw new HttpResponseException(response()->json([
@@ -289,7 +236,7 @@ class OrdenServicioController extends Controller
             ], 500));
         }
 
-        $this->svc->generarYGuardarPdfOrden((int) $ordenId);
+        $this->svc->generarYGuardarPdfOrden($ordenId);
 
         if ($request->ajax() || $request->wantsJson()) {
             return response()->json([
@@ -302,7 +249,9 @@ class OrdenServicioController extends Controller
             ]);
         }
 
-        return redirect()->route('ordenes.index')->with('success', 'Orden de servicio creada correctamente.');
+        return redirect()
+            ->route('ordenes.index')
+            ->with('success', 'Orden de servicio creada correctamente.');
     }
 
     /* ==================== Guardar desde cotización ==================== */
@@ -310,10 +259,9 @@ class OrdenServicioController extends Controller
     public function guardarDesdeCotizacion(Request $request)
     {
         $data  = $this->svc->validateOrden($request, true);
-        $token = !empty($data['serial_token']) ? (string)$data['serial_token'] : null;
+        $token = $this->resolveToken($data);
 
-        $cotizacion = Cotizacion::with(['productos', 'servicio'])
-            ->findOrFail($data['cotizacion_id']);
+        $cotizacion = Cotizacion::with(['productos', 'servicio'])->findOrFail($data['cotizacion_id']);
 
         $productosBase = $data['productos'] ?? [];
 
@@ -332,11 +280,11 @@ class OrdenServicioController extends Controller
         $check = $this->svc->preflightStockCheck($productosBase, $token);
         $this->svc->failIfShortage($check);
 
-        $ordenId = null;
+        $ordenId      = null;
+        $payloadCodes = $this->collectCodigosFromPayload($productosBase);
 
         try {
             DB::transaction(function () use ($data, $request, $token, &$ordenId, $cotizacion, $productosBase) {
-
                 if (!empty($cotizacion->orden_servicio_id)) {
                     throw new HttpResponseException(response()->json([
                         'message' => 'Esta cotización ya tiene una orden de servicio vinculada.',
@@ -344,8 +292,8 @@ class OrdenServicioController extends Controller
                 }
 
                 $orden = new OrdenServicio();
-                $this->svc->fillOrden($orden, $data);
 
+                $this->svc->fillOrden($orden, $data);
                 $orden->precio               = $orden->precio ?? (optional($cotizacion->servicio)->precio ?? 0);
                 $orden->costo_operativo      = $orden->costo_operativo ?? ($cotizacion->costo_operativo ?? 0);
                 $orden->descripcion_servicio = $orden->descripcion_servicio ?? (optional($cotizacion->servicio)->descripcion);
@@ -360,13 +308,7 @@ class OrdenServicioController extends Controller
                 $this->svc->handleUploads($orden, $request);
                 $orden->save();
 
-                if (!empty($data['tecnicos_ids'])) {
-                    $orden->tecnicos()->sync($data['tecnicos_ids']);
-                } elseif (!empty($data['id_tecnico'])) {
-                    $orden->tecnicos()->sync([$data['id_tecnico']]);
-                } else {
-                    $orden->tecnicos()->sync([]);
-                }
+                $this->syncTecnicosCompat($orden, $data);
 
                 $productosConsumidos = $this->svc->consumeAndPrepareLineItems($productosBase, $token);
 
@@ -378,17 +320,11 @@ class OrdenServicioController extends Controller
                     );
                 }
 
-                // ✅ Finalizar reservas
                 if ($token) {
                     $this->svc->finalizeSeries($token, 'orden_servicio', (int) $orden->getKey());
                 }
 
-                $adicional = 0.0;
-                try {
-                    $adicional = (float) $orden->total_adicional;
-                } catch (\Throwable $e) {
-                    $adicional = 0.0;
-                }
+                $adicional = (float) ($orden->total_adicional ?? 0);
 
                 $this->svc->recalcularYGuardarImpuestos(
                     $orden,
@@ -408,51 +344,7 @@ class OrdenServicioController extends Controller
                 $anticipoInfo = $this->svc->applyAnticipoToOrden($orden, $data, $totales);
                 $orden->save();
 
-                if ((string) $orden->tipo_pago === 'credito_cliente') {
-
-                    $importeParaCreditoMXN = (float) ($anticipoInfo['saldo_mxn'] ?? 0);
-
-                    if ($importeParaCreditoMXN > 0) {
-
-                        if (strtoupper((string) $orden->moneda) === 'USD' && (float) $orden->tasa_cambio <= 0) {
-                            throw new HttpResponseException(response()->json([
-                                'message' => 'Tipo de cambio inválido para usar crédito en USD.',
-                                'errors'  => ['tasa_cambio' => ['Tipo de cambio inválido.']],
-                            ], 422));
-                        }
-
-                        $credito = CreditoCliente::where('clave_cliente', $orden->id_cliente)
-                            ->lockForUpdate()
-                            ->first();
-
-                        if (!$credito) {
-                            throw new HttpResponseException(response()->json([
-                                'message' => 'El cliente no tiene línea de crédito asignada.',
-                                'errors'  => ['tipo_pago' => ['Cliente sin línea de crédito.']],
-                            ], 422));
-                        }
-
-                        $venc = $this->svc->checkCreditoVencido($credito);
-                        if ($venc['expired'] === true) {
-                            throw new HttpResponseException(response()->json([
-                                'message' => 'El crédito del cliente está vencido. No es posible usarlo para esta orden.',
-                                'errors'  => ['tipo_pago' => ['Crédito vencido.']],
-                            ], 422));
-                        }
-
-                        $disponible = max((float) $credito->monto_maximo - (float) $credito->monto_usado, 0);
-
-                        if ($importeParaCreditoMXN > $disponible) {
-                            throw new HttpResponseException(response()->json([
-                                'message' => 'Crédito insuficiente para cubrir el saldo pendiente de la orden.',
-                                'errors'  => ['tipo_pago' => ['Crédito insuficiente.']],
-                            ], 422));
-                        }
-
-                        $credito->monto_usado = round((float) $credito->monto_usado + $importeParaCreditoMXN, 2);
-                        $credito->save();
-                    }
-                }
+                $this->applyCreditoIfNeeded($orden, $anticipoInfo);
 
                 $cotizacion->estado_cotizacion = $data['estado_cotizacion'] ?? 'procesada';
                 $cotizacion->process_count     = (int) ($cotizacion->process_count ?? 0) + 1;
@@ -464,14 +356,21 @@ class OrdenServicioController extends Controller
 
                 $cotizacion->save();
 
-                $ordenId = $orden->getKey();
+                $ordenId = (int) $orden->getKey();
             });
         } catch (\Throwable $e) {
             if ($token) {
-                try { $this->svc->releaseSeries($token); } catch (\Throwable $t) {}
+                try {
+                    $this->svc->releaseSeries($token);
+                } catch (\Throwable $t) {
+                    // noop
+                }
             }
+
             throw $e;
         }
+
+        $this->refreshCodigos($payloadCodes);
 
         if (!$ordenId) {
             throw new HttpResponseException(response()->json([
@@ -479,7 +378,7 @@ class OrdenServicioController extends Controller
             ], 500));
         }
 
-        $this->svc->generarYGuardarPdfOrden((int) $ordenId);
+        $this->svc->generarYGuardarPdfOrden($ordenId);
 
         if ($request->ajax() || $request->wantsJson()) {
             return response()->json([
@@ -492,7 +391,9 @@ class OrdenServicioController extends Controller
             ]);
         }
 
-        return redirect()->route('ordenes.index')->with('success', 'Orden de servicio creada desde cotización correctamente.');
+        return redirect()
+            ->route('ordenes.index')
+            ->with('success', 'Orden de servicio creada desde cotización correctamente.');
     }
 
     /* ==================== Otros CRUD ==================== */
@@ -504,130 +405,87 @@ class OrdenServicioController extends Controller
 
     public function update(Request $request, $id)
     {
-        $orden = OrdenServicio::findOrFail($id);
+        $orden = OrdenServicio::with(['cliente', 'tecnicos'])->findOrFail($id);
 
         if ($orden->acta_estado === 'firmada') {
             return back()->with('error', 'La orden está cerrada por acta firmada y no puede modificarse.');
         }
 
         $data  = $this->svc->validateOrden($request, !empty($orden->id_cotizacion));
-        $token = !empty($data['serial_token']) ? (string)$data['serial_token'] : null;
+        $token = $this->resolveToken($data);
 
-        $check = $this->svc->preflightStockCheck($data['productos'] ?? [], $token);
-        $this->svc->failIfShortage($check);
+        $snapshotFinanciero = $this->snapshotOrden($orden);
+        $oldCodes           = $this->collectCodigosFromOrder($orden);
+        $newCodes           = $this->collectCodigosFromPayload($data['productos'] ?? []);
 
         try {
-            DB::transaction(function () use ($orden, $data, $request, $token) {
-
+            DB::transaction(function () use ($orden, $request, $data, $token, $snapshotFinanciero) {
                 $this->svc->fillOrden($orden, $data);
                 $this->svc->handleUploads($orden, $request);
                 $orden->save();
 
-                if (!empty($data['tecnicos_ids'])) {
-                    $orden->tecnicos()->sync($data['tecnicos_ids']);
-                } elseif (!empty($data['id_tecnico'])) {
-                    $orden->tecnicos()->sync([$data['id_tecnico']]);
-                } else {
-                    $orden->tecnicos()->sync([]);
-                }
+                $this->syncTecnicosCompat($orden, $data);
 
-                $productosIn   = $data['productos'] ?? [];
-                $productosFinal = $this->svc->prepareLineItemsWithSerials($productosIn, $token);
-
-                // ✅ Limpiar reservas anteriores del mismo token (evita "asignar" N/S sobrantes)
-                if ($token) {
-                    try { $this->svc->releaseSeries($token); } catch (\Throwable $t) {}
-                }
-
-                // ✅ Liberar asignados anteriores de ESTA orden (si la edición cambia N/S)
                 $this->svc->deleteAssignedSeriesBySource('orden_servicio', (int) $orden->getKey());
 
-                // Borrar detalles anteriores
-                $detIds = DetalleOrdenProducto::where('id_orden_servicio', $orden->getKey())
-                    ->pluck('id_orden_producto');
+                $this->deleteDetalleRows($orden);
 
-                if ($detIds->isNotEmpty()) {
-                    DetalleOrdenProductoSerie::whereIn('id_orden_producto', $detIds)->delete();
+                $productos = $data['productos'] ?? [];
+                $check     = $this->svc->preflightStockCheck($productos, $token);
+                $this->svc->failIfShortage($check);
+
+                $productosConsumidos = $this->svc->consumeAndPrepareLineItems($productos, $token);
+
+                if (!empty($productosConsumidos)) {
+                    $this->svc->insertDetallesOrden($orden, $productosConsumidos, $orden->moneda ?? 'MXN');
                 }
 
-                DetalleOrdenProducto::where('id_orden_servicio', $orden->getKey())->delete();
-
-                // Insertar nuevos detalles (NO eliminamos inventario)
-                if (!empty($productosFinal)) {
-
-                    // ✅ Reservar explícitamente los N/S seleccionados (robusto)
-                    if ($token) {
-                        foreach ($productosFinal as $it) {
-                            $codigo   = (int) ($it['codigo_producto'] ?? 0);
-                            $seriales = array_values(array_filter((array) ($it['ns_asignados'] ?? [])));
-
-                            if ($codigo > 0 && !empty($seriales)) {
-                                $res = $this->svc->reserveSeries($codigo, $seriales, (string) $token, auth()->id() ?? null);
-                                $taken = array_values(array_filter((array) ($res['taken'] ?? [])));
-                                if (!empty($taken)) {
-                                    throw new HttpResponseException(response()->json([
-                                        'message' => 'Algunos números de serie ya no están disponibles.',
-                                        'errors'  => ['productos' => ['N/S ocupados: ' . implode(', ', $taken)]],
-                                    ], 422));
-                                }
-                            }
-                        }
-                    }
-
-                    $this->svc->insertDetallesOrden($orden, $productosFinal, $orden->moneda ?? 'MXN');
-
-                    // ✅ Finalizar reservas (marcar como "asignado" para auditoría / stock)
-                    if ($token) {
-                        $this->svc->finalizeSeries($token, 'orden_servicio', (int) $orden->getKey());
-                    }
-
-                    // ✅ Refrescar stock_total del producto (seriales: pool - asignados)
-                    foreach ($productosFinal as $it) {
-                        $codigo = (int) ($it['codigo_producto'] ?? 0);
-                        if ($codigo > 0) {
-                            $this->svc->refreshProductStockTotals($codigo);
-                        }
-                    }
+                if ($token) {
+                    $this->svc->finalizeSeries($token, 'orden_servicio', (int) $orden->getKey());
                 }
 
-                $adicional = 0.0;
-                try {
-                    $adicional = (float) $orden->total_adicional;
-                } catch (\Throwable $e) {
-                    $adicional = 0.0;
-                }
+                $adicional = (float) ($orden->total_adicional ?? 0);
 
                 $this->svc->recalcularYGuardarImpuestos(
                     $orden,
-                    $productosFinal,
+                    $productosConsumidos,
                     $orden->precio,
                     $orden->costo_operativo,
                     $adicional
                 );
 
                 $totales = $this->svc->calculateTotals(
-                    $productosFinal,
+                    $productosConsumidos,
                     $orden->precio,
                     $orden->costo_operativo,
                     $adicional
                 );
 
-                $this->svc->applyAnticipoToOrden($orden, $data, $totales);
+                $anticipoInfo = $this->svc->applyAnticipoToOrden($orden, $data, $totales);
                 $orden->save();
+
+                $this->releaseCreditoFromSnapshot($snapshotFinanciero);
+                $this->applyCreditoIfNeeded($orden, $anticipoInfo);
             });
         } catch (\Throwable $e) {
             if ($token) {
-                try { $this->svc->releaseSeries($token); } catch (\Throwable $t) {}
+                try {
+                    $this->svc->releaseSeries($token);
+                } catch (\Throwable $t) {
+                    // noop
+                }
             }
+
             throw $e;
         }
 
+        $this->refreshCodigos(array_merge($oldCodes, $newCodes));
         $this->svc->generarYGuardarPdfOrden((int) $orden->getKey());
 
         if ($request->ajax() || $request->wantsJson()) {
             return response()->json([
                 'ok'           => true,
-                'id'           => $orden->getKey(),
+                'id'           => (int) $orden->getKey(),
                 'pdf_url'      => route('ordenes.pdf', ['id' => $orden->getKey()]),
                 'download_url' => route('ordenes.pdf', ['id' => $orden->getKey(), 'download' => 1]),
                 'redirect'     => route('ordenes.index'),
@@ -635,7 +493,9 @@ class OrdenServicioController extends Controller
             ]);
         }
 
-        return redirect()->route('ordenes.index')->with('success', 'Orden de servicio actualizada correctamente.');
+        return redirect()
+            ->route('ordenes.index')
+            ->with('success', 'Orden de servicio actualizada correctamente.');
     }
 
     public function destroy($id)
@@ -646,18 +506,15 @@ class OrdenServicioController extends Controller
             return back()->with('error', 'La orden está cerrada por acta firmada y no puede eliminarse.');
         }
 
-        DB::transaction(function () use ($orden) {
-            $detIds = DetalleOrdenProducto::where('id_orden_servicio', $orden->getKey())
-                ->pluck('id_orden_producto');
+        $snapshotFinanciero = $this->snapshotOrden($orden);
+        $oldCodes           = $this->collectCodigosFromOrder($orden);
 
-            if ($detIds->isNotEmpty()) {
-                DetalleOrdenProductoSerie::whereIn('id_orden_producto', $detIds)->delete();
-            }
-
-            DetalleOrdenProducto::where('id_orden_servicio', $orden->getKey())->delete();
+        DB::transaction(function () use ($orden, $snapshotFinanciero) {
+            $this->deleteDetalleRows($orden);
 
             if (!empty($orden->id_cotizacion)) {
                 $cot = Cotizacion::find($orden->id_cotizacion);
+
                 if ($cot) {
                     if (property_exists($cot, 'orden_servicio_id') || isset($cot->orden_servicio_id)) {
                         $cot->orden_servicio_id = null;
@@ -668,205 +525,261 @@ class OrdenServicioController extends Controller
 
             $orden->tecnicos()->sync([]);
 
-            // ✅ Robustez: si la orden consumió N/S (SerieReserva->asignado), liberarlos al borrar.
-            // (Deja inventario intacto; solo quita la marca de “asignado” para que vuelva a estar disponible)
-            $this->svc->deleteAssignedSeriesBySource('orden_servicio', (int)$orden->getKey());
-
+            $this->svc->deleteAssignedSeriesBySource('orden_servicio', (int) $orden->getKey());
+            $this->releaseCreditoFromSnapshot($snapshotFinanciero);
             $this->svc->deleteArchivoPdfIfExists($orden);
 
             $orden->delete();
         });
 
-        return back()->with('success', 'Orden eliminada correctamente.');
+        $this->refreshCodigos($oldCodes);
+
+        return redirect()
+            ->route('ordenes.index')
+            ->with('success', 'Orden eliminada correctamente.');
     }
 
-    /* ==================== Asignación ==================== */
+    /* ==================== PDF ==================== */
 
-    public function asignar(Request $request)
-    {
-        $ordenes = OrdenServicio::whereNull('id_tecnico')
-            ->doesntHave('tecnicos')
-            ->orderByDesc('created_at')
-            ->paginate(10);
-
-        $tecnicos = User::where('puesto', 'tecnico')
-            ->orderBy('name')
-            ->get(['id', 'name']);
-
-        return view('vistas-gerente.orden-servicio.asignar', compact('ordenes', 'tecnicos'));
-    }
-
-    public function guardarAsignacion(Request $request, $id)
+    public function pdf(Request $request, $id)
     {
         $orden = OrdenServicio::findOrFail($id);
 
-        if ($orden->acta_estado === 'firmada') {
-            return back()->with('error', 'La orden está cerrada por acta firmada y no puede re-asignarse.');
+        if (empty($orden->archivo_pdf) || !\Storage::disk('public')->exists($orden->archivo_pdf)) {
+            $this->svc->generarYGuardarPdfOrden((int) $orden->getKey());
+            $orden->refresh();
         }
 
-        $data = $request->validate([
-            'tecnicos_ids'   => ['nullable', 'array'],
-            'tecnicos_ids.*' => ['integer', 'exists:users,id'],
-            'id_tecnico'     => ['nullable', 'integer', 'exists:users,id'],
-            'prioridad'      => ['nullable', 'in:Baja,Media,Alta,Urgente'],
-        ]);
+        $download = $request->boolean('download');
+        $filename = 'orden_servicio_' . $orden->getKey() . '.pdf';
 
-        $orden->id_tecnico = $data['id_tecnico'] ?? ($data['tecnicos_ids'][0] ?? null);
-
-        if (!empty($data['prioridad'])) {
-            $orden->prioridad = $data['prioridad'];
-        }
-
-        $orden->save();
-
-        $orden->tecnicos()->sync(
-            $data['tecnicos_ids'] ?? (!empty($data['id_tecnico']) ? [$data['id_tecnico']] : [])
-        );
-
-        if ($request->ajax() || $request->wantsJson()) {
-            return response()->json([
-                'ok'       => true,
-                'redirect' => route('ordenes.index'),
-                'message'  => 'Asignación actualizada.',
-            ]);
-        }
-
-        return redirect()->route('seguimiento')->with('success', 'Asignación actualizada.');
+        return $this->svc->responsePublicPdf($orden->archivo_pdf, $filename, $download);
     }
+
+    /* ==================== Seguimiento simple ==================== */
 
     public function agregarSeguimiento(Request $request, $id)
     {
+        $orden = OrdenServicio::findOrFail($id);
+
         $request->validate([
-            'descripcion' => ['required', 'string'],
-            'estado'      => ['nullable', 'string'],
-            'imagenes.*'  => ['nullable', 'image', 'max:4096'],
+            'observaciones' => ['required', 'string', 'max:5000'],
         ]);
 
-        return back()->with('success', 'Seguimiento registrado (placeholder).');
+        return back()->with('success', 'Seguimiento registrado (pendiente de unificar con el flujo principal de seguimiento).');
     }
 
-    /* ===================== autocomplete ===================== */
+    /* ==================== Helpers internos ==================== */
 
-    public function autocomplete(Request $request)
+    protected function syncTecnicosCompat(OrdenServicio $orden, array $data): void
     {
-        $term = trim((string) $request->get('term', ''));
-        if (mb_strlen($term) < 2) return response()->json([]);
+        if (!empty($data['tecnicos_ids']) && is_array($data['tecnicos_ids'])) {
+            $ids = collect($data['tecnicos_ids'])
+                ->filter(fn($v) => !blank($v))
+                ->map(fn($v) => (int) $v)
+                ->unique()
+                ->values()
+                ->all();
 
-        $like = "%{$term}%";
-        $num  = preg_replace('/\D+/', '', $term);
+            $orden->tecnicos()->sync($ids);
+            $orden->id_tecnico = $ids[0] ?? null;
+            $orden->save();
 
-        $items = OrdenServicio::query()
-            ->with(['cliente:clave_cliente,nombre,nombre_empresa'])
-            ->where(function ($q) use ($like, $num) {
-                if ($num !== '') {
-                    $q->orWhere('id_orden_servicio', (int) $num);
-                }
-
-                $q->orWhereHas('cliente', function ($c) use ($like) {
-                    $c->where('nombre', 'like', $like)
-                        ->orWhere('nombre_empresa', 'like', $like);
-                });
-
-                if (Schema::hasColumn('orden_servicio', 'servicio')) {
-                    $q->orWhere('servicio', 'like', $like);
-                }
-                if (Schema::hasColumn('orden_servicio', 'descripcion')) {
-                    $q->orWhere('descripcion', 'like', $like);
-                }
-                if (Schema::hasColumn('orden_servicio', 'descripcion_servicio')) {
-                    $q->orWhere('descripcion_servicio', 'like', $like);
-                }
-            })
-            ->orderByDesc('created_at')
-            ->limit(10)
-            ->get()
-            ->map(function ($o) {
-                $cliente = $o->cliente->nombre
-                    ?? $o->cliente->nombre_empresa
-                    ?? '—';
-
-                $tipo  = $o->tipo_orden ?? '';
-                $folio = $o->folio;
-
-                return [
-                    'id'    => $o->getKey(),
-                    'label' => "{$folio} — {$cliente}" . ($tipo ? " — {$tipo}" : ''),
-                ];
-            });
-
-        return response()->json($items);
-    }
-
-    public function crearDesdeCotizacion($id)
-    {
-        $cotizacion = Cotizacion::with(['cliente', 'productos', 'servicio'])->findOrFail($id);
-
-        $map = [
-            'venta'    => 'compra',
-            'hibrido'  => 'servicio_simple',
-            'servicio' => 'servicio_simple',
-        ];
-        $tipoOrdenSugerido = $map[$cotizacion->tipo_solicitud] ?? 'servicio_simple';
-
-        $productosPrefill = ($cotizacion->productos ?? collect())->map(function ($d) use ($cotizacion) {
-            $codigo = (int) ($d->codigo_producto ?? 0);
-
-            $item = [
-                'codigo_producto' => $codigo ?: null,
-                'descripcion'     => $d->descripcion_item ?? ($d->nombre_producto ?? ''),
-                'nombre_producto' => $d->nombre_producto ?? null,
-                'cantidad'        => (int) ($d->cantidad ?? 1),
-                'precio'          => (float) ($d->precio_unitario ?? 0),
-                'moneda'          => $cotizacion->moneda ?? 'MXN',
-            ];
-
-            if ($codigo > 0) {
-                $stock     = $this->svc->calculateAvailableForProduct($codigo);
-                $hasSerial = $this->svc->productHasSerial($codigo);
-
-                $item['stock_disponible'] = $stock;
-                $item['stock']            = $stock;
-                $item['disponible']       = $stock;
-                $item['stock_max']        = $stock;
-                $item['faltante']         = 0;
-                $item['sin_stock']        = $stock <= 0;
-                $item['has_serial']       = $hasSerial;
-            } else {
-                $item['stock_disponible'] = null;
-                $item['stock']            = null;
-                $item['disponible']       = null;
-                $item['stock_max']        = null;
-                $item['faltante']         = 0;
-                $item['sin_stock']        = false;
-                $item['has_serial']       = false;
-            }
-
-            return $item;
-        })->values()->toArray();
-
-        $data  = $this->svc->commonFormData();
-        $firma = $this->svc->getFirma();
-
-        $data['firmaFromCotizacion']        = true;
-        $data['cotizacion']                 = $cotizacion;
-        $data['productosPrefill']           = $productosPrefill;
-        $data['tipoOrdenSugerido']          = $tipoOrdenSugerido;
-        $data['descripcionServicioPrefill'] = optional($cotizacion->servicio)->descripcion;
-
-        return view('vistas-gerente.orden-servicio.create', $data + ['firma' => $firma]);
-    }
-
-    public function asignarVista($id)
-    {
-        $orden = OrdenServicio::with(['cliente', 'tecnicos', 'productos'])->findOrFail($id);
-
-        if ($orden->acta_estado === 'firmada') {
-            return redirect()->route('seguimiento')->with('error', 'La orden está cerrada por acta firmada.');
+            return;
         }
 
-        $tecnicos    = User::where('puesto', 'tecnico')->orderBy('name')->get(['id', 'name']);
-        $prioridades = ['Baja', 'Media', 'Alta', 'Urgente'];
+        if (!empty($data['id_tecnico'])) {
+            $id = (int) $data['id_tecnico'];
+            $orden->tecnicos()->sync([$id]);
+            $orden->id_tecnico = $id;
+            $orden->save();
 
-        return view('vistas-gerente.orden-servicio.asignar-uno', compact('orden', 'tecnicos', 'prioridades'));
+            return;
+        }
+
+        $orden->tecnicos()->sync([]);
+        $orden->id_tecnico = null;
+        $orden->save();
+    }
+
+    protected function deleteDetalleRows(OrdenServicio $orden): void
+    {
+        $detIds = DetalleOrdenProducto::where('id_orden_servicio', $orden->getKey())
+            ->pluck('id_orden_producto');
+
+        if ($detIds->isNotEmpty()) {
+            DetalleOrdenProductoSerie::whereIn('id_orden_producto', $detIds)->delete();
+        }
+
+        DetalleOrdenProducto::where('id_orden_servicio', $orden->getKey())->delete();
+    }
+
+    protected function resolveToken(array $data): string
+    {
+        $token = trim((string) ($data['serial_token'] ?? ''));
+
+        if ($token !== '') {
+            return $token;
+        }
+
+        return $this->makeSerialToken('ord');
+    }
+
+    protected function makeSerialToken(string $prefix = 'ord'): string
+    {
+        return $prefix . '-' . Str::uuid()->toString();
+    }
+
+    protected function snapshotOrden(OrdenServicio $orden): array
+    {
+        $orden->refresh();
+
+        return [
+            'id_cliente'      => $orden->id_cliente,
+            'tipo_pago'       => (string) $orden->tipo_pago,
+            'moneda'          => strtoupper((string) ($orden->moneda ?? 'MXN')),
+            'tasa_cambio'     => (float) ($orden->tasa_cambio ?? 1),
+            'saldo_pendiente' => (float) ($orden->saldo_pendiente ?? 0),
+        ];
+    }
+
+    protected function saldoToMxn(float $saldo, string $moneda, float $tc): float
+    {
+        $saldo = max($saldo, 0);
+
+        if (strtoupper($moneda) === 'USD') {
+            return $tc > 0 ? round($saldo * $tc, 2) : round($saldo, 2);
+        }
+
+        return round($saldo, 2);
+    }
+
+    protected function releaseCreditoFromSnapshot(array $snapshot): void
+    {
+        if (($snapshot['tipo_pago'] ?? null) !== 'credito_cliente') {
+            return;
+        }
+
+        $clienteId = $snapshot['id_cliente'] ?? null;
+        if (!$clienteId) {
+            return;
+        }
+
+        $montoMxn = $this->saldoToMxn(
+            (float) ($snapshot['saldo_pendiente'] ?? 0),
+            (string) ($snapshot['moneda'] ?? 'MXN'),
+            (float) ($snapshot['tasa_cambio'] ?? 1)
+        );
+
+        if ($montoMxn <= 0) {
+            return;
+        }
+
+        $credito = CreditoCliente::where('clave_cliente', $clienteId)->lockForUpdate()->first();
+        if (!$credito) {
+            return;
+        }
+
+        $credito->monto_usado = max(round((float) $credito->monto_usado - $montoMxn, 2), 0);
+        $credito->save();
+    }
+
+    protected function applyCreditoIfNeeded(OrdenServicio $orden, array $anticipoInfo): void
+    {
+        if ((string) $orden->tipo_pago !== 'credito_cliente') {
+            return;
+        }
+
+        $importeParaCreditoMXN = (float) ($anticipoInfo['saldo_mxn'] ?? 0);
+
+        if ($importeParaCreditoMXN <= 0) {
+            return;
+        }
+
+        if (strtoupper((string) $orden->moneda) === 'USD' && (float) $orden->tasa_cambio <= 0) {
+            throw new HttpResponseException(response()->json([
+                'message' => 'Tipo de cambio inválido para usar crédito en USD.',
+                'errors'  => [
+                    'tasa_cambio' => ['Tipo de cambio inválido.'],
+                ],
+            ], 422));
+        }
+
+        $credito = CreditoCliente::where('clave_cliente', $orden->id_cliente)
+            ->lockForUpdate()
+            ->first();
+
+        if (!$credito) {
+            throw new HttpResponseException(response()->json([
+                'message' => 'El cliente no tiene línea de crédito asignada.',
+                'errors'  => [
+                    'tipo_pago' => ['Cliente sin línea de crédito.'],
+                ],
+            ], 422));
+        }
+
+        $venc = $this->svc->checkCreditoVencido($credito);
+        if (($venc['expired'] ?? false) === true) {
+            throw new HttpResponseException(response()->json([
+                'message' => 'El crédito del cliente está vencido. No es posible usarlo para esta orden.',
+                'errors'  => [
+                    'tipo_pago' => ['Crédito vencido.'],
+                ],
+            ], 422));
+        }
+
+        $disponible = max((float) $credito->monto_maximo - (float) $credito->monto_usado, 0);
+
+        if ($importeParaCreditoMXN > $disponible) {
+            throw new HttpResponseException(response()->json([
+                'message' => 'Crédito insuficiente para cubrir el saldo pendiente de la orden.',
+                'errors'  => [
+                    'tipo_pago' => ['Crédito insuficiente.'],
+                ],
+            ], 422));
+        }
+
+        $credito->monto_usado = round((float) $credito->monto_usado + $importeParaCreditoMXN, 2);
+        $credito->save();
+    }
+
+    protected function collectCodigosFromPayload(array $productos): array
+    {
+        return collect($productos)
+            ->pluck('codigo_producto')
+            ->filter(fn($v) => !blank($v))
+            ->map(fn($v) => (int) $v)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    protected function collectCodigosFromOrder(OrdenServicio $orden): array
+    {
+        return DetalleOrdenProducto::where('id_orden_servicio', $orden->getKey())
+            ->pluck('codigo_producto')
+            ->filter(fn($v) => !blank($v))
+            ->map(fn($v) => (int) $v)
+            ->unique()
+            ->values()
+            ->all();
+    }
+
+    protected function refreshCodigos(array $codigos): void
+    {
+        $codigos = collect($codigos)
+            ->filter(fn($v) => !blank($v))
+            ->map(fn($v) => (int) $v)
+            ->unique()
+            ->values()
+            ->all();
+
+        foreach ($codigos as $codigo) {
+            try {
+                $this->svc->refreshProductStockTotals((int) $codigo);
+            } catch (\Throwable $e) {
+                // noop
+            }
+        }
     }
 }
