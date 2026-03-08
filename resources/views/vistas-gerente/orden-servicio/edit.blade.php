@@ -17,6 +17,7 @@ $hasSerialDetect = function ($tipo) {
 
 // Prefill de rutas/valores
 $saveUrl = route('ordenes.update', ['id' => $orden->id_orden_servicio]);
+$pdfUrl  = route('ordenes.pdf', ['id' => $orden->id_orden_servicio]);
 
 $costoServicioPrefill = old('precio', (float)($orden->precio ?? 0));
 
@@ -55,7 +56,7 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
      x-init="init()">
 
     {{-- Encabezado --}}
-    <div class="relative mb-10 text-center mx-a">
+    <div class="relative mb-10 text-center mx-auto">
         <h1 class="text-2xl md:text-3xl font-bold text-gray-800">Editar Orden de Servicio</h1>
 
         <div class="flex items-center justify-between mb-6">
@@ -477,7 +478,7 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
                                         <div class="text-xs text-gray-600 mt-0.5 whitespace-pre-line" x-text="(p.descripcion ? String(p.descripcion).replace(/\s*NS:\s*[\s\S]*$/mi, ``).trim() : ``) || '—'"></div>
                                         <div x-show="p.has_serial" x-cloak class="mt-1 text-[11px] text-gray-600 whitespace-pre-line">
                                             <template x-if="(p.ns_asignados || []).length">
-                                                <div><span class="font-semibold">N/S:</span> <span x-text="(p.ns_asignados || []).join(\", \")"></span></div>
+                                                <div><span class="font-semibold">N/S:</span> <span x-text="(p.ns_asignados || []).join(', ')"></span></div>
                                             </template>
                                             <template x-if="!(p.ns_asignados || []).length">
                                                 <div><span class="font-semibold">N/S:</span> —</div>
@@ -489,6 +490,9 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
                                             </span>
                                             <span x-show="p.stock_max===0" class="inline-flex px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 text-[11px] font-semibold">SIN STOCK</span>
                                             <span x-show="Number.isFinite(p.stock_max) && p.stock_max>0" class="inline-flex px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-[11px] font-semibold">EN STOCK</span>
+                                        </div>
+                                        <div x-show="p.ns_asignados.length" class="mt-2 text-[11px] text-indigo-700">
+                                            = N/S seleccionados
                                         </div>
                                     </div>
                                     <input type="hidden" :name="`productos[${idx}][nombre_producto]`" :value="p.nombre_producto || p.descripcion || 'Producto'">
@@ -691,6 +695,12 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
         {{-- Acciones --}}
         <div class="flex items-center justify-end gap-3">
             <a href="{{ route('ordenes.index') }}" class="px-4 py-2 rounded-md border text-gray-700 hover:bg-gray-50">Cancelar</a>
+
+            <button type="button" id="btnPdfActual"
+                    class="px-5 py-2 rounded-md border border-blue-300 bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold">
+                Ver PDF actual
+            </button>
+
             <button type="button" id="btnPreview"
                     class="px-5 py-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white font-semibold"
                     :disabled="previewLoading">
@@ -870,13 +880,13 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
     </div>
 
     {{-- ========================= --}}
-    {{-- Modal PREVIEW PDF --}}
+    {{-- Modal PREVIEW / PDF ACTUAL --}}
     {{-- ========================= --}}
     <div id="pdfPreviewModal" class="fixed inset-0 z-50 hidden">
         <div class="absolute inset-0 bg-black/60" onclick="closePdfModal()"></div>
         <div class="relative mx-auto my-6 bg-white rounded-xl shadow-xl max-w-5xl w-[95vw] h-[85vh] flex flex-col">
             <div class="px-4 py-3 border-b flex items-center justify-between">
-                <h3 class="font-semibold text-gray-800">Previsualización de la orden (PDF)</h3>
+                <h3 id="pdfModalTitle" class="font-semibold text-gray-800">Previsualización de la orden (PDF)</h3>
                 <button class="text-gray-500 hover:text-gray-700" onclick="closePdfModal()">✕</button>
             </div>
             <div class="flex-1">
@@ -884,6 +894,11 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
             </div>
             <div class="px-4 py-3 border-t flex items-center justify-end gap-2">
                 <button type="button" class="px-4 py-2 rounded-md border text-gray-700 hover:bg-gray-50" onclick="closePdfModal()">Cerrar</button>
+
+                <button type="button" id="btnDescargarActual" class="hidden px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white">
+                    Descargar actual
+                </button>
+
                 <button type="button" id="btnGuardar" class="px-4 py-2 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white"
                         :disabled="tipoPago==='credito_cliente' && (credito.loading || !credito.exists || creditoInsuf || credito.expired)">
                     Guardar
@@ -938,6 +953,7 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
   // Endpoints
   const SAVE_URL        = @json($saveUrl);
   const PREVIEW_URL     = @json(route('ordenes.preview'));
+  const PDF_CURRENT_URL = @json($pdfUrl);
   const PEEK_SERIES_URL = @json(route('inventario.peekSeries'));
   const STOCK_URL       = @json(route('ordenes.api.producto.stock'));
   const CREDITO_URL     = @json(route('ordenes.api.credito'));
@@ -1265,8 +1281,6 @@ const clientesCatalog = {
     const { ok, status, data } = await postJson(RESERVAR_SERIES_URL, payload);
 
     if (!ok) {
-      // Si tu backend aún no implementa reservas (404/405), no bloqueamos la captura.
-      // El backend seguirá validando stock y N/S al previsualizar/guardar.
       if (status === 404 || status === 405) {
         return { ok:true, reserved: (series || []).slice(), taken: [], expires_at: null, bypass: true };
       }
@@ -1404,11 +1418,9 @@ const clientesCatalog = {
     } catch(err) {}
   });
 
-  // Export a window para onclick=... (y para evitar 'openQuantityModal is not defined')
   window.openQuantityModal = openQuantityModal;
   window.closeQuantityModal = closeQuantityModal;
   window.addSelectedProduct = addSelectedProduct;
-  // Export para otros scripts (evita 'getFormComponent is not defined')
   window.getFormComponent = getFormComponent;
   window.getSerialToken = getSerialToken;
 })();
@@ -1433,7 +1445,6 @@ const clientesCatalog = {
 
   function formOrdenServicio(prefillProductos, monedaInicial, clienteInicial, tipoOrdenInicial, sinTecnicoInicial, clientesList) {
     return {
-      // estado
       productos: [],
       tipoOrden: tipoOrdenInicial || 'servicio_simple',
       moneda: monedaInicial || 'MXN',
@@ -1444,11 +1455,9 @@ const clientesCatalog = {
       sinTecnico: !!sinTecnicoInicial,
       productModal: false,
 
-      // ✅ Token N/S
       serialToken: '',
       hasSaved: false,
 
-      // ✅ anticipo
       anticipoModo: (OLD_ANTICIPO_MODO || 'monto'),
       anticipoMonto: Number(OLD_ANTICIPO_MONTO || 0),
       anticipoPorcentaje: Number(OLD_ANTICIPO_PORCENTAJE || 0),
@@ -1456,13 +1465,11 @@ const clientesCatalog = {
       saldoPendiente: 0,
       anticipoPctEstimado: 0,
 
-      // ===== AUTOCOMPLETE CLIENTE =====
       clientesAll: Array.isArray(clientesList) ? clientesList : [],
       clientesFiltrados: [],
       clienteSearch: '',
       showClienteList: false,
 
-      // totales
       costoServicio: 0,
       costoOperativo: 0,
       totalMaterial: 0,
@@ -1472,7 +1479,6 @@ const clientesCatalog = {
       totalOrden: 0,
       usdToMxn: 16.95,
 
-      // crédito
       credito: {
         loading: false,
         exists: false,
@@ -1494,7 +1500,6 @@ const clientesCatalog = {
 
         if (!this.serialToken) this.serialToken = genToken();
 
-        // Prefill servicios desde inputs
         const inServ = document.querySelector('input[name="precio"]');
         const inOp   = document.querySelector('input[name="costo_operativo"]');
         this.costoServicio   = parseFloat(inServ?.value || '0') || 0;
@@ -1917,12 +1922,38 @@ const clientesCatalog = {
 
   const pdfPreviewModal    = document.getElementById('pdfPreviewModal');
   const pdfPreviewFrame    = document.getElementById('pdfPreviewFrame');
+  const pdfModalTitle      = document.getElementById('pdfModalTitle');
+  const btnDescargarActual = document.getElementById('btnDescargarActual');
+  const btnGuardar         = document.getElementById('btnGuardar');
+  const btnGuardarDescargar= document.getElementById('btnGuardarDescargar');
+
   const stockShortageModal = document.getElementById('stockShortageModal');
   const shortageListEl     = document.getElementById('shortageList');
 
+  function setPdfModalMode(mode) {
+    if (mode === 'current') {
+      if (pdfModalTitle) pdfModalTitle.textContent = 'PDF actual de la orden';
+      btnGuardar?.classList.add('hidden');
+      btnGuardarDescargar?.classList.add('hidden');
+      btnDescargarActual?.classList.remove('hidden');
+    } else {
+      if (pdfModalTitle) pdfModalTitle.textContent = 'Previsualización de la orden (PDF)';
+      btnGuardar?.classList.remove('hidden');
+      btnGuardarDescargar?.classList.remove('hidden');
+      btnDescargarActual?.classList.add('hidden');
+    }
+  }
+
   function openPdfModalFromBase64(b64) {
     if (!b64) return;
+    setPdfModalMode('preview');
     pdfPreviewFrame.src = 'data:application/pdf;base64,' + b64;
+    pdfPreviewModal.classList.remove('hidden');
+  }
+
+  function openCurrentPdfModal() {
+    setPdfModalMode('current');
+    pdfPreviewFrame.src = PDF_CURRENT_URL;
     pdfPreviewModal.classList.remove('hidden');
   }
 
@@ -1948,9 +1979,11 @@ const clientesCatalog = {
   }
 
   document.addEventListener('DOMContentLoaded', () => {
-    const btnPreview           = document.getElementById('btnPreview');
-    const btnGuardar           = document.getElementById('btnGuardar');
-    const btnGuardarDescargar  = document.getElementById('btnGuardarDescargar');
+    const btnPreview          = document.getElementById('btnPreview');
+    const btnPdfActual        = document.getElementById('btnPdfActual');
+    const btnGuardarLocal     = document.getElementById('btnGuardar');
+    const btnGuardarDescLocal = document.getElementById('btnGuardarDescargar');
+    const btnDescargarActualLocal = document.getElementById('btnDescargarActual');
 
     btnPreview?.addEventListener('click', (e) => {
       e.preventDefault();
@@ -1958,20 +1991,29 @@ const clientesCatalog = {
       if (comp && typeof comp.previewPdf === 'function') comp.previewPdf();
     });
 
-    btnGuardar?.addEventListener('click', (e) => {
+    btnPdfActual?.addEventListener('click', (e) => {
+      e.preventDefault();
+      openCurrentPdfModal();
+    });
+
+    btnGuardarLocal?.addEventListener('click', (e) => {
       e.preventDefault();
       const comp = getFormComponent();
       if (comp && typeof comp.saveOrden === 'function') comp.saveOrden(false);
     });
 
-    btnGuardarDescargar?.addEventListener('click', (e) => {
+    btnGuardarDescLocal?.addEventListener('click', (e) => {
       e.preventDefault();
       const comp = getFormComponent();
       if (comp && typeof comp.saveOrden === 'function') comp.saveOrden(true);
     });
+
+    btnDescargarActualLocal?.addEventListener('click', (e) => {
+      e.preventDefault();
+      window.open(PDF_CURRENT_URL + '?download=1', '_blank');
+    });
   });
 
-  // Export a window para Alpine (x-data) y botones onclick
   window.formOrdenServicio = formOrdenServicio;
   window.closePdfModal = closePdfModal;
   window.closeStockShortageModal = closeStockShortageModal;

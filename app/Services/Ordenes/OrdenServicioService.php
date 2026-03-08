@@ -104,11 +104,13 @@ class OrdenServicioService
 
     public function ensurePrivateOrdenDirs(): void
     {
-        foreach ([
-            'private/ordenes',
-            'private/ordenes/actas',
-            'private/ordenes/firmas',
-        ] as $dir) {
+        foreach (
+            [
+                'private/ordenes',
+                'private/ordenes/actas',
+                'private/ordenes/firmas',
+            ] as $dir
+        ) {
             if (!Storage::exists($dir)) {
                 Storage::makeDirectory($dir);
             }
@@ -176,7 +178,7 @@ class OrdenServicioService
         $tiposOrden  = ['compra', 'servicio_simple', 'servicio_proyecto'];
 
         $productos = Producto::activos()
-            ->with(['inventario' => fn ($q) => $q->latest('fecha_entrada')])
+            ->with(['inventario' => fn($q) => $q->latest('fecha_entrada')])
             ->orderBy('nombre')
             ->get();
 
@@ -365,7 +367,7 @@ class OrdenServicioService
             'productos.*.cantidad'      => ['nullable', 'numeric'],
             'productos.*.precio'        => ['nullable', 'numeric'],
             'productos.*.ns_asignados'  => ['nullable', 'array'],
-            'productos.*.ns_asignados.*'=> ['nullable', 'string'],
+            'productos.*.ns_asignados.*' => ['nullable', 'string'],
             'firma_base64'              => ['nullable', 'string'],
             'firma_svg'                 => ['nullable', 'string'],
             'firma_nombre'              => ['nullable', 'string', 'max:255'],
@@ -579,7 +581,7 @@ class OrdenServicioService
                 'precio_unitario' => $pu,
                 'total'           => max(($qty * $pu), 0),
                 'ns_asignados'    => $serials,
-                'series'          => collect($serials)->map(fn ($ns) => (object) ['numero_serie' => $ns]),
+                'series'          => collect($serials)->map(fn($ns) => (object) ['numero_serie' => $ns]),
             ];
         });
 
@@ -629,7 +631,7 @@ class OrdenServicioService
 
         config([
             'dompdf.options.isRemoteEnabled'     => true,
-            'dompdf.options.isHtml5ParserEnabled'=> true,
+            'dompdf.options.isHtml5ParserEnabled' => true,
         ]);
 
         $pdf = Pdf::loadView('pdf.orden_servicio', [
@@ -674,7 +676,7 @@ class OrdenServicioService
     public function quantityFrom(array $item): float
     {
         if (!empty($item['ns_asignados']) && is_array($item['ns_asignados'])) {
-            $n = count(array_filter($item['ns_asignados'], fn ($s) => is_string($s) && trim($s) !== ''));
+            $n = count(array_filter($item['ns_asignados'], fn($s) => is_string($s) && trim($s) !== ''));
             if ($n > 0) {
                 return (float) $n;
             }
@@ -708,7 +710,7 @@ class OrdenServicioService
             $descripcion = $item['descripcion'] ?? ($producto->descripcion ?? null);
             $cantidad    = $this->quantityFrom($item);
             $precio      = $this->unitPriceFrom($item);
-            $serials     = array_values(array_filter((array) ($item['ns_asignados'] ?? []), fn ($x) => trim((string) $x) !== ''));
+            $serials     = array_values(array_filter((array) ($item['ns_asignados'] ?? []), fn($x) => trim((string) $x) !== ''));
 
             if (!empty($serials)) {
                 $descHasNs = is_string($descripcion) && stripos($descripcion, 'NS:') !== false;
@@ -809,7 +811,7 @@ class OrdenServicioService
 
         return [
             'material' => round($material, 2),
-            'adicional'=> round((float) $adicional, 2),
+            'adicional' => round((float) $adicional, 2),
             'base'     => round($base, 2),
             'iva'      => $iva,
             'subtotal' => round($subtotal, 2),
@@ -828,9 +830,9 @@ class OrdenServicioService
         }
 
         return array_values(array_filter(array_map(
-            fn ($x) => trim((string) $x),
+            fn($x) => trim((string) $x),
             explode(',', (string) ($m[1] ?? ''))
-        ), fn ($x) => $x !== ''));
+        ), fn($x) => $x !== ''));
     }
 
     /* =========================================================
@@ -862,7 +864,7 @@ class OrdenServicioService
                             $q2->where('estado', 'reservado')
                                 ->where(function ($q3) {
                                     $q3->whereNull('expires_at')
-                                       ->orWhere('expires_at', '>', now());
+                                        ->orWhere('expires_at', '>', now());
                                 });
 
                             if ($token) {
@@ -894,8 +896,8 @@ class OrdenServicioService
         $expiresAt      = now()->addMinutes($ttlMinutes);
 
         $seriales = array_values(array_unique(array_filter(
-            array_map(fn ($s) => trim((string) $s), (array) $seriales),
-            fn ($s) => $s !== ''
+            array_map(fn($s) => trim((string) $s), (array) $seriales),
+            fn($s) => $s !== ''
         )));
 
         if ($codigoProducto <= 0 || $token === '' || empty($seriales)) {
@@ -1005,8 +1007,8 @@ class OrdenServicioService
 
         if (is_array($seriales) && count($seriales)) {
             $seriales = array_values(array_unique(array_filter(
-                array_map(fn ($s) => trim((string) $s), $seriales),
-                fn ($s) => $s !== ''
+                array_map(fn($s) => trim((string) $s), $seriales),
+                fn($s) => $s !== ''
             )));
 
             if (!empty($seriales)) {
@@ -1202,9 +1204,9 @@ class OrdenServicioService
         }
 
         $clean = array_values(array_unique(array_filter(array_map(
-            fn ($s) => trim((string) $s),
+            fn($s) => trim((string) $s),
             $serials
-        ), fn ($s) => $s !== '')));
+        ), fn($s) => $s !== '')));
 
         return $clean;
     }
@@ -1218,12 +1220,12 @@ class OrdenServicioService
         }
 
         $blocked = $this->serialesNoDisponibles($codigoProducto, $token);
-        $blocked = array_merge($blocked, array_map(fn ($x) => trim((string) $x), $exclude));
-        $blockedSet = array_flip(array_filter($blocked, fn ($x) => $x !== ''));
+        $blocked = array_merge($blocked, array_map(fn($x) => trim((string) $x), $exclude));
+        $blockedSet = array_flip(array_filter($blocked, fn($x) => $x !== ''));
 
         $all = $this->getPhysicalSerialsForProduct($codigoProducto);
 
-        return array_values(array_filter($all, fn ($ns) => !isset($blockedSet[(string) $ns])));
+        return array_values(array_filter($all, fn($ns) => !isset($blockedSet[(string) $ns])));
     }
 
     public function peekSeriesAll(int $codigoProducto, ?string $token = null): array
@@ -1297,28 +1299,30 @@ class OrdenServicioService
 
     protected function rowQuantityFromInventario($row): float
     {
-        $get = fn (string $k, $default = null) => isset($row->{$k}) ? $row->{$k} : $default;
+        $get = fn(string $k, $default = null) => isset($row->{$k}) ? $row->{$k} : $default;
 
         $paquetesRest = $get('paquetes_restantes');
         $piezasXPack  = $get('piezas_por_paquete');
-        $piezasSueltas= $get('piezas_sueltas');
+        $piezasSueltas = $get('piezas_sueltas');
 
         if ($paquetesRest !== null || $piezasXPack !== null || $piezasSueltas !== null) {
             $packs  = max((float) ($paquetesRest ?? 0), 0);
             $ppp    = max((float) ($piezasXPack ?? 0), 0);
-            $sueltas= max((float) ($piezasSueltas ?? 0), 0);
+            $sueltas = max((float) ($piezasSueltas ?? 0), 0);
 
             return max(($packs * $ppp) + $sueltas, 0);
         }
 
-        foreach ([
-            'stock_actual',
-            'cantidad_disponible',
-            'cantidad_actual',
-            'existencia',
-            'stock_total',
-            'cantidad',
-        ] as $col) {
+        foreach (
+            [
+                'stock_actual',
+                'cantidad_disponible',
+                'cantidad_actual',
+                'existencia',
+                'stock_total',
+                'cantidad',
+            ] as $col
+        ) {
             $val = $get($col);
             if ($val !== null && $val !== '') {
                 return max((float) $val, 0);
@@ -1354,12 +1358,12 @@ class OrdenServicioService
                 ->whereHas('orden', function ($q) {
                     $q->where(function ($w) {
                         $w->whereNull('estado')
-                          ->orWhereNotIn('estado', [
-                              'Cancelado',
-                              'Cancelada',
-                              'cancelado',
-                              'cancelada',
-                          ]);
+                            ->orWhereNotIn('estado', [
+                                'Cancelado',
+                                'Cancelada',
+                                'cancelado',
+                                'cancelada',
+                            ]);
                     });
                 })
                 ->sum('cantidad');
@@ -1446,13 +1450,13 @@ class OrdenServicioService
 
             if ($this->productHasSerial($codigo)) {
                 $preferidos = array_values(array_unique(array_filter(
-                    array_map(fn ($x) => trim((string) $x), (array) ($it['ns_asignados'] ?? [])),
-                    fn ($x) => $x !== ''
+                    array_map(fn($x) => trim((string) $x), (array) ($it['ns_asignados'] ?? [])),
+                    fn($x) => $x !== ''
                 )));
 
                 if (!empty($preferidos)) {
                     $availableSet = array_flip($this->peekSeriesAll($codigo, $token));
-                    $missing = array_values(array_filter($preferidos, fn ($ns) => !isset($availableSet[(string) $ns])));
+                    $missing = array_values(array_filter($preferidos, fn($ns) => !isset($availableSet[(string) $ns])));
 
                     if (!empty($missing)) {
                         $shortages[] = [
@@ -1511,7 +1515,7 @@ class OrdenServicioService
             $serials  = [];
 
             if ($codigo && $qty > 0 && $this->productHasSerial($codigo)) {
-                $preferidos = array_values(array_filter((array) ($it['ns_asignados'] ?? []), fn ($x) => trim((string) $x) !== ''));
+                $preferidos = array_values(array_filter((array) ($it['ns_asignados'] ?? []), fn($x) => trim((string) $x) !== ''));
                 $serials    = $this->allocateSerialsAndConsume($codigo, $qty, $preferidos, $token);
 
                 if (!empty($serials)) {
@@ -1540,7 +1544,7 @@ class OrdenServicioService
             $codigo  = !empty($it['codigo_producto']) ? (int) $it['codigo_producto'] : null;
             $qty     = $this->quantityFrom($it);
             $desc    = $it['descripcion'] ?? null;
-            $serials = array_values(array_filter((array) ($it['ns_asignados'] ?? []), fn ($x) => trim((string) $x) !== ''));
+            $serials = array_values(array_filter((array) ($it['ns_asignados'] ?? []), fn($x) => trim((string) $x) !== ''));
 
             if ($codigo && $qty > 0 && empty($serials) && $this->productHasSerial($codigo)) {
                 $serials = $this->peekAvailableSerials($codigo, $qty, $token);
@@ -1580,8 +1584,8 @@ class OrdenServicioService
         }
 
         $preferidos = array_values(array_unique(array_filter(
-            array_map(fn ($s) => trim((string) $s), $preferidos),
-            fn ($s) => $s !== ''
+            array_map(fn($s) => trim((string) $s), $preferidos),
+            fn($s) => $s !== ''
         )));
 
         $collected = [];
@@ -1670,8 +1674,8 @@ class OrdenServicioService
         }
 
         $preferidos = array_values(array_unique(array_filter(
-            array_map(fn ($s) => trim((string) $s), $preferidos),
-            fn ($s) => $s !== ''
+            array_map(fn($s) => trim((string) $s), $preferidos),
+            fn($s) => $s !== ''
         )));
 
         if (empty($preferidos)) {
@@ -1713,8 +1717,8 @@ class OrdenServicioService
             ->where('numero_serie', '!=', '')
             ->orderBy('id')
             ->pluck('numero_serie')
-            ->map(fn ($x) => trim((string) $x))
-            ->filter(fn ($x) => $x !== '' && !isset($blockedSet[$x]))
+            ->map(fn($x) => trim((string) $x))
+            ->filter(fn($x) => $x !== '' && !isset($blockedSet[$x]))
             ->values()
             ->all();
 
@@ -1748,8 +1752,8 @@ class OrdenServicioService
         $serials = NumeroSerie::whereIn('inventario_id', $invIds)
             ->orderBy('id')
             ->pluck('numero_serie')
-            ->map(fn ($x) => trim((string) $x))
-            ->filter(fn ($x) => $x !== '' && !isset($blockedSet[$x]))
+            ->map(fn($x) => trim((string) $x))
+            ->filter(fn($x) => $x !== '' && !isset($blockedSet[$x]))
             ->values()
             ->all();
 
