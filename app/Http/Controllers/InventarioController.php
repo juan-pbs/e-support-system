@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Inventario;
 use App\Models\Producto;
 use App\Models\Proveedor;
+use App\Services\Ordenes\OrdenServicioService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -13,6 +14,8 @@ use Carbon\Carbon;
 
 class InventarioController extends Controller
 {
+    public function __construct(private OrdenServicioService $ordenService) {}
+
     public function index(Request $request)
     {
         $q = Inventario::query()
@@ -397,7 +400,26 @@ class InventarioController extends Controller
 
         return redirect()->route('inventario')->with('success', 'Entrada actualizada.');
     }
+    public function ultimaEntrada($codigo)
+    {
+        $codigoProducto = (int) $codigo;
 
+        $row = Inventario::where('codigo_producto', $codigoProducto)
+            ->orderByDesc('id')
+            ->first(['id', 'codigo_producto', 'tipo_control', 'costo', 'precio', 'fecha_entrada', 'hora_entrada', 'fecha_caducidad']);
+
+        if (!$row) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Sin entradas para ese producto.',
+            ], 404);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'data' => $row,
+        ]);
+    }
     public function eliminar($id)
     {
         $e = Inventario::findOrFail($id);
@@ -411,20 +433,7 @@ class InventarioController extends Controller
 
     private function recalcularStockProducto($codigoProducto)
     {
-        $suma = DB::table('inventario')
-            ->selectRaw('
-                COALESCE(SUM(paquetes_restantes * COALESCE(piezas_por_paquete,1) + COALESCE(piezas_sueltas,0)),0) as total,
-                COALESCE(SUM(paquetes_restantes),0) as paquetes,
-                COALESCE(SUM(piezas_sueltas),0) as sueltas
-            ')
-            ->where('codigo_producto', $codigoProducto)
-            ->first();
-
-        Producto::where('codigo_producto', $codigoProducto)->update([
-            'stock_total'          => (int) ($suma->total ?? 0),
-            'stock_paquetes'       => (int) ($suma->paquetes ?? 0),
-            'stock_piezas_sueltas' => (int) ($suma->sueltas ?? 0),
-        ]);
+        $this->ordenService->refreshProductStockTotals((int) $codigoProducto);
     }
 
     private function parseSeries(string $raw)
@@ -453,3 +462,4 @@ class InventarioController extends Controller
         return $q;
     }
 }
+

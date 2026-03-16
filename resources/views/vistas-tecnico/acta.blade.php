@@ -4,19 +4,15 @@
 
 @section('content')
 <div class="max-w-4xl mx-auto p-4 md:p-6">
-            <div class="relative mb-10 text-center mx-a">
-
-
-               <h1 class="text-2xl md:text-3xl font-bold text-gray-800">Acta de conformidad</h1>
-
-
-                <div class="flex items-center justify-between mb-6">
-                            <x-boton-volver />
-
-
-                </div>
-           </div>
-
+  <div class="bg-gradient-to-r from-blue-50 via-sky-50 to-slate-50 border border-sky-100 rounded-2xl px-4 py-3 sm:px-6 sm:py-4 mb-6">
+    <div class="flex items-start sm:items-center gap-3">
+      <x-boton-volver />
+      <div>
+        <h1 class="text-sm sm:text-base font-bold text-slate-800">Acta de conformidad</h1>
+        <p class="text-xs sm:text-sm text-slate-500">Captura y firma del acta para cierre de servicio.</p>
+      </div>
+    </div>
+  </div>
   @php
     use Illuminate\Support\Facades\Storage;
 
@@ -276,19 +272,19 @@
 
     {{-- Controles inferiores --}}
     @if(!$isFirmada)
-      <div class="flex items-center justify-between">
+      <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <label class="inline-flex items-center gap-2 text-sm">
           <input type="checkbox" name="cerrar_os" value="1" class="rounded"
                  {{ old('cerrar_os', '1') ? 'checked' : '' }}>
           <span>Marcar orden como <strong>Completada</strong> si está conforme</span>
         </label>
 
-        <div class="flex gap-2">
-          <button type="button" id="btnDraft" class="rounded-lg px-4 py-2 border text-gray-800 hover:bg-gray-50">
+        <div class="flex flex-wrap items-center gap-2 md:justify-end">
+          <button type="button" id="btnDraft" class="h-10 rounded-lg px-4 border text-gray-800 hover:bg-gray-50">
             Guardar borrador
           </button>
 
-          <button type="button" id="btnPreview" class="rounded-lg px-4 py-2 bg-gray-800 hover:bg-gray-900 text-white font-semibold">
+          <button type="button" id="btnPreview" class="h-10 rounded-lg px-4 bg-gray-800 hover:bg-gray-900 text-white font-semibold">
             Previsualizar y confirmar
           </button>
         </div>
@@ -501,6 +497,8 @@
       }
       frame.src = 'data:application/pdf;base64,' + j.pdf_base64;
       openModal();
+
+
     }catch(err){
       alert(err.message);
     }finally{
@@ -508,8 +506,6 @@
       loading?.classList.add('hidden');
     }
   });
-
-  // Confirmar (requiere firma del responsable)
   btnConf?.addEventListener('click', async ()=>{
     try{
       const fd = new FormData(form);

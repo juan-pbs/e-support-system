@@ -29,4 +29,17 @@ class OrdenMaterialExtra extends Model
     {
         return is_null($this->precio_unitario);
     }
+
+    public function getSubtotalAttribute(): ?float
+    {
+        if (array_key_exists('subtotal', $this->attributes) && $this->attributes['subtotal'] !== null) {
+            return (float) $this->attributes['subtotal'];
+        }
+
+        if ($this->precio_unitario === null) {
+            return null;
+        }
+
+        return round((float) $this->cantidad * (float) $this->precio_unitario, 2);
+    }
 }

@@ -54,7 +54,7 @@
     {{-- Filtros --}}
     <form method="GET" action="{{ route('ordenes.index') }}" class="mb-6">
         <div class="bg-white w-full rounded-xl border border-gray-200 shadow p-4">
-            <div class="grid grid-cols-1 md:grid-cols-4 gap-3 items-end">
+            <div class="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
 
                 <div class="md:col-span-1">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Buscar</label>
@@ -91,6 +91,15 @@
                     </select>
                 </div>
 
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Técnico</label>
+                    <select name="tecnico_id" class="w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-blue-500">
+                        <option value="">Todos</option>
+                        @foreach (($tecnicos ?? collect()) as $tec)
+                            <option value="{{ $tec->id }}" @selected((string)request('tecnico_id')===(string)$tec->id)>{{ $tec->name }}</option>
+                        @endforeach
+                    </select>
+                </div>
                 <div class="flex gap-2">
                     <button type="submit"
                             class="flex-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2">
@@ -218,6 +227,7 @@
                     <th class="px-4 py-3 text-left">Estado</th>
                     <th class="px-4 py-3 text-left">Prioridad</th>
                     <th class="px-4 py-3 text-left">Creación</th>
+                    <th class="px-3 py-3 text-center w-24">Notas</th>
                     <th class="px-3 py-3 text-center w-28">Editar</th>
                     <th class="px-3 py-3 text-center w-28">PDF</th>
                     <th class="px-3 py-3 text-center w-32">Eliminar</th>
@@ -271,6 +281,11 @@
 
                         <td class="px-4 py-3">{{ $orden->prioridad ?? '—' }}</td>
                         <td class="px-4 py-3">{{ optional($orden->created_at)->format('d/m/Y H:i') }}</td>
+                        <td class="px-3 py-3 text-center">
+                            <button type="button" class="inline-flex items-center justify-center w-9 h-9 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white" title="Ver notas internas" onclick="showOrderNotesModalFromB64('{{ base64_encode(json_encode(['folio' => $folio, 'cliente' => ($orden->cliente->nombre ?? '—'), 'tipo' => $tipoLabel, 'estado' => ($orden->estado ?? '—'), 'prioridad' => ($orden->prioridad ?? '—'), 'tecnicos' => ($orden->tipo_orden === 'compra' ? 'No aplica' : (($orden->tecnicos && $orden->tecnicos->count()) ? $orden->tecnicos->pluck('name')->implode(', ') : ($orden->tecnico->name ?? 'Sin asignar'))), 'servicio' => ($orden->servicio ?? ''), 'resumen' => ($orden->descripcion_servicio ?? $orden->descripcion ?? ''), 'notas' => ($orden->condiciones_generales ?? '')], JSON_UNESCAPED_UNICODE)) }}')">
+                                <span class="text-sm font-semibold">i</span>
+                            </button>
+                        </td>
 
                         <td class="px-3 py-3 text-center">
                             <a href="{{ $editUrl }}"
@@ -305,7 +320,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td class="px-4 py-6 text-center text-gray-500" colspan="10">
+                        <td class="px-4 py-6 text-center text-gray-500" colspan="11">
                             No hay órdenes que coincidan con tu búsqueda.
                         </td>
                     </tr>
@@ -323,6 +338,26 @@
 
 </div>
 
+{{-- MODAL NOTAS --}}
+<div id="notesModal" class="hidden fixed inset-0 z-40 bg-black/50">
+  <div class="absolute inset-0 flex items-center justify-center p-4">
+    <div class="w-full max-w-2xl bg-white rounded-xl shadow-xl overflow-hidden">
+      <div class="px-5 py-4 border-b flex items-center justify-between">
+        <h3 class="text-lg font-semibold text-gray-800">Notas internas y resumen</h3>
+        <button type="button" class="px-3 py-1.5 rounded-md bg-gray-800 text-white text-sm whitespace-nowrap" onclick="closeOrderNotesModal()">Cerrar</button>
+      </div>
+      <div class="px-5 py-4 space-y-3 text-sm">
+        <div><span class="text-gray-500">Folio:</span> <span id="notesFolio" class="font-medium">—</span></div>
+        <div><span class="text-gray-500">Cliente:</span> <span id="notesCliente" class="font-medium">—</span></div>
+        <div><span class="text-gray-500">Tipo / Estado / Prioridad:</span> <span id="notesMeta" class="font-medium">—</span></div>
+        <div><span class="text-gray-500">Técnico(s):</span> <span id="notesTecnicos" class="font-medium">—</span></div>
+        <div><span class="text-gray-500">Servicio:</span> <p id="notesServicio" class="mt-1 bg-slate-50 border rounded p-2">—</p></div>
+        <div><span class="text-gray-500">Resumen:</span> <p id="notesResumen" class="mt-1 bg-slate-50 border rounded p-2 whitespace-pre-line">—</p></div>
+        <div><span class="text-gray-500">Notas internas:</span> <p id="notesInternas" class="mt-1 bg-amber-50 border border-amber-200 rounded p-2 whitespace-pre-line">Sin notas internas</p></div>
+      </div>
+    </div>
+  </div>
+</div>
 {{-- MODAL PDF --}}
 <div id="pdfModal" class="hidden fixed inset-0 z-40 bg-black/50">
   <div class="absolute inset-0 flex items-center justify-center p-4">
@@ -380,6 +415,32 @@
 @push('scripts')
 <script>
 (function(){
+  window.showOrderNotesModalFromB64 = function (payloadB64) {
+    try {
+      const b64 = String(payloadB64 || '');
+      const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+      const jsonText = new TextDecoder('utf-8').decode(bytes);
+      const data = JSON.parse(jsonText);
+      window.showOrderNotesModal(data || {});
+    } catch (e) {
+      console.error('Error al abrir modal de notas', e);
+    }
+  };
+  window.showOrderNotesModal = function (data) {
+    const modal = document.getElementById('notesModal');
+    if (!modal) return;
+    document.getElementById('notesFolio').textContent = data.folio || '—';
+    document.getElementById('notesCliente').textContent = data.cliente || '—';
+    document.getElementById('notesMeta').textContent = [data.tipo || '—', data.estado || '—', data.prioridad || '—'].join(' / ');
+    document.getElementById('notesTecnicos').textContent = data.tecnicos || '—';
+    document.getElementById('notesServicio').textContent = data.servicio || '—';
+    document.getElementById('notesResumen').textContent = data.resumen || '—';
+    document.getElementById('notesInternas').textContent = data.notas || 'Sin notas internas';
+    modal.classList.remove('hidden');
+  };
+  window.closeOrderNotesModal = function () {
+    document.getElementById('notesModal')?.classList.add('hidden');
+  };
   const pdfModal = document.getElementById('pdfModal');
   const pdfFrame = document.getElementById('pdfFrame');
   const pdfTitle = document.getElementById('pdfModalTitle');
@@ -431,7 +492,7 @@
     deleteModal.classList.add('hidden');
   });
 
-  [pdfModal, deleteModal].forEach(modal=>{
+  [pdfModal, deleteModal, document.getElementById('notesModal')].forEach(modal=>{
     modal?.addEventListener('click', (e)=>{
       if (e.target === modal) {
         modal.classList.add('hidden');

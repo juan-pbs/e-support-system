@@ -110,7 +110,7 @@
                                 <!-- Carga rápida de productos (conservado) -->
                                 <a href="{{ route('catalogo.carga_rapida.index') }}" class="block submenu-item">
                                     <div class="flex items-center gap-3 px-4 py-3 transition-colors menu-item-hover text-white">
-                                        <i data-lucide="zap" class="lucide-icon"></i>
+                                        <i data-lucide="notebook-tabs" class="lucide-icon"></i>
                                         <span class="text-sm font-medium">Carga rápida de productos</span>
                                     </div>
                                 </a>
@@ -118,7 +118,7 @@
                                  <!-- Carga rápida de inventario (conservado) -->
                                  <a href="{{ route('inventario.carga_rapida.index') }}" class="block submenu-item">
                                     <div class="flex items-center gap-3 px-4 py-3 transition-colors menu-item-hover text-white">
-                                        <i data-lucide="zap" class="lucide-icon"></i>
+                                        <i data-lucide="boxes" class="lucide-icon"></i>
                                         <span class="text-sm font-medium">Carga rápida de inventario</span>
                                     </div>
                                 </a>

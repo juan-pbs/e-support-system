@@ -245,15 +245,38 @@ class OrdenServicio extends Model
     }
 
     /**
+     * ✅ Materiales en moneda de la orden.
+     */
+    public function getMaterialesTotalAttribute(): float
+    {
+        $detalles = $this->relationLoaded('productos')
+            ? $this->productos
+            : $this->productos()->get(['cantidad', 'precio_unitario', 'total']);
+
+        $sum = $detalles->sum(function ($detalle) {
+            $total = $detalle->total ?? null;
+
+            if ($total === null || $total === '') {
+                $total = (float) ($detalle->cantidad ?? 0) * (float) ($detalle->precio_unitario ?? 0);
+            }
+
+            return (float) $total;
+        });
+
+        return round((float) $sum, 2);
+    }
+
+    /**
      * ✅ Total final (base + operativo + impuestos + adicional)
      */
     public function getTotalFinalAttribute(): float
     {
+        $material  = (float) $this->materiales_total;
         $base      = (float) ($this->precio ?? 0);
         $operativo = (float) ($this->costo_operativo ?? 0);
         $impuestos = (float) ($this->impuestos ?? 0);
 
-        return round($base + $operativo + $impuestos + (float)$this->total_adicional, 2);
+        return round($material + $base + $operativo + $impuestos + (float)$this->total_adicional, 2);
     }
 
     /**
@@ -304,7 +327,7 @@ class OrdenServicio extends Model
         $estado = strtolower((string) $this->estado);
         if (in_array($estado, ['cancelado', 'cancelada'])) return 'cancelado';
 
-        if (in_array($estado, ['finalizado', 'finalizada', 'completada'])) {
+        if (in_array($estado, ['finalizado', 'finalizada', 'completada', 'completado'])) {
             return ($this->acta_estado === 'firmada') ? 'finalizado' : 'finalizado-sin-firmar';
         }
 

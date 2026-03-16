@@ -18,6 +18,7 @@ use App\Models\DetalleOrdenProducto;
 use App\Models\DetalleOrdenProductoSerie;
 use App\Models\Cliente;
 use App\Models\Firma;
+use App\Services\Ordenes\OrdenServicioService;
 
 use Barryvdh\DomPDF\Facade\Pdf;
 
@@ -36,8 +37,9 @@ class ActaConformidadController extends Controller
     public function actaVista(Request $request, $id)
     {
         $orden = OrdenServicio::with(['cliente'])->findOrFail($id);
+        $ordenService = app(OrdenServicioService::class);
 
-        $detalles = DetalleOrdenProducto::where('id_orden_servicio', $orden->id_orden_servicio)->get();
+        $detalles = DetalleOrdenProducto::with('series')->where('id_orden_servicio', $orden->id_orden_servicio)->get();
 
         // Firma predeterminada del usuario (para el componente <x-firma-digital>)
         $firmaDefault = $this->readFirma();
@@ -56,6 +58,11 @@ class ActaConformidadController extends Controller
             'cliente'             => $orden->cliente ?? null,
             'detalles'            => $detalles,
             'firmaDefaultEmpresa' => $firmaDefault,
+            'cantidadEscritaDefault' => $ordenService->resolvePrecioEscrito(
+                data_get($orden->acta_data, 'cantidad_escrita') ?? ($orden->precio_escrito ?? null),
+                (float) ($orden->total_final ?? 0),
+                (string) ($orden->moneda ?? 'MXN')
+            ),
         ]);
     }
 
@@ -66,6 +73,7 @@ class ActaConformidadController extends Controller
     public function actaGuardarBorrador(Request $request, $id)
     {
         $orden = OrdenServicio::findOrFail($id);
+
 
         // Si ya está firmada, no permitir ningún cambio
         if ($orden->acta_estado === 'firmada') {
@@ -81,6 +89,7 @@ class ActaConformidadController extends Controller
             'fecha'             => ['required', 'date'],
             'hora'              => ['required', 'string'],
             'conforme'          => ['required', 'in:si,no'],
+            'cantidad_escrita'  => ['nullable', 'string', 'max:255'],
         ]);
 
         $acta = $this->buildActaFromRequest($request, $orden);
@@ -112,6 +121,7 @@ class ActaConformidadController extends Controller
     {
         $orden = OrdenServicio::with(['cliente'])->findOrFail($id);
 
+
         // Bloquear preview si el acta ya está firmada (solo debe verse el PDF definitivo)
         if ($orden->acta_estado === 'firmada') {
             return response()->json([
@@ -126,12 +136,13 @@ class ActaConformidadController extends Controller
             'fecha'             => ['required', 'date'],
             'hora'              => ['required', 'string'],
             'conforme'          => ['required', 'in:si,no'],
+            'cantidad_escrita'  => ['nullable', 'string', 'max:255'],
         ]);
 
         $acta    = $this->buildActaFromRequest($request, $orden);
         $payload = $this->buildPdfPayload($orden, $acta, true);
 
-        $pdf    = Pdf::loadView('pdf.acta_conformidad', $payload)
+        $pdf    = Pdf::loadView($this->actaPdfViewFor($request), $payload)
                     ->setPaper('letter', 'portrait');
         $base64 = base64_encode($pdf->output());
 
@@ -152,6 +163,7 @@ class ActaConformidadController extends Controller
     {
         $orden = OrdenServicio::with(['cliente'])->findOrFail($id);
 
+
         // Si ya está firmada, no permitir reconfirmar / sobrescribir
         if ($orden->acta_estado === 'firmada') {
             return response()->json([
@@ -167,6 +179,7 @@ class ActaConformidadController extends Controller
             'hora'              => ['required', 'string'],
             'conforme'          => ['required', 'in:si,no'],
             'firma_responsable' => ['required', 'string'],
+            'cantidad_escrita'  => ['nullable', 'string', 'max:255'],
         ], [
             'firma_responsable.required' => 'La firma del responsable que recibe es obligatoria para confirmar el acta.',
         ]);
@@ -192,7 +205,7 @@ class ActaConformidadController extends Controller
 
         $payload = $this->buildPdfPayload($orden, $acta, false);
 
-        $pdf    = Pdf::loadView('pdf.acta_conformidad', $payload)
+        $pdf    = Pdf::loadView($this->actaPdfViewFor($request), $payload)
                     ->setPaper('letter', 'portrait');
         $binary = $pdf->output();
 
@@ -235,9 +248,10 @@ class ActaConformidadController extends Controller
      * ✅ Si está firmada, regresa el PDF definitivo guardado en acta_pdf_path (NO se regenera).
      * Si no existe, hace fallback a regenerar desde acta_data.
      */
-    public function actaPdf($id)
+    public function actaPdf(Request $request, $id)
     {
         $orden = OrdenServicio::with(['cliente'])->findOrFail($id);
+
 
         // ✅ Si ya está firmada, servir el PDF congelado
         if ($orden->acta_estado === 'firmada' && !empty($orden->acta_pdf_path)) {
@@ -259,7 +273,7 @@ class ActaConformidadController extends Controller
 
         $payload = $this->buildPdfPayload($orden, $acta, false);
 
-        $pdf = Pdf::loadView('pdf.acta_conformidad', $payload)
+        $pdf = Pdf::loadView($this->actaPdfViewFor($request), $payload)
                 ->setPaper('letter', 'portrait');
 
         return $pdf->stream("acta_conformidad_{$orden->id_orden_servicio}.pdf");
@@ -270,6 +284,8 @@ class ActaConformidadController extends Controller
      */
     private function buildActaFromRequest(Request $request, OrdenServicio $orden): array
     {
+        $ordenService = app(OrdenServicioService::class);
+
         return [
             'responsable'       => $request->input('responsable'),
             'puesto'            => $request->input('puesto'),
@@ -278,6 +294,11 @@ class ActaConformidadController extends Controller
             'trabajo_realizado' => $request->input('trabajo_realizado'),
             'conforme'          => $request->input('conforme', 'si'),
             'observaciones'     => $request->input('observaciones'),
+            'cantidad_escrita'  => $ordenService->resolvePrecioEscrito(
+                $request->input('cantidad_escrita'),
+                (float) ($orden->total_final ?? 0),
+                (string) ($orden->moneda ?? 'MXN')
+            ),
             'cerrar_os'         => $request->boolean('cerrar_os'),
 
             // Firmas
@@ -296,10 +317,11 @@ class ActaConformidadController extends Controller
      */
     private function buildPdfPayload(OrdenServicio $orden, array $acta, bool $preview): array
     {
+        $ordenService = app(OrdenServicioService::class);
         $cliente = $orden->cliente ?? null;
 
         // Detalles de productos de la orden
-        $detalles = DetalleOrdenProducto::where('id_orden_servicio', $orden->id_orden_servicio)->get();
+        $detalles = DetalleOrdenProducto::with('series')->where('id_orden_servicio', $orden->id_orden_servicio)->get();
 
         $subtotalProductos = 0.0;
         foreach ($detalles as $d) {
@@ -365,6 +387,11 @@ class ActaConformidadController extends Controller
             'total_general'      => $totalGeneral,
             'firma_cliente_src'  => $firmaClienteSrc,
             'firma_empresa_src'  => $firmaEmpresaSrc,
+            'cantidad_escrita'   => $ordenService->resolvePrecioEscrito(
+                $acta['cantidad_escrita'] ?? ($orden->precio_escrito ?? null),
+                (float) $totalGeneral,
+                (string) ($orden->moneda ?? 'MXN')
+            ),
             'cotizacion'         => null,
             'draft'              => $preview,
         ];
@@ -639,7 +666,7 @@ class ActaConformidadController extends Controller
         }
 
         $venc    = $this->checkCreditoVencido($cred);
-        $estatus = $venc['expired'] ? 'vencido' : ($cred->estatus ?? 'activo');
+        $estatus = $venc['estatus'] ?? ($venc['expired'] ? 'vencido' : ($cred->estatus ?? 'activo'));
 
         return response()->json([
             'ok'             => true,
@@ -657,24 +684,16 @@ class ActaConformidadController extends Controller
 
     private function checkCreditoVencido(?CreditoCliente $cred): array
     {
-        if (!$cred) return ['expired' => false, 'dias_restantes' => null, 'fecha_limite' => null];
+        return app(OrdenServicioService::class)->checkCreditoVencido($cred);
+    }
+    private function actaPdfViewFor(Request $request): string
+    {
+        $routeName = $request->route() ? $request->route()->getName() : '';
 
-        try {
-            $hoy         = now()->startOfDay();
-            $asignacion  = $cred->fecha_asignacion ? \Carbon\Carbon::parse($cred->fecha_asignacion) : null;
-            $dias        = (int)($cred->dias_credito ?? 0);
-            $fechaLimite = $asignacion ? (clone $asignacion)->addDays($dias > 0 ? $dias : 0) : null;
-
-            $expired = $fechaLimite ? $hoy->greaterThan($fechaLimite) : (strtolower((string)$cred->estatus) === 'vencido');
-            $rest    = $fechaLimite ? $hoy->diffInDays($fechaLimite, false) : null;
-
-            return [
-                'expired'        => (bool)$expired,
-                'dias_restantes' => $rest,
-                'fecha_limite'   => $fechaLimite?->format('Y-m-d'),
-            ];
-        } catch (\Throwable $e) {
-            return ['expired' => false, 'dias_restantes' => null, 'fecha_limite' => null];
+        if ($routeName && str_starts_with($routeName, 'tecnico.')) {
+            return 'pdf.acta_conformidad_tecnico';
         }
+
+        return 'pdf.acta_conformidad';
     }
 }

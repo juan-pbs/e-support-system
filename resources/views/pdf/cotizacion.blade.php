@@ -287,7 +287,8 @@
         .firma-telefono {
             margin-top: 1px;
         }
-    </style>
+        @include('pdf.partials.corporate-theme')
+</style>
 </head>
 <body>
 @php
@@ -316,6 +317,20 @@
     }
 
     $condicionesPago = $cotizacion->condiciones_pago ?? 'CRÉDITO';
+
+    $condicionesPagoMap = [
+        'efectivo' => 'Efectivo',
+        'transferencia' => 'Transferencia',
+        'tarjeta' => 'Tarjeta',
+        'credito_cliente' => 'Credito cliente',
+        'credito' => 'Credito cliente',
+        'crédito' => 'Credito cliente',
+        'contado' => 'Efectivo',
+    ];
+    $condicionesPagoKey = strtolower(trim((string) ($cotizacion->condiciones_pago ?? 'efectivo')));
+    $condicionesPago = $condicionesPagoMap[$condicionesPagoKey] ?? ucfirst($condicionesPagoKey);
+    $tiempoEntrega = $cotizacion->tiempo_entrega ?? null;
+    $notaFija = $cotizacion->nota_fija ?? 'PRECIOS SUJETOS A CAMBIO SIN PREVIO AVISO';
 
     $fechaCot = $cotizacion->fecha
         ? Carbon::parse($cotizacion->fecha)->format('d/m/Y')
@@ -399,6 +414,8 @@
 <div class="header">
     @if($barraBase64)
         <img src="{{ $barraBase64 }}" alt="" class="barra-superior">
+    @else
+        <table class="barra-fallback" role="presentation"><tr><td></td></tr></table>
     @endif
 
     <table class="tabla-header">
@@ -406,6 +423,11 @@
             <td class="td-logo">
                 @if($logoBase64)
                     <img src="{{ $logoBase64 }}" class="logo" alt="">
+                @else
+                    <div class="logo-fallback">
+                        <strong>E-SUPPORT QUERETARO</strong>
+                        <span>Soporte y servicio tecnico</span>
+                    </div>
                 @endif
             </td>
             <td class="td-info">
@@ -527,17 +549,27 @@
             <td class="tot-valor">{{ $fmt($iva) }}</td>
         </tr>
         <tr>
-            <td class="inf-label">Condiciones de pago:</td>
-            <td class="inf-valor">
-                <span class="inf-valor-link">{{ $condicionesPago }}</span>
-            </td>
+            <td class="inf-label">Tiempo de entrega:</td>
+            <td class="inf-valor">{{ $tiempoEntrega ?: '-' }}</td>
             <td class="tot-label">Total</td>
             <td class="tot-valor"><strong>{{ $fmt($total) }}</strong></td>
+        </tr>
+        <tr>
+            <td class="inf-label">Condiciones de pago:</td>
+            <td class="inf-valor" colspan="3">
+                <span class="inf-valor-link">{{ $condicionesPago }}</span>
+            </td>
         </tr>
         <tr>
             <td class="inf-label">Cantidad en letra:</td>
             <td class="inf-valor" colspan="3">
                 {{ $cantidadEscrita }}
+            </td>
+        </tr>
+        <tr>
+            <td class="inf-label">Nota:</td>
+            <td class="inf-valor" colspan="3">
+                <strong>{{ $notaFija }}</strong>
             </td>
         </tr>
 
@@ -593,3 +625,4 @@
 </table>
 </body>
 </html>
+

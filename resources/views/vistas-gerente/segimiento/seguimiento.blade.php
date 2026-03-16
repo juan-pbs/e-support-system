@@ -179,19 +179,13 @@
               <thead class="bg-slate-50 text-xs uppercase tracking-wide text-gray-500 sticky top-0 z-10">
                 <tr>
                   <th class="px-4 py-3 font-semibold whitespace-nowrap">ID Orden</th>
-                  <th class="px-4 py-3 font-semibold whitespace-nowrap">Técnico</th>
-                  <th class="px-4 py-3 font-semibold whitespace-nowrap">Estatus</th>
-                  <th class="px-4 py-3 font-semibold whitespace-nowrap">Prioridad</th>
+                  <th class="px-4 py-3 font-semibold whitespace-nowrap">Cliente</th>
+                  <th class="px-4 py-3 font-semibold whitespace-nowrap">Operación</th>
                   <th class="px-4 py-3 font-semibold text-center whitespace-nowrap">Asignación</th>
                   <th class="px-4 py-3 font-semibold text-center whitespace-nowrap">Acta</th>
                   <th class="px-4 py-3 font-semibold text-center whitespace-nowrap">Comentarios</th>
                   <th class="px-4 py-3 font-semibold whitespace-nowrap">Material no previsto</th>
-                  <th class="px-4 py-3 font-semibold whitespace-nowrap">Moneda</th>
-                  <th class="px-4 py-3 font-semibold whitespace-nowrap">
-                    Total adicional
-                    <span class="block text-[10px] text-gray-500 normal-case">(moneda de la orden)</span>
-                  </th>
-                  <th class="px-4 py-3 font-semibold whitespace-nowrap">Total final</th>
+                  <th class="px-4 py-3 font-semibold whitespace-nowrap">Finanzas</th>
                 </tr>
               </thead>
               <tbody id="serviceTableBody" class="divide-y divide-gray-100">
@@ -232,6 +226,53 @@
   </div>
 </div>
 
+<!-- Modal Operación -->
+<div id="opsModal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/40" onclick="closeOpsModal()"></div>
+  <div class="relative bg-white w-full max-w-lg mx-auto mt-20 rounded-2xl shadow-xl">
+    <div class="px-5 py-4 border-b flex items-center justify-between">
+      <h3 class="text-lg font-semibold">Detalle operativo — <span id="opsOrderLabel" class="text-gray-700"></span></h3>
+      <button class="text-gray-500 hover:text-gray-700" onclick="closeOpsModal()">✕</button>
+    </div>
+    <div class="p-5 space-y-4">
+      <div><div class="text-xs text-gray-500 uppercase tracking-wide">Técnico</div><div id="opsTech" class="mt-1 text-sm font-medium text-gray-900">—</div></div>
+      <div><div class="text-xs text-gray-500 uppercase tracking-wide">Estatus</div><div id="opsStatus" class="mt-1"></div></div>
+      <div><div class="text-xs text-gray-500 uppercase tracking-wide">Prioridad</div><div id="opsPriority" class="mt-1"></div></div>
+    </div>
+    <div class="px-5 py-4 border-t text-right">
+      <button onclick="closeOpsModal()" class="px-4 py-2 rounded-lg border hover:bg-gray-50">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Finanzas -->
+<div id="financeModal" class="fixed inset-0 z-50 hidden">
+  <div class="absolute inset-0 bg-black/40" onclick="closeFinanceModal()"></div>
+  <div class="relative bg-white w-full max-w-lg mx-auto mt-20 rounded-2xl shadow-xl">
+    <div class="px-5 py-4 border-b flex items-center justify-between">
+      <h3 class="text-lg font-semibold">Detalle financiero - <span id="financeOrderLabel" class="text-gray-700"></span></h3>
+      <button class="text-gray-500 hover:text-gray-700" onclick="closeFinanceModal()">✕</button>
+    </div>
+    <div class="p-5 space-y-4">
+      <div>
+        <div class="text-xs text-gray-500 uppercase tracking-wide">Moneda</div>
+        <div id="financeCurrency" class="mt-1 text-sm font-medium text-gray-900">-</div>
+      </div>
+      <div>
+        <div class="text-xs text-gray-500 uppercase tracking-wide">Total adicional</div>
+        <div id="financeAdditional" class="mt-1 text-sm font-semibold text-gray-900 tabular-nums">-</div>
+        <div id="financeAdditionalMxn" class="mt-1 text-xs text-gray-500 hidden"></div>
+      </div>
+      <div>
+        <div class="text-xs text-gray-500 uppercase tracking-wide">Total final</div>
+        <div id="financeFinal" class="mt-1 text-sm font-semibold text-gray-900 tabular-nums">-</div>
+      </div>
+    </div>
+    <div class="px-5 py-4 border-t text-right">
+      <button onclick="closeFinanceModal()" class="px-4 py-2 rounded-lg border hover:bg-gray-50">Cerrar</button>
+    </div>
+  </div>
+</div>
 <!-- Modal Extras -->
 <div id="extrasModal" class="fixed inset-0 z-50 hidden">
   <div class="absolute inset-0 bg-black/40" onclick="closeExtras()"></div>
@@ -244,6 +285,7 @@
     </div>
 
     <div class="p-5 space-y-4">
+
       {{-- Nota de moneda de captura / conversión --}}
       <p id="extrasCurrencyNote"
          class="text-xs text-gray-600 bg-blue-50 border border-blue-100 rounded-lg px-3 py-2 flex items-start gap-2">
@@ -622,6 +664,24 @@ function isOrderLocked(status) {
   return s === 'finalizado';
 }
 
+function setProgressActionButtonsState(locked) {
+  const cfg = [
+    { id: 'openAddCommentBtn', enabledTitle: 'Agregar comentario de avance', disabledTitle: 'No se pueden agregar comentarios a servicios finalizados.' },
+    { id: 'openAddImagesBtn', enabledTitle: 'Agregar imágenes de avance', disabledTitle: 'No se pueden agregar imágenes a servicios finalizados.' },
+    { id: 'openCombinedAddCommentBtn', enabledTitle: 'Agregar comentario de avance', disabledTitle: 'No se pueden agregar comentarios a servicios finalizados.' },
+    { id: 'openCombinedAddImagesBtn', enabledTitle: 'Agregar imágenes de avance', disabledTitle: 'No se pueden agregar imágenes a servicios finalizados.' },
+  ];
+
+  cfg.forEach(({ id, enabledTitle, disabledTitle }) => {
+    const btn = document.getElementById(id);
+    if (!btn) return;
+    btn.disabled = locked;
+    btn.classList.toggle('opacity-60', locked);
+    btn.classList.toggle('cursor-not-allowed', locked);
+    btn.title = locked ? disabledTitle : enabledTitle;
+  });
+}
+
 function getStatusBadge(status) {
   const color = {
     "en-proceso": "bg-green-100 text-green-800",
@@ -644,7 +704,58 @@ function getPriorityBadge(priorityRaw) {
   return `<span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${color}">${escapeHtml(label)}</span>`;
 }
 
+function openOpsModal(orderId, technician, status, priority) {
+  const modal = document.getElementById('opsModal');
+  if (!modal) return;
+
+  document.getElementById('opsOrderLabel').textContent = orderId || '—';
+  document.getElementById('opsTech').textContent = technician || '—';
+  document.getElementById('opsStatus').innerHTML = getStatusBadge(status || '—');
+  document.getElementById('opsPriority').innerHTML = getPriorityBadge(priority || '—');
+  modal.classList.remove('hidden');
+}
+
+
+function closeOpsModal() {
+  const modal = document.getElementById('opsModal');
+  if (modal) modal.classList.add('hidden');
+}
+
+function openFinanceModal(orderId, currency, additionalTotal, finalTotal, additionalTotalMxn = 0) {
+  const modal = document.getElementById('financeModal');
+  if (!modal) return;
+
+  const curr = (currency || 'MXN').toUpperCase();
+  const additional = Number(additionalTotal || 0);
+  const finalVal = Number(finalTotal || 0);
+  const additionalMxnVal = Number(additionalTotalMxn || 0);
+
+  document.getElementById('financeOrderLabel').textContent = orderId || '—';
+  document.getElementById('financeCurrency').textContent = curr;
+  document.getElementById('financeAdditional').textContent = formatCurrency(additional, curr);
+  document.getElementById('financeFinal').textContent = formatCurrency(finalVal, curr);
+
+  const mxnLine = document.getElementById('financeAdditionalMxn');
+  if (mxnLine) {
+    if (curr === 'USD' && additionalMxnVal > 0) {
+      mxnLine.textContent = `Capturado en MXN: ${formatCurrency(additionalMxnVal, 'MXN')}`;
+      mxnLine.classList.remove('hidden');
+    } else {
+      mxnLine.textContent = '';
+      mxnLine.classList.add('hidden');
+    }
+  }
+
+  modal.classList.remove('hidden');
+}
+
+function closeFinanceModal() {
+  const modal = document.getElementById('financeModal');
+  if (modal) modal.classList.add('hidden');
+}
+
 async function fetchSeguimiento() {
+
   const estado = statusFilter.value || 'all';
 
   const params = new URLSearchParams();
@@ -808,6 +919,7 @@ function renderCards(rows) {
   rows.forEach(item => {
     const priority = item.priority ?? item.prioridad ?? '';
     const currency = (item.currency || 'MXN').toUpperCase();
+    const clientName = item.client || item.cliente || '—';
 
     const matRaw = item.unforeseeenMaterial || item.unforeseenMaterial || '—';
     const mat = escapeHtml(matRaw);
@@ -829,9 +941,9 @@ function renderCards(rows) {
         Capturado en MXN: ${formatCurrency(additionalTotalMxn, 'MXN')}
       </div>`;
     }
+    const extrasOnclick   = "openExtras(" + item.id + ", " + JSON.stringify(item.orderId) + ", " + JSON.stringify(item.status) + ", " + JSON.stringify(currency) + ", " + Number(item.exchangeRate || 1) + ")";
+    const progressOnclick = "openProgress(" + item.id + ", " + JSON.stringify(item.orderId) + ", " + JSON.stringify(item.status) + ")";
 
-    const extrasOnclick   = `openExtras(${item.id}, ${JSON.stringify(item.orderId)}, ${JSON.stringify(item.status)}, ${JSON.stringify(currency)}, ${Number(item.exchangeRate || 1)})`;
-    const progressOnclick = `openProgress(${item.id}, ${JSON.stringify(item.orderId)}, ${JSON.stringify(item.status)})`;
 
     cardsWrap.innerHTML += `
       <div class="border border-gray-200 rounded-2xl p-4 shadow-sm bg-white">
@@ -843,6 +955,10 @@ function renderCards(rows) {
             <div class="mt-2 text-sm text-gray-800">
               <span class="text-xs text-gray-500">Técnico:</span>
               <span class="font-medium">${escapeHtml(item.technician || '—')}</span>
+            </div>
+            <div class="mt-1 text-sm text-gray-800">
+              <span class="text-xs text-gray-500">Cliente:</span>
+              <span class="font-medium">${escapeHtml(clientName)}</span>
             </div>
           </div>
 
@@ -919,6 +1035,7 @@ function renderTable(rows) {
     const priority   = item.priority ?? item.prioridad ?? '';
     const matRaw     = item.unforeseeenMaterial || item.unforeseenMaterial || '-';
     const mat        = escapeHtml(matRaw);
+    const clientName = item.client || item.cliente || '—';
 
     const pendingCount = Number(item.extrasPendingCount || 0);
     const pendingBadge = pendingCount > 0
@@ -930,6 +1047,9 @@ function renderTable(rows) {
 
     const additionalTotal     = Number(item.additionalTotal || 0);
     const additionalTotalMxn  = Number(item.additionalTotalMxn || 0);
+
+    const commentsRaw = item.comments || '—';
+    const comments = escapeHtml(commentsRaw);
 
     const extrasBtnLabel = locked ? 'Ver' : 'Editar';
     const extrasBtnTitle = locked
@@ -957,14 +1077,29 @@ function renderTable(rows) {
       totalExtraHtml = formatCurrency(additionalTotal, currency);
     }
 
+    const opsOnclick = "openOpsModal(" + JSON.stringify(item.orderId) + ", " + JSON.stringify(item.technician || '—') + ", " + JSON.stringify(item.status || '') + ", " + JSON.stringify(priority || '') + ")";
+    const financeOnclick = "openFinanceModal(" + JSON.stringify(item.orderId) + ", " + JSON.stringify(currency) + ", " + Number(additionalTotal || 0) + ", " + Number(item.finalTotal || 0) + ", " + Number(additionalTotalMxn || 0) + ")";
+
     tableBody.innerHTML += `
       <tr class="hover:bg-slate-50/80 transition-colors">
         <td class="px-4 py-3 font-semibold text-blue-700 whitespace-nowrap">${escapeHtml(item.orderId)}</td>
-        <td class="px-4 py-3 font-medium text-gray-800 max-w-[180px] truncate" title="${escapeHtmlAttr(item.technician || '—')}">
-          ${escapeHtml(item.technician || '—')}
+        <td class="px-4 py-3 font-medium text-gray-800 max-w-[220px] truncate" title="${escapeHtmlAttr(clientName)}">
+          ${escapeHtml(clientName)}
         </td>
-        <td class="px-4 py-3 whitespace-nowrap">${getStatusBadge(item.status)}</td>
-        <td class="px-4 py-3 whitespace-nowrap">${getPriorityBadge(priority)}</td>
+        <td class="px-4 py-3">
+          <div class="flex flex-col gap-2 min-w-[220px]">
+            <div class="font-medium text-gray-800 truncate" title="${escapeHtmlAttr(item.technician || '—')}">${escapeHtml(item.technician || '—')}</div>
+            <div class="flex flex-wrap items-center gap-1">
+              ${getStatusBadge(item.status)}
+              ${getPriorityBadge(priority)}
+            </div>
+            <button type="button"
+                    class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border border-slate-200 text-slate-700 bg-slate-50 hover:bg-slate-100"
+                    onclick='${opsOnclick}'>
+              Ver detalle
+            </button>
+          </div>
+        </td>
         <td class="px-4 py-3 text-center whitespace-nowrap">${renderAsignarBtn(item)}</td>
         <td class="px-4 py-3 text-center whitespace-nowrap">${renderActaBtn(item)}</td>
         <td class="px-4 py-3 text-center whitespace-nowrap">${renderEyeBtn(item)}</td>
@@ -986,9 +1121,18 @@ function renderTable(rows) {
             </div>
           </div>
         </td>
-        <td class="px-4 py-3 font-medium text-gray-700 whitespace-nowrap">${currency}</td>
-        <td class="px-4 py-3 font-medium tabular-nums whitespace-nowrap">${totalExtraHtml}</td>
-        <td class="px-4 py-3 font-semibold text-gray-900 tabular-nums whitespace-nowrap">${formatCurrency(item.finalTotal, currency)}</td>
+        <td class="px-4 py-3">
+          <div class="flex flex-col gap-1 min-w-[220px]">
+            <div class="text-xs text-gray-500">Moneda: <span class="font-medium text-gray-700">${currency}</span></div>
+            <div class="text-sm text-gray-800">Adicional: <span class="font-semibold tabular-nums">${totalExtraHtml}</span></div>
+            <div class="text-sm text-gray-800">Final: <span class="font-semibold tabular-nums">${formatCurrency(item.finalTotal, currency)}</span></div>
+            <button type="button"
+                    class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border border-slate-200 text-slate-700 bg-slate-50 hover:bg-slate-100"
+                    onclick='${financeOnclick}'>
+              Ver detalle
+            </button>
+          </div>
+        </td>
       </tr>
     `;
   });
@@ -1117,6 +1261,7 @@ async function openExtras(orderId, orderLabel, status, currency = 'MXN', exchang
   await loadExtras();
   document.getElementById('extrasModal').classList.remove('hidden');
 }
+
 
 /* ✅ UPDATED: soporta precio_unitario null => Pendiente */
 async function loadExtras() {
@@ -1326,40 +1471,21 @@ async function openProgress(orderId, orderLabel, status) {
   document.getElementById('progressOrderLabel').textContent = orderLabel || ('OS-' + orderId);
 
   const locked = isOrderLocked(progressOrderStatus);
-  const addCommentBtnEl = document.getElementById('openAddCommentBtn');
-  const addImagesBtnEl  = document.getElementById('openAddImagesBtn');
-
-  if (addCommentBtnEl) {
-    addCommentBtnEl.disabled = locked;
-    addCommentBtnEl.classList.toggle('opacity-60', locked);
-    addCommentBtnEl.classList.toggle('cursor-not-allowed', locked);
-    addCommentBtnEl.title = locked
-      ? 'No se pueden agregar comentarios a servicios finalizados.'
-      : 'Agregar comentario de avance';
-  }
-
-  if (addImagesBtnEl) {
-    addImagesBtnEl.disabled = locked;
-    addImagesBtnEl.classList.toggle('opacity-60', locked);
-    addImagesBtnEl.classList.toggle('cursor-not-allowed', locked);
-    addImagesBtnEl.title = locked
-      ? 'No se pueden agregar imágenes a servicios finalizados.'
-      : 'Agregar imágenes de avance';
-  }
+  setProgressActionButtonsState(locked);
 
   const body = document.getElementById('progressBody');
   body.innerHTML = '<div class="text-gray-500">Cargando avances…</div>';
   document.getElementById('progressModal').classList.remove('hidden');
 
   try {
-    await loadProgress();
+    await loadProgress('progressBody');
   } catch (e) {
     console.error(e);
     body.innerHTML = '<div class="text-red-600">No se pudieron cargar los avances.</div>';
   }
 }
 
-async function loadProgress() {
+async function loadProgress(targetId = 'progressBody') {
   const url = `${baseApi}/${progressOrderId}/seguimientos`;
   const res = await fetch(url, { headers: GET_HEADERS, credentials: 'same-origin' });
   if (!res.ok) throw new Error('HTTP ' + res.status);
@@ -1383,11 +1509,12 @@ async function loadProgress() {
     });
   }
 
-  renderProgress();
+  renderProgress(targetId);
 }
 
-function renderProgress() {
-  const cont = document.getElementById('progressBody');
+function renderProgress(targetId = 'progressBody') {
+  const cont = document.getElementById(targetId);
+  if (!cont) return;
 
   const hasComments = progressSeguimientos && progressSeguimientos.length;
   const hasImages   = progressImagenes && progressImagenes.length;
@@ -1478,6 +1605,7 @@ function escapeHtml(t) {
 function escapeHtmlAttr(t) {
   return escapeHtml(t || '').replace(/"/g, '&quot;');
 }
+
 
 /* ===== Modal comentario ===== */
 function openCommentModal() {

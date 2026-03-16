@@ -6,6 +6,7 @@ use App\Models\Cliente;
 use App\Models\CreditoCliente;
 use App\Models\PagoCredito;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 
 class ClienteController extends Controller
@@ -259,21 +260,15 @@ class ClienteController extends Controller
     {
         $request->validate([
             'monto_maximo'     => 'required|numeric|min:0',
-            'dias_credito'     => 'nullable|integer|min:0',
             'fecha_asignacion' => 'required|date',
         ]);
 
-        $fechaLimite = new \DateTime($request->fecha_asignacion);
-        $hoy = new \DateTime();
+        $fechaLimite = Carbon::parse($request->fecha_asignacion)->startOfDay();
+        $hoy = now()->startOfDay();
+        $diasRestantes = (int) $hoy->diffInDays($fechaLimite, false);
 
-        $diffStr = $hoy->diff($fechaLimite)->format('%r%a');
-        $diferencia = (int) $diffStr;
-
-        if ($diferencia < 0) $estatus = 'vencido';
-        elseif ($diferencia === 0) $estatus = 'bloqueado';
-        else $estatus = 'activo';
-
-        $diasCreditoGuardar = max(0, $diferencia);
+        $estatus = $diasRestantes <= 0 ? 'vencido' : 'activo';
+        $diasCreditoGuardar = max(0, $diasRestantes);
 
         $credito = CreditoCliente::where('clave_cliente', $id)->first();
 

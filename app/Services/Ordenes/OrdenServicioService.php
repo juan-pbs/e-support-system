@@ -360,6 +360,8 @@ class OrdenServicioService
             'anticipo_modo'             => ['nullable', 'in:monto,porcentaje'],
             'anticipo_monto'            => ['nullable', 'numeric', 'min:0'],
             'anticipo'                  => ['nullable', 'numeric', 'min:0'],
+            'total_orden'               => ['nullable', 'numeric'],
+            'precio_escrito'            => ['nullable', 'string', 'max:255'],
             'productos'                 => ['nullable', 'array'],
             'productos.*.codigo_producto' => ['nullable'],
             'productos.*.descripcion'   => ['nullable', 'string'],
@@ -427,6 +429,10 @@ class OrdenServicioService
         $set('descripcion', $data['descripcion'] ?? null);
         $set('descripcion_servicio', $data['descripcion_servicio'] ?? ($orden->descripcion_servicio ?? null));
         $set(
+            'precio_escrito',
+            $this->normalizeOptionalText($data['precio_escrito'] ?? ($orden->precio_escrito ?? null))
+        );
+        $set(
             'condiciones_generales',
             (isset($data['condiciones_generales']) && $data['condiciones_generales'] !== '')
                 ? $data['condiciones_generales']
@@ -451,6 +457,167 @@ class OrdenServicioService
         if (isset($data['anticipo_mxn']) && $data['anticipo_mxn'] !== '' && $data['anticipo_mxn'] !== null) {
             $set('anticipo_mxn', (float) $data['anticipo_mxn']);
         }
+    }
+
+    protected function normalizeOptionalText($value): ?string
+    {
+        $text = trim((string) $value);
+
+        return $text !== '' ? $text : null;
+    }
+
+    public function resolvePrecioEscrito($value, float $total, string $moneda): string
+    {
+        $text = $this->normalizeOptionalText($value);
+
+        if ($text !== null) {
+            return $text;
+        }
+
+        return $this->moneyToWordsEs($total, $moneda);
+    }
+
+    protected function moneyToWordsEs(float $amount, string $currency = 'MXN'): string
+    {
+        $amount = round($amount, 2);
+        $integer = (int) floor($amount);
+        $cents = (int) round(($amount - $integer) * 100);
+
+        if ($cents === 100) {
+            $integer++;
+            $cents = 0;
+        }
+
+        $currency = strtoupper(trim($currency));
+        $words = $this->adjustWordsForNoun($this->numberToWordsEs($integer));
+        $noun = $currency === 'USD'
+            ? ($integer === 1 ? 'DOLAR' : 'DOLARES')
+            : ($integer === 1 ? 'PESO' : 'PESOS');
+        $suffix = $currency === 'USD' ? 'USD' : 'M.N.';
+
+        return sprintf('%s %s %02d/100 %s', $words, $noun, $cents, $suffix);
+    }
+
+    protected function adjustWordsForNoun(string $words): string
+    {
+        $words = preg_replace('/VEINTIUNO$/', 'VEINTIUN', $words);
+        $words = preg_replace('/ Y UNO$/', ' Y UN', $words);
+        $words = preg_replace('/ UNO$/', ' UN', $words);
+
+        return $words;
+    }
+
+    protected function numberToWordsEs(int $number): string
+    {
+        $units = [
+            0 => 'CERO',
+            1 => 'UNO',
+            2 => 'DOS',
+            3 => 'TRES',
+            4 => 'CUATRO',
+            5 => 'CINCO',
+            6 => 'SEIS',
+            7 => 'SIETE',
+            8 => 'OCHO',
+            9 => 'NUEVE',
+        ];
+
+        $specials = [
+            10 => 'DIEZ',
+            11 => 'ONCE',
+            12 => 'DOCE',
+            13 => 'TRECE',
+            14 => 'CATORCE',
+            15 => 'QUINCE',
+            16 => 'DIECISEIS',
+            17 => 'DIECISIETE',
+            18 => 'DIECIOCHO',
+            19 => 'DIECINUEVE',
+            20 => 'VEINTE',
+            21 => 'VEINTIUNO',
+            22 => 'VEINTIDOS',
+            23 => 'VEINTITRES',
+            24 => 'VEINTICUATRO',
+            25 => 'VEINTICINCO',
+            26 => 'VEINTISEIS',
+            27 => 'VEINTISIETE',
+            28 => 'VEINTIOCHO',
+            29 => 'VEINTINUEVE',
+        ];
+
+        $tens = [
+            3 => 'TREINTA',
+            4 => 'CUARENTA',
+            5 => 'CINCUENTA',
+            6 => 'SESENTA',
+            7 => 'SETENTA',
+            8 => 'OCHENTA',
+            9 => 'NOVENTA',
+        ];
+
+        $hundreds = [
+            1 => 'CIENTO',
+            2 => 'DOSCIENTOS',
+            3 => 'TRESCIENTOS',
+            4 => 'CUATROCIENTOS',
+            5 => 'QUINIENTOS',
+            6 => 'SEISCIENTOS',
+            7 => 'SETECIENTOS',
+            8 => 'OCHOCIENTOS',
+            9 => 'NOVECIENTOS',
+        ];
+
+        if ($number < 10) {
+            return $units[$number];
+        }
+
+        if ($number < 30) {
+            return $specials[$number];
+        }
+
+        if ($number < 100) {
+            $ten = (int) floor($number / 10);
+            $rest = $number % 10;
+
+            return $tens[$ten] . ($rest ? ' Y ' . $this->numberToWordsEs($rest) : '');
+        }
+
+        if ($number === 100) {
+            return 'CIEN';
+        }
+
+        if ($number < 1000) {
+            $hundred = (int) floor($number / 100);
+            $rest = $number % 100;
+
+            return $hundreds[$hundred] . ($rest ? ' ' . $this->numberToWordsEs($rest) : '');
+        }
+
+        if ($number < 2000) {
+            return 'MIL' . ($number % 1000 ? ' ' . $this->numberToWordsEs($number % 1000) : '');
+        }
+
+        if ($number < 1000000) {
+            $thousands = (int) floor($number / 1000);
+            $rest = $number % 1000;
+
+            return $this->numberToWordsEs($thousands) . ' MIL' . ($rest ? ' ' . $this->numberToWordsEs($rest) : '');
+        }
+
+        if ($number < 2000000) {
+            return 'UN MILLON' . ($number % 1000000 ? ' ' . $this->numberToWordsEs($number % 1000000) : '');
+        }
+
+        if ($number < 1000000000000) {
+            $millions = (int) floor($number / 1000000);
+            $rest = $number % 1000000;
+
+            return $this->adjustWordsForNoun($this->numberToWordsEs($millions))
+                . ' MILLONES'
+                . ($rest ? ' ' . $this->numberToWordsEs($rest) : '');
+        }
+
+        return (string) $number;
     }
 
     public function normalizeDataUriImage(?string $value): ?string
@@ -557,10 +724,9 @@ class OrdenServicioService
 
         $productos = $detalles->map(function ($p) {
             $desc    = $p->descripcion ?? $p->detalle ?? null;
-            $qty     = (float) ($p->cantidad ?? 0);
-            $pu      = (float) ($p->precio_unitario ?? 0);
             $serials = [];
 
+            // ✅ prioridad: tomar seriales desde la relación
             if ($p->relationLoaded('series')) {
                 $serials = $p->series
                     ->pluck('numero_serie')
@@ -569,9 +735,16 @@ class OrdenServicioService
                     ->toArray();
             }
 
+            // fallback
             if (empty($serials)) {
                 $serials = $this->extractSerialsFromText((string) ($desc ?? ''));
             }
+
+            $qty = !empty($serials)
+                ? count($serials)
+                : (float) ($p->cantidad ?? 0);
+
+            $pu = (float) ($p->precio_unitario ?? 0);
 
             return (object) [
                 'nombre_producto' => $p->nombre_producto ?? ($desc ?? 'Producto'),
@@ -586,12 +759,14 @@ class OrdenServicioService
         });
 
         $lineasForTotals = $detalles->map(function ($p) {
+            $serials = $p->relationLoaded('series')
+                ? $p->series->pluck('numero_serie')->filter()->values()->toArray()
+                : [];
+
             return [
-                'cantidad'     => (float) ($p->cantidad ?? 0),
+                'cantidad'     => !empty($serials) ? count($serials) : (float) ($p->cantidad ?? 0),
                 'precio'       => (float) ($p->precio_unitario ?? 0),
-                'ns_asignados' => $p->relationLoaded('series')
-                    ? $p->series->pluck('numero_serie')->filter()->values()->toArray()
-                    : [],
+                'ns_asignados' => $serials,
             ];
         })->toArray();
 
@@ -630,7 +805,7 @@ class OrdenServicioService
         }
 
         config([
-            'dompdf.options.isRemoteEnabled'     => true,
+            'dompdf.options.isRemoteEnabled'      => true,
             'dompdf.options.isHtml5ParserEnabled' => true,
         ]);
 
@@ -810,12 +985,12 @@ class OrdenServicioService
         $total    = round($subtotal + $iva, 2);
 
         return [
-            'material' => round($material, 2),
+            'material'  => round($material, 2),
             'adicional' => round((float) $adicional, 2),
-            'base'     => round($base, 2),
-            'iva'      => $iva,
-            'subtotal' => round($subtotal, 2),
-            'total'    => $total,
+            'base'      => round($base, 2),
+            'iva'       => $iva,
+            'subtotal'  => round($subtotal, 2),
+            'total'     => $total,
         ];
     }
 
@@ -1306,8 +1481,8 @@ class OrdenServicioService
         $piezasSueltas = $get('piezas_sueltas');
 
         if ($paquetesRest !== null || $piezasXPack !== null || $piezasSueltas !== null) {
-            $packs  = max((float) ($paquetesRest ?? 0), 0);
-            $ppp    = max((float) ($piezasXPack ?? 0), 0);
+            $packs   = max((float) ($paquetesRest ?? 0), 0);
+            $ppp     = max((float) ($piezasXPack ?? 0), 0);
             $sueltas = max((float) ($piezasSueltas ?? 0), 0);
 
             return max(($packs * $ppp) + $sueltas, 0);
@@ -1434,31 +1609,46 @@ class OrdenServicioService
         }
     }
 
-    public function preflightStockCheck(array $items, ?string $token = null): array
+    public function preflightStockCheck(array $items, ?string $token = null, ?string $sourceType = null, ?int $sourceId = null): array
     {
         $shortages = [];
+        $annotated = [];
 
         foreach ($items as $it) {
             $codigo = (int) ($it['codigo_producto'] ?? 0);
             $qty    = (int) ceil($this->quantityFrom($it));
 
+            $disponible = $codigo > 0
+                ? $this->calculateAvailableForProduct($codigo, $token)
+                : 0;
+
+            $annot = $it;
+            $annot['stock_max']        = $disponible;
+            $annot['stock_disponible'] = $disponible;
+            $annot['stock']            = $disponible;
+            $annot['disponible']       = $disponible;
+            $annot['faltante']         = 0;
+            $annot['sin_stock']        = false;
+
             if ($codigo <= 0 || $qty <= 0) {
+                $annotated[] = $annot;
                 continue;
             }
-
-            $disponible = $this->calculateAvailableForProduct($codigo, $token);
 
             if ($this->productHasSerial($codigo)) {
                 $preferidos = array_values(array_unique(array_filter(
                     array_map(fn($x) => trim((string) $x), (array) ($it['ns_asignados'] ?? [])),
-                    fn($x) => $x !== ''
-                )));
+                    fn($x) => $x !== '')
+                ));
 
                 if (!empty($preferidos)) {
                     $availableSet = array_flip($this->peekSeriesAll($codigo, $token));
                     $missing = array_values(array_filter($preferidos, fn($ns) => !isset($availableSet[(string) $ns])));
 
                     if (!empty($missing)) {
+                        $annot['faltante']  = count($missing);
+                        $annot['sin_stock'] = true;
+
                         $shortages[] = [
                             'codigo_producto' => $codigo,
                             'requerido'       => $qty,
@@ -1466,12 +1656,17 @@ class OrdenServicioService
                             'faltante'        => max(count($missing), 0),
                             'missing_serials' => $missing,
                         ];
+
+                        $annotated[] = $annot;
                         continue;
                     }
                 }
             }
 
             if ($qty > $disponible) {
+                $annot['faltante']  = max($qty - $disponible, 0);
+                $annot['sin_stock'] = true;
+
                 $shortages[] = [
                     'codigo_producto' => $codigo,
                     'requerido'       => $qty,
@@ -1479,11 +1674,14 @@ class OrdenServicioService
                     'faltante'        => max($qty - $disponible, 0),
                 ];
             }
+
+            $annotated[] = $annot;
         }
 
         return [
             'ok'        => empty($shortages),
             'shortages' => $shortages,
+            'annotated' => $annotated,
         ];
     }
 
@@ -1496,11 +1694,12 @@ class OrdenServicioService
         $shortages = array_values($check['shortages'] ?? []);
 
         throw new HttpResponseException(response()->json([
-            'message'   => 'No hay stock suficiente para uno o más productos.',
-            'errors'    => [
+            'message'          => 'No hay stock suficiente para uno o más productos.',
+            'errors'           => [
                 'productos' => ['Stock insuficiente en uno o más productos.'],
             ],
-            'shortages' => $shortages,
+            'shortages'        => $shortages,
+            'productos_preview'=> array_values($check['annotated'] ?? []),
         ], 422));
     }
 
@@ -1523,6 +1722,7 @@ class OrdenServicioService
                 }
             }
 
+            // ✅ no serializados: NO se consume inventario físico
             $final[] = [
                 'codigo_producto' => $codigo,
                 'descripcion'     => $desc,
@@ -1530,6 +1730,7 @@ class OrdenServicioService
                 'cantidad'        => $qty,
                 'precio'          => $this->unitPriceFrom($it),
                 'ns_asignados'    => $serials,
+                'has_serial'      => $codigo ? $this->productHasSerial($codigo) : false,
             ];
         }
 
@@ -1561,6 +1762,7 @@ class OrdenServicioService
                 'cantidad'        => $qty,
                 'precio'          => $this->unitPriceFrom($it),
                 'ns_asignados'    => $serials,
+                'has_serial'      => $codigo ? $this->productHasSerial($codigo) : false,
             ];
         }
 
@@ -1579,14 +1781,15 @@ class OrdenServicioService
             return [];
         }
 
+        // ✅ no serializados: no tocar inventario
         if (!$this->productHasSerial($codigoProducto)) {
             return [];
         }
 
         $preferidos = array_values(array_unique(array_filter(
             array_map(fn($s) => trim((string) $s), $preferidos),
-            fn($s) => $s !== ''
-        )));
+            fn($s) => $s !== '')
+        ));
 
         $collected = [];
 
@@ -1675,8 +1878,8 @@ class OrdenServicioService
 
         $preferidos = array_values(array_unique(array_filter(
             array_map(fn($s) => trim((string) $s), $preferidos),
-            fn($s) => $s !== ''
-        )));
+            fn($s) => $s !== '')
+        ));
 
         if (empty($preferidos)) {
             return [];
@@ -1778,30 +1981,52 @@ class OrdenServicioService
     {
         if (!$credito) {
             return [
-                'expired' => false,
-                'reason'  => null,
+                'expired'        => false,
+                'reason'         => null,
+                'estatus'        => null,
+                'fecha_limite'   => null,
+                'dias_restantes' => null,
             ];
         }
 
         $status = strtolower(trim((string) ($credito->estatus ?? $credito->estado ?? 'activo')));
-        if (in_array($status, ['vencido', 'bloqueado', 'inactivo'], true)) {
-            return [
-                'expired' => true,
-                'reason'  => $status,
-            ];
-        }
-
         $fecha = $credito->fecha_limite
             ?? $credito->fecha_vencimiento
+            ?? $credito->fecha_asignacion
             ?? null;
+
+        $fechaLimite = null;
+        $diasRestantes = null;
 
         if (!empty($fecha)) {
             try {
-                $date = Carbon::parse($fecha);
-                if ($date->lt(Carbon::today())) {
+                $fechaLimite = Carbon::parse($fecha);
+                $diasRestantes = (int) Carbon::today()->diffInDays($fechaLimite, false);
+            } catch (\Throwable $e) {
+                $fechaLimite = null;
+                $diasRestantes = null;
+            }
+        }
+
+        if (in_array($status, ['vencido', 'bloqueado', 'inactivo'], true)) {
+            return [
+                'expired'        => true,
+                'reason'         => $status,
+                'estatus'        => $status,
+                'fecha_limite'   => $fechaLimite?->toDateString(),
+                'dias_restantes' => $diasRestantes,
+            ];
+        }
+
+        if (!empty($fecha)) {
+            try {
+                if ($fechaLimite && $fechaLimite->lte(Carbon::today())) {
                     return [
-                        'expired' => true,
-                        'reason'  => 'fecha_limite',
+                        'expired'        => true,
+                        'reason'         => 'fecha_limite',
+                        'estatus'        => 'vencido',
+                        'fecha_limite'   => $fechaLimite->toDateString(),
+                        'dias_restantes' => $diasRestantes,
                     ];
                 }
             } catch (\Throwable $e) {
@@ -1810,8 +2035,11 @@ class OrdenServicioService
         }
 
         return [
-            'expired' => false,
-            'reason'  => null,
+            'expired'        => false,
+            'reason'         => null,
+            'estatus'        => 'activo',
+            'fecha_limite'   => $fechaLimite?->toDateString(),
+            'dias_restantes' => $diasRestantes,
         ];
     }
 }

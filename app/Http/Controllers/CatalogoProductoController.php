@@ -3,6 +3,7 @@
 namespace App\Http\Controllers;
 
 use App\Models\Producto;
+use App\Services\Ordenes\OrdenServicioService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -10,6 +11,8 @@ use Illuminate\Support\Str;
 
 class CatalogoProductoController extends Controller
 {
+    public function __construct(private OrdenServicioService $ordenService) {}
+
     /** Expresión de agregación para concatenar proveedores según driver */
     private function proveedoresAggExpr(): string
     {
@@ -52,6 +55,7 @@ class CatalogoProductoController extends Controller
             ->leftJoin('proveedores', 'proveedores.clave_proveedor', '=', 'inventario.clave_proveedor')
             ->select(array_merge($prodCols, [
                 DB::raw("$subStock AS stock_total"),
+                DB::raw("$subStock AS stock_fisico"),
                 DB::raw("$aggProv AS proveedores_str"),
             ]))
             ->groupBy($prodCols);
@@ -88,6 +92,23 @@ class CatalogoProductoController extends Controller
         }
 
         $productos  = $query->orderByDesc('productos.created_at')->paginate(12)->withQueryString();
+        $productos->getCollection()->transform(function ($producto) {
+            $codigo = (int) ($producto->codigo_producto ?? 0);
+            $disponible = 0;
+
+            if ($codigo > 0) {
+                try {
+                    $disponible = $this->ordenService->calculateAvailableForProduct($codigo);
+                } catch (\Throwable $e) {
+                    $disponible = 0;
+                }
+            }
+
+            $producto->stock_disponible = max((int) $disponible, 0);
+            $producto->sin_disponible   = $producto->stock_disponible <= 0;
+
+            return $producto;
+        });
         $categorias = Producto::whereNotNull('categoria')->distinct()->orderBy('categoria')->pluck('categoria');
 
         return view('vistas-gerente.productos-gerente.catalogo_producto_gerente', compact('productos', 'categorias'));
@@ -328,4 +349,25 @@ class CatalogoProductoController extends Controller
         }
         return $candidate;
     }
+
+    // Compat con rutas historicas.
+    public function inactivos(Request $request)
+    {
+        $request->merge(['inactivos' => 1]);
+        return $this->index($request);
+    }
+
+    public function plantilla()
+    {
+        return redirect()->route('catalogo.carga_rapida.plantilla');
+    }
+
+    public function exportar()
+    {
+        return redirect()->route('catalogo.index')
+            ->with('error', 'La exportacion de catalogo no esta disponible en este controlador.');
+    }
 }
+
+
+

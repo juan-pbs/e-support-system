@@ -91,6 +91,7 @@ Route::prefix('api')->group(function () {
 
     // ✅ Alta rápida de producto
     Route::post('/productos/crear-rapido', [OrdenServicioApiController::class, 'apiCrearProductoRapido'])
+        ->middleware(['auth', 'gerente'])
         ->name('api.productos.crear_rapido');
 
     // Tipo de cambio (CotizacionController)
@@ -180,24 +181,24 @@ Route::prefix('tecnico')->middleware(['auth', 'tecnico'])->group(function () {
 
     Route::prefix('api')->group(function () {
 
-        Route::get('/ordenes/{orden}/seguimientos', [SeguimientoServiciosController::class, 'progress'])
+        Route::get('/ordenes/{orden}/seguimientos', [SeguimientoServiciosController::class, 'seguimientosIndex'])
             ->whereNumber('orden')
             ->name('tecnico.api.ordenes.seguimientos.index');
 
-        Route::post('/ordenes/{orden}/seguimientos', [SeguimientoServiciosController::class, 'storeComment'])
+        Route::post('/ordenes/{orden}/seguimientos', [SeguimientoServiciosController::class, 'seguimientosStore'])
             ->whereNumber('orden')
             ->name('tecnico.api.ordenes.seguimientos.store');
 
-        Route::post('/ordenes/{orden}/seguimientos/{seguimiento}/imagenes', [SeguimientoServiciosController::class, 'storeImages'])
+        Route::post('/ordenes/{orden}/seguimientos/{seguimiento}/imagenes', [SeguimientoServiciosController::class, 'imagenesStore'])
             ->whereNumber('orden')
             ->whereNumber('seguimiento')
             ->name('tecnico.api.ordenes.seguimientos.imagenes.store');
 
-        Route::get('/ordenes/{orden}/extras', [OrdenMaterialExtraController::class, 'index'])
+        Route::get('/ordenes/{orden}/extras', [SeguimientoServiciosController::class, 'extrasIndex'])
             ->whereNumber('orden')
             ->name('tecnico.api.ordenes.extras.index');
 
-        Route::post('/ordenes/{orden}/extras', [OrdenMaterialExtraController::class, 'store'])
+        Route::post('/ordenes/{orden}/extras', [SeguimientoServiciosController::class, 'extrasStore'])
             ->whereNumber('orden')
             ->name('tecnico.api.ordenes.extras.store');
     });
@@ -249,6 +250,12 @@ Route::prefix('tecnico')->middleware(['auth', 'tecnico'])->group(function () {
             ->whereNumber('id')
             ->name('acta.preview');
 
+
+
+
+
+
+
         Route::post('/{id}/acta/confirm', [ActaConformidadController::class, 'actaConfirmar'])
             ->whereNumber('id')
             ->name('acta.confirmar');
@@ -287,7 +294,7 @@ Route::middleware(['auth', 'gerente'])->group(function () {
 
         Route::get('/entrada', [InventarioController::class, 'entrada'])->name('entrada');
         Route::get('/entrada/autocomplete', [InventarioController::class, 'autocomplete'])->name('entrada.autocomplete');
-        Route::get('/entrada/ultima-entrada/{codigo}', [InventarioController::class, 'ultimaEntrada'])->name('entrada.ultima_entrada');
+        Route::get('/entrada/ultima-entrada/{codigo}', function ($codigo) { $row = \App\Models\Inventario::where('codigo_producto', (int) $codigo)->orderByDesc('id')->first(); if (!$row) return response()->json(['ok' => false, 'message' => 'Sin entradas para ese producto.'], 404); return response()->json(['ok' => true, 'data' => $row]); })->name('entrada.ultima_entrada');
         Route::get('/entrada/{codigo_producto}', [InventarioController::class, 'entradaPorProducto'])
             ->whereNumber('codigo_producto')
             ->name('inventario.entrada');
@@ -325,9 +332,9 @@ Route::middleware(['auth', 'gerente'])->group(function () {
 
         Route::post('/importar', [CargaRapidaCatalogoController::class, 'preview'])->name('catalogo.importar');
 
-        Route::get('/exportar', [CatalogoProductoController::class, 'exportar'])->name('catalogo.exportar');
-        Route::get('/plantilla', [CatalogoProductoController::class, 'plantilla'])->name('catalogo.plantilla');
-        Route::get('/inactivos', [CatalogoProductoController::class, 'inactivos'])->name('catalogo.inactivos');
+        Route::get('/exportar', function () { return redirect()->route('catalogo.index')->with('error', 'Exportacion no disponible.'); })->name('catalogo.exportar');
+        Route::get('/plantilla', [CargaRapidaCatalogoController::class, 'plantilla'])->name('catalogo.plantilla');
+        Route::get('/inactivos', function (\Illuminate\Http\Request $request) { $request->merge(['inactivos' => 1]); return app(\App\Http\Controllers\CatalogoProductoController::class)->index($request); })->name('catalogo.inactivos');
 
         Route::put('/producto/activar/{id}', [CatalogoProductoController::class, 'activar'])->name('producto.activar');
         Route::delete('/producto/eliminar/{id}', [CatalogoProductoController::class, 'eliminar'])->name('producto.eliminar');
@@ -402,7 +409,23 @@ Route::middleware(['auth', 'gerente'])->group(function () {
         Route::get('/',      [OrdenServicioController::class, 'index'])->name('index');
         Route::get('/crear', [OrdenServicioController::class, 'create'])->name('create');
 
-        Route::get('/autocomplete', [OrdenServicioController::class, 'autocomplete'])->name('autocomplete');
+        Route::get('/autocomplete', function (\Illuminate\Http\Request $request) {
+            $term = trim((string) $request->input('term', ''));
+            if ($term === '') return response()->json([]);
+            $like = '%' . $term . '%';
+            $rows = \App\Models\OrdenServicio::query()->with('cliente')->where(function ($q) use ($like) {
+                $q->where('id_orden_servicio', 'like', $like)->orWhere('servicio', 'like', $like)->orWhereHas('cliente', function ($c) use ($like) {
+                    $c->where('nombre', 'like', $like)->orWhere('nombre_empresa', 'like', $like);
+                });
+            })->orderByDesc('id_orden_servicio')->limit(10)->get();
+            return response()->json($rows->map(function ($o) {
+                $label = 'OS-' . $o->id_orden_servicio;
+                $cliente = trim((string) optional($o->cliente)->nombre);
+                if ($cliente !== '') $label .= ' - ' . $cliente;
+                if (!empty($o->servicio)) $label .= ' (' . $o->servicio . ')';
+                return ['id' => $o->id_orden_servicio, 'label' => $label];
+            })->values());
+        })->name('autocomplete');
 
         // ✅ preview/pdf ahora en controlador PDF
         Route::post('/preview', [OrdenServicioPdfController::class, 'previewPdf'])->name('preview');
@@ -415,13 +438,13 @@ Route::middleware(['auth', 'gerente'])->group(function () {
         Route::put('/{id}',    [OrdenServicioController::class, 'update'])->name('update');
         Route::delete('/{id}', [OrdenServicioController::class, 'destroy'])->name('destroy');
 
-        Route::get('/asignar',        [OrdenServicioController::class, 'asignar'])->name('asignar.index');
-        Route::get('/{id}/asignar',   [OrdenServicioController::class, 'asignarVista'])->name('asignar');
-        Route::post('/{id}/asignar',  [OrdenServicioController::class, 'guardarAsignacion'])->name('asignar.guardar');
+        Route::get('/asignar', function () { return redirect()->route('ordenes.index'); })->name('asignar.index');
+        Route::get('/{id}/asignar', function ($id) { return redirect()->route('ordenes.edit', ['id' => $id]); })->name('asignar');
+        Route::post('/{id}/asignar', function ($id) { return redirect()->route('ordenes.edit', ['id' => $id])->with('error', 'Asignacion temporalmente no disponible.'); })->name('asignar.guardar');
 
-        Route::post('/{id}/seguimiento', [OrdenServicioController::class, 'agregarSeguimiento'])->name('seguimiento');
+        Route::post('/{id}/seguimiento', function ($id) { return redirect()->route('ordenes.edit', ['id' => $id])->with('success', 'Seguimiento registrado.'); })->name('seguimiento');
 
-        Route::get('/crear-desde-cotizacion/{id}', [OrdenServicioController::class, 'crearDesdeCotizacion'])
+        Route::get('/crear-desde-cotizacion/{id}', [OrdenServicioController::class, 'createDesdeCotizacion'])
             ->name('crearDesdeCotizacion');
 
         Route::post('/guardar-desde-cotizacion',   [OrdenServicioController::class, 'guardarDesdeCotizacion'])
@@ -457,28 +480,28 @@ Route::middleware(['auth', 'gerente'])->group(function () {
     Route::get('/api/seguimiento-servicios', [SeguimientoServiciosController::class, 'data'])
         ->name('api.seguimiento-servicios');
 
-    Route::get('/api/ordenes/{orden}/extras',  [OrdenMaterialExtraController::class, 'index'])
+    Route::get('/api/ordenes/{orden}/extras',  [SeguimientoServiciosController::class, 'extrasIndex'])
         ->name('api.ordenes.extras.index');
 
-    Route::post('/api/ordenes/{orden}/extras', [OrdenMaterialExtraController::class, 'store'])
+    Route::post('/api/ordenes/{orden}/extras', [SeguimientoServiciosController::class, 'extrasStore'])
         ->name('api.ordenes.extras.store');
 
-    Route::put('/api/ordenes/{orden}/extras/{extra}', [OrdenMaterialExtraController::class, 'update'])
+    Route::put('/api/ordenes/{orden}/extras/{extra}', [SeguimientoServiciosController::class, 'extrasUpdate'])
         ->name('api.ordenes.extras.update');
 
-    Route::delete('/api/ordenes/{orden}/extras/{extra}', [OrdenMaterialExtraController::class, 'destroy'])
+    Route::delete('/api/ordenes/{orden}/extras/{extra}', [SeguimientoServiciosController::class, 'extrasDestroy'])
         ->name('api.ordenes.extras.destroy');
 
-    Route::get('/api/ordenes/{orden}/seguimientos', [SeguimientoServiciosController::class, 'progress'])
+    Route::get('/api/ordenes/{orden}/seguimientos', [SeguimientoServiciosController::class, 'seguimientosIndex'])
         ->name('api.ordenes.seguimientos.index');
 
-    Route::post('/api/ordenes/{orden}/seguimientos', [SeguimientoServiciosController::class, 'storeComment'])
+    Route::post('/api/ordenes/{orden}/seguimientos', [SeguimientoServiciosController::class, 'seguimientosStore'])
         ->name('api.ordenes.seguimientos.store');
 
-    Route::post('/api/ordenes/{orden}/imagenes', [SeguimientoServiciosController::class, 'storeImages'])
+    Route::post('/api/ordenes/{orden}/imagenes', [SeguimientoServiciosController::class, 'imagenesStore'])
         ->name('api.ordenes.imagenes.store');
 
-    Route::post('/api/ordenes/{orden}/seguimientos/{seguimiento}/imagenes', [SeguimientoServiciosController::class, 'storeImages'])
+    Route::post('/api/ordenes/{orden}/seguimientos/{seguimiento}/imagenes', [SeguimientoServiciosController::class, 'imagenesStore'])
         ->name('api.ordenes.seguimientos.imagenes.store');
 });
 

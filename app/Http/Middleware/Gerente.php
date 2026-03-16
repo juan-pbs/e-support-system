@@ -9,32 +9,37 @@ class Gerente
 {
     /**
      * Permite acceso a usuarios con rol 'gerente' o 'admin'.
-     * Soporta tanto atributo simple (e.g. $user->puesto/role/rol/tipo)
-     * como Spatie (hasAnyRole), si lo tuvieras instalado.
      */
     public function handle(Request $request, Closure $next)
     {
         $user = $request->user();
         if (!$user) {
-            abort(403);
+            return $request->expectsJson()
+                ? response()->json(['message' => 'No autenticado.'], 401)
+                : redirect()->route('login');
         }
 
-        // ✅ Si usas Spatie/laravel-permission (opcional):
         if (method_exists($user, 'hasAnyRole')) {
             if ($user->hasAnyRole(['admin', 'gerente'])) {
                 return $next($request);
             }
-            abort(403);
+
+            return $request->expectsJson()
+                ? response()->json(['message' => 'No autorizado para este módulo.'], 403)
+                : redirect()->route('dashboard')
+                    ->with('error', 'No tienes acceso a esa sección con este usuario.');
         }
 
-        // ✅ Atributo simple en tu modelo User (ajusta el campo si hace falta)
         $rol = $user->puesto ?? $user->role ?? $user->rol ?? $user->tipo ?? null;
-        $rol = is_string($rol) ? strtolower($rol) : '';
+        $rol = is_string($rol) ? strtolower(trim($rol)) : '';
 
-        if (!in_array($rol, ['gerente', 'admin'], true)) {
-            abort(403);
+        if (in_array($rol, ['gerente', 'admin'], true)) {
+            return $next($request);
         }
 
-        return $next($request);
+        return $request->expectsJson()
+            ? response()->json(['message' => 'No autorizado para este módulo.'], 403)
+            : redirect()->route('dashboard')
+                ->with('error', 'No tienes acceso a esa sección con este usuario.');
     }
 }

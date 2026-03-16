@@ -32,6 +32,11 @@ class CargaRapidaCatalogoController extends Controller
     public function plantilla(): StreamedResponse
     {
         $spreadsheet = new Spreadsheet();
+        $this->applyWorkbookMeta(
+            $spreadsheet,
+            'Plantilla de carga rápida de catálogo',
+            'Plantilla para importar productos al catálogo de Sistema E-Support.'
+        );
 
         // =========================
         // Hoja 1: Plantilla
@@ -55,8 +60,16 @@ class CargaRapidaCatalogoController extends Controller
             $sheet->setCellValueByColumnAndRow($index + 1, 1, $header);
         }
 
+        $sheet->fromArray(['__EJEMPLO__ Cable UTP Cat6 305m (NO_IMPORTAR)','CBL-UTP-CAT6-305','Redes','26121609','PZA',10,'Bobina de cable UTP categoria 6',0,1], null, 'A2');
         $sheet->freezePane('A2');
         $this->styleTemplateHeader($sheet, 'A1:I1', ['A'], ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I']);
+        $this->styleTemplateBody($sheet, 'A2:I2');
+        $sheet->setAutoFilter('A1:I1');
+        $sheet->getRowDimension(1)->setRowHeight(22);
+        $sheet->getRowDimension(2)->setRowHeight(20);
+        $sheet->getStyle('A2:G2')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+        $sheet->getStyle('H2:I2')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $sheet->getTabColor()->setRGB('1D4ED8');
         $this->autoSizeColumns($sheet, 'A', 'I');
 
         // =========================
@@ -67,6 +80,8 @@ class CargaRapidaCatalogoController extends Controller
 
         $guide->setCellValue('A1', 'Plantilla de carga rápida de catálogo');
         $guide->mergeCells('A1:E1');
+        $guide->setCellValue('A2', 'Llena solo la hoja "Plantilla". Esta guía y la hoja "Ejemplos" son de referencia.');
+        $guide->mergeCells('A2:E2');
         $guide->setCellValue('A3', 'Campo');
         $guide->setCellValue('B3', 'Obligatorio');
         $guide->setCellValue('C3', 'Puede ir en blanco');
@@ -95,9 +110,18 @@ class CargaRapidaCatalogoController extends Controller
         $guide->setCellValue('B15', 'La hoja "Plantilla" es la que debes llenar. Las hojas "Instrucciones" y "Ejemplos" son solo referencia.');
 
         $this->styleGuideSheet($guide, 'A3:E3', 'A4:E14');
-        $guide->getStyle('A1')->getFont()->setBold(true)->setSize(14);
+        $guide->getStyle('A1:E1')->getFont()->setBold(true)->setSize(14)->getColor()->setARGB('FFFFFFFF');
+        $guide->getStyle('A1:E1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FF0F172A');
+        $guide->getStyle('A2:E2')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFE2E8F0');
+        $guide->getStyle('A1:E2')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT)->setVertical(Alignment::VERTICAL_CENTER);
+        $guide->getStyle('D4:D14')->getAlignment()->setWrapText(true);
+        $guide->getStyle('E4:E14')->getAlignment()->setWrapText(true);
+        $guide->getRowDimension(1)->setRowHeight(24);
+        $guide->getRowDimension(2)->setRowHeight(22);
         $guide->getStyle('A15:B15')->getFont()->setBold(true);
+        $guide->getStyle('A15:B15')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFF8FAFC');
         $guide->setAutoFilter('A3:E14');
+        $guide->getTabColor()->setRGB('0F172A');
         $this->autoSizeColumns($guide, 'A', 'E');
 
         // =========================
@@ -140,9 +164,18 @@ class CargaRapidaCatalogoController extends Controller
         $examples->setCellValue('L2', 'Ejemplo mínimo');
 
         $this->styleTemplateHeader($examples, 'A1:I1', ['A'], ['B', 'C', 'D', 'E', 'F', 'G', 'H', 'I']);
-        $examples->getStyle('K1:L2')->getFont()->setBold(true);
-        $examples->getStyle('K1:L2')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFF8FAFC');
-        $examples->getStyle('K1:L2')->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        $this->styleTemplateBody($examples, 'A2:I3');
+        $examples->setAutoFilter('A1:I3');
+        $examples->freezePane('A2');
+        $examples->getStyle('A2:G3')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+        $examples->getStyle('H2:I3')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $this->styleLegendBlock($examples, 'K1:L2');
+
+
+        $examples->getRowDimension(1)->setRowHeight(22);
+        $examples->getRowDimension(2)->setRowHeight(20);
+        $examples->getRowDimension(3)->setRowHeight(20);
+        $examples->getTabColor()->setRGB('334155');
         $this->autoSizeColumns($examples, 'A', 'L');
 
         $spreadsheet->setActiveSheetIndex(0);
@@ -170,6 +203,9 @@ class CargaRapidaCatalogoController extends Controller
         $seen  = [];
 
         foreach ($parsed['rows'] as $row) {
+            if ($this->isTemplateExampleRow($row)) {
+                continue;
+            } 
             $nombre          = $this->sanitizeText($row['nombre'] ?? $row['descripcion'] ?? '');
             $descripcion     = $this->sanitizeText($row['descripcion'] ?? $nombre);
             $numeroParteRaw  = $this->sanitizePartNumber($row['numero_parte'] ?? '');
@@ -177,8 +213,8 @@ class CargaRapidaCatalogoController extends Controller
             $claveProdserv   = $this->digitsOnly($row['clave_prodserv'] ?? '');
             $unidad          = $this->normalizeUnidad($row['unidad'] ?? '');
             $stockSeguridad  = $this->parseInt($row['stock_seguridad'] ?? 0);
-            $requireSerie    = $this->parseBool($row['require_serie'] ?? false);
-            $activo          = $this->parseBool($row['activo'] ?? true);
+            $requireSerie    = $this->parseBool($row['require_serie'] ?? false, false);
+            $activo          = $this->parseBool($row['activo'] ?? true, true);
 
             $motivo = null;
             $estado = 'ACEPTAR';
@@ -448,6 +484,14 @@ class CargaRapidaCatalogoController extends Controller
         return trim((string) $value);
     }
 
+    private function isTemplateExampleRow(array $row): bool
+    {
+        $nombre = mb_strtoupper(trim((string) ($row['nombre'] ?? '')), 'UTF-8');
+
+        return str_contains($nombre, '__EJEMPLO__')
+            || str_contains($nombre, 'NO_IMPORTAR');
+    }
+
     private function digitsOnly(mixed $value): string
     {
         return preg_replace('/\D+/', '', (string) $value) ?? '';
@@ -469,12 +513,12 @@ class CargaRapidaCatalogoController extends Controller
         return max(0, (int) $n);
     }
 
-    private function parseBool(mixed $value): bool
+    private function parseBool(mixed $value, bool $default = false): bool
     {
         $v = mb_strtolower(trim((string) $value), 'UTF-8');
 
         if ($v === '') {
-            return false;
+            return $default;
         }
 
         return in_array($v, ['1', 'true', 'si', 'sí', 'yes', 'activo', 'activa', 'on'], true);
@@ -540,14 +584,15 @@ class CargaRapidaCatalogoController extends Controller
     {
         $sheet->getStyle($range)->getFont()->setBold(true)->getColor()->setARGB('FFFFFFFF');
         $sheet->getStyle($range)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-        $sheet->getStyle($range)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        $sheet->getStyle($range)->getAlignment()->setVertical(Alignment::VERTICAL_CENTER);
+        $sheet->getStyle($range)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN)->getColor()->setARGB('FFE2E8F0');
 
         foreach ($requiredCols as $col) {
             $sheet->getStyle($col . '1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFDC2626');
         }
 
         foreach ($optionalCols as $col) {
-            $sheet->getStyle($col . '1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FF2563EB');
+            $sheet->getStyle($col . '1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FF1D4ED8');
         }
     }
 
@@ -560,6 +605,43 @@ class CargaRapidaCatalogoController extends Controller
 
         $sheet->getStyle($bodyRange)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
         $sheet->getStyle($bodyRange)->getAlignment()->setVertical(Alignment::VERTICAL_CENTER);
+        [$start, $end] = explode(':', $bodyRange);
+        $startRow = (int) preg_replace('/\\D+/', '', $start);
+        $endCol = preg_replace('/\\d+/', '', $end);
+        $endRow = (int) preg_replace('/\\D+/', '', $end);
+        for ($r = $startRow; $r <= $endRow; $r++) {
+            if (($r % 2) === 0) {
+                $sheet->getStyle("A{$r}:{$endCol}{$r}")
+                    ->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFF8FAFC');
+            }
+        }
+
+    }
+
+    private function styleTemplateBody($sheet, string $range): void
+    {
+        $sheet->getStyle($range)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN)->getColor()->setARGB('FFE2E8F0');
+        $sheet->getStyle($range)->getAlignment()->setVertical(Alignment::VERTICAL_CENTER);
+        $sheet->getStyle($range)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFF8FAFC');
+    }
+
+    private function styleLegendBlock($sheet, string $range): void
+    {
+        $sheet->getStyle($range)->getFont()->setBold(true)->getColor()->setARGB('FF0F172A');
+        $sheet->getStyle($range)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFE2E8F0');
+        $sheet->getStyle($range)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN)->getColor()->setARGB('FFE2E8F0');
+        $sheet->getStyle($range)->getAlignment()->setVertical(Alignment::VERTICAL_CENTER);
+    }
+
+    private function applyWorkbookMeta(Spreadsheet $spreadsheet, string $title, string $description): void
+    {
+        $spreadsheet->getProperties()
+            ->setCreator('Sistema E-Support')
+            ->setLastModifiedBy('Sistema E-Support')
+            ->setTitle($title)
+            ->setSubject('Carga rapida')
+            ->setDescription($description)
+            ->setCategory('Plantillas');
     }
 
     private function autoSizeColumns($sheet, string $from, string $to): void

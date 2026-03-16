@@ -6,24 +6,25 @@
 <div class="min-h-screen bg-slate-50 py-8">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
 
-        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-                <h1 class="text-3xl font-bold text-slate-800">Carga rápida de inventario</h1>
-                <p class="text-slate-500 mt-1">
-                    Registra entradas masivas sobre productos existentes del catálogo.
-                </p>
+        <div class="space-y-4">
+            <div class="flex items-center">
+                <x-boton-volver />
             </div>
 
-            <div class="flex flex-wrap gap-3">
-                <a href="{{ route('inventario') }}"
-                   class="inline-flex items-center gap-2 bg-white border border-slate-300 text-slate-700 px-4 py-2.5 rounded-xl shadow-sm hover:bg-slate-100 transition">
-                    ← Volver a inventario
-                </a>
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                    <h1 class="text-3xl font-bold text-slate-800">Carga rápida de inventario</h1>
+                    <p class="text-slate-500 mt-1">
+                        Registra entradas masivas sobre productos existentes del catálogo.
+                    </p>
+                </div>
 
-                <a href="{{ route('inventario.carga_rapida.plantilla') }}"
-                   class="inline-flex items-center gap-2 bg-emerald-600 text-white px-4 py-2.5 rounded-xl shadow hover:bg-emerald-700 transition">
-                    Descargar plantilla Excel
-                </a>
+                <div class="flex flex-wrap gap-3">
+                    <a href="{{ route('inventario.carga_rapida.plantilla') }}"
+                       class="inline-flex items-center gap-2 bg-emerald-600 text-white px-4 py-2.5 rounded-xl shadow hover:bg-emerald-700 transition">
+                        Descargar plantilla Excel
+                    </a>
+                </div>
             </div>
         </div>
 
@@ -141,7 +142,7 @@
                         <ul class="space-y-1 text-slate-600">
                             <li>• Hoja <strong>Plantilla</strong> para llenar.</li>
                             <li>• Hoja <strong>Instrucciones</strong> con campos obligatorios y opcionales.</li>
-                            <li>• Hoja <strong>Ejemplos</strong> con un ejemplo completo y otro mínimo.</li>
+                            <li>• Hoja <strong>Ejemplos</strong> con casos de PAQUETES, PIEZAS y SERIE.</li>
                         </ul>
                     </div>
                 </div>

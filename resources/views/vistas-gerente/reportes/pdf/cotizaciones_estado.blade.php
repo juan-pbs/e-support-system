@@ -132,6 +132,7 @@
         thead{ display: table-header-group; }
         tfoot{ display: table-footer-group; }
         tr, img{ page-break-inside: avoid; }
+            @include('pdf.partials.corporate-theme')
     </style>
 </head>
 <body>
@@ -203,6 +204,8 @@
 <div class="header">
     <?php if (!empty($barraBase64)) : ?>
         <img src="{{ $barraBase64 }}" alt="" class="barra-superior">
+    <?php else : ?>
+        <table class="barra-fallback" role="presentation"><tr><td></td></tr></table>
     <?php endif; ?>
 
     <table class="tabla-header">
@@ -210,6 +213,11 @@
             <td class="td-logo">
                 <?php if (!empty($logoBase64)) : ?>
                     <img src="{{ $logoBase64 }}" class="logo" alt="">
+                <?php else : ?>
+                    <div class="logo-fallback">
+                        <strong>E-SUPPORT QUERETARO</strong>
+                        <span>Soporte y servicio tecnico</span>
+                    </div>
                 <?php endif; ?>
             </td>
             <td class="td-info">

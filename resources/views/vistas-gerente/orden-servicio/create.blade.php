@@ -34,6 +34,9 @@ $descripcionServicioPrefill = isset($cotizacion)
     ? (data_get($cotizacion, 'servicio.descripcion') ?? ($cotizacion->descripcion_servicio ?? ''))
     : '';
 
+$precioEscritoPrefill = old('precio_escrito', data_get($cotizacion ?? null, 'cantidad_escrita', ''));
+$precioEscritoAutoPrefill = old('precio_escrito') === null;
+
 // ===== lista clientes para AUTOCOMPLETE =====
 $clientesSearchList = collect($clientes ?? [])->map(function($c){
     $label = trim(($c->nombre ?? '').' '.(($c->nombre_empresa ?? '') ? '— '.$c->nombre_empresa : ''));
@@ -117,10 +120,8 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
 
         {{-- Datos calculados --}}
         <input type="hidden" name="tasa_cambio" :value="usdToMxn">
-        {{-- extra: compatibilidad si el controlador usa tipo_cambio --}}
         <input type="hidden" name="tipo_cambio" :value="usdToMxn">
         <input type="hidden" name="impuestos" :value="round2(totalImpuestos)">
-        {{-- extra: total ya calculado en el front por si se desea leer --}}
         <input type="hidden" name="total_orden" :value="round2(totalOrden)">
         <input type="hidden" name="autorizado_por" value="{{ auth()->id() }}">
 
@@ -134,9 +135,7 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
             <h2 class="text-lg font-semibold mb-4 text-gray-800">Datos principales</h2>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {{-- ========================= --}}
-                {{-- CLIENTE (AUTOCOMPLETE) --}}
-                {{-- ========================= --}}
+                {{-- CLIENTE --}}
                 <div class="relative">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
 
@@ -145,7 +144,6 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
                                value="{{ $cotizacion->cliente->nombre }} {{ $cotizacion->cliente->nombre_empresa ? '— '.$cotizacion->cliente->nombre_empresa : '' }}" disabled>
                         <input type="hidden" name="id_cliente" value="{{ $cotizacion->cliente->clave_cliente }}">
                     @else
-                        {{-- input visible --}}
                         <div class="relative">
                             <input type="text"
                                    class="w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-blue-500"
@@ -155,10 +153,8 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
                                    @input="showClienteList = true; filterClientes()"
                                    @keydown.escape="showClienteList=false">
 
-                            {{-- hidden real (lo que se envía) --}}
                             <input type="hidden" name="id_cliente" x-model="idCliente" required>
 
-                            {{-- dropdown --}}
                             <div x-show="showClienteList"
                                  x-cloak
                                  @click.outside="showClienteList=false"
@@ -178,7 +174,6 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
                                 </div>
                             </div>
 
-                            {{-- botón limpiar --}}
                             <button type="button"
                                     class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                                     x-show="clienteSearch"
@@ -403,7 +398,6 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
                     <label class="block text-sm font-medium text-gray-700 mb-1">Costo operativo / envío</label>
                     <input type="number" step="0.01" name="costo_operativo" x-model.number="costoOperativo" value="{{ $costoOperativoPrefill }}" class="w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-blue-500" @input="calc()">
                 </div>
-
             </div>
 
             {{-- Servicio --}}
@@ -479,15 +473,21 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
                                 <td class="px-3 py-2">
                                     <div class="w-72 md:w-96">
                                         <div class="text-sm font-medium text-gray-900 truncate" x-text="p.nombre_producto || p.descripcion || 'Producto'"></div>
-                                        <div class="text-xs text-gray-600 mt-0.5 whitespace-pre-line" x-text="(p.descripcion ? String(p.descripcion).replace(/\s*NS:\s*[\s\S]*$/mi, ``).trim() : ``) || '—'"></div>
+                                        <div class="text-xs text-gray-600 mt-0.5 whitespace-pre-line"
+                                             x-text="(p.descripcion ? String(p.descripcion).replace(/\s*NS:\s*[\s\S]*$/mi, '').trim() : '') || '—'"></div>
+
                                         <div x-show="p.has_serial" x-cloak class="mt-1 text-[11px] text-gray-600 whitespace-pre-line">
                                             <template x-if="(p.ns_asignados || []).length">
-                                                <div><span class="font-semibold">N/S:</span> <span x-text="(p.ns_asignados || []).join(\", \")"></span></div>
+                                                <div>
+                                                    <span class="font-semibold">N/S:</span>
+                                                    <span x-text="(p.ns_asignados || []).join(', ')"></span>
+                                                </div>
                                             </template>
                                             <template x-if="!(p.ns_asignados || []).length">
                                                 <div><span class="font-semibold">N/S:</span> —</div>
                                             </template>
                                         </div>
+
                                         <div class="mt-1 flex items-center gap-2">
                                             <span x-show="Number.isFinite(p.stock_max)" class="inline-flex px-2 py-0.5 rounded bg-gray-100 text-gray-700 text-[11px]">
                                               Stock: <b class="ml-1" x-text="p.stock_max"></b>
@@ -587,7 +587,6 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
                         <span x-text="formatCurrency(totalOrden)"></span>
                     </div>
 
-                    {{-- ✅ Anticipo + Saldo --}}
                     <div class="border-t my-2"></div>
                     <div class="flex justify-between text-sm mb-2">
                         <span>Anticipo</span>
@@ -601,7 +600,42 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
             </div>
         </div>
 
-        {{-- ✅ Anticipo (UI completa) --}}
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+            <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-800">Cantidad por escrito</h2>
+                    <p class="text-sm text-gray-500">
+                        Se usa en el PDF de la orden y como base del acta de conformidad del gerente.
+                    </p>
+                </div>
+
+                <button type="button"
+                        @click="recalcularPrecioEscrito()"
+                        class="inline-flex items-center justify-center rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    Recalcular con el total actual
+                </button>
+            </div>
+
+            <div class="mt-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Monto en letra</label>
+                <textarea name="precio_escrito"
+                          x-model="precioEscrito"
+                          @input="precioEscritoAuto = false"
+                          rows="3"
+                          class="w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-blue-500"
+                          placeholder="Ej. DOS MIL QUINIENTOS PESOS 00/100 M.N.">{{ $precioEscritoPrefill }}</textarea>
+                <p class="mt-2 text-xs text-gray-500">
+                    Puedes ajustarlo manualmente si necesitas una redacción distinta.
+                </p>
+            </div>
+
+            <div class="mt-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                <div class="text-xs font-medium uppercase tracking-wide text-gray-500">Vista rápida</div>
+                <div class="mt-1 text-sm font-medium text-gray-800 break-words" x-text="precioEscrito || '-'"></div>
+            </div>
+        </div>
+
+        {{-- ✅ Anticipo --}}
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
             <div class="flex items-center justify-between gap-3 mb-4">
                 <div>
@@ -616,7 +650,6 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {{-- Modo --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">Modo</label>
                     <div class="flex flex-wrap gap-3">
@@ -631,7 +664,6 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
                     </div>
                 </div>
 
-                {{-- Monto --}}
                 <div x-show="anticipoModo==='monto'" x-cloak>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Anticipo (monto)</label>
                     <input type="number" step="0.01" min="0"
@@ -649,7 +681,6 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
                     </div>
                 </div>
 
-                {{-- Porcentaje --}}
                 <div x-show="anticipoModo==='porcentaje'" x-cloak>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Anticipo (%)</label>
                     <input type="number" step="0.01" min="0" max="100"
@@ -667,7 +698,6 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
                     </div>
                 </div>
 
-                {{-- Resumen --}}
                 <div class="bg-gray-50 rounded-xl border p-4">
                     <div class="text-sm font-semibold text-gray-800 mb-2">Resumen</div>
                     <div class="flex justify-between text-sm mb-1">
@@ -690,10 +720,8 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
             </div>
         </div>
 
-        {{-- Adjuntos y firma --}}
         <x-firma-digital :firma="$firma ?? null" />
 
-        {{-- Acciones --}}
         <div class="flex items-center justify-end gap-3">
             <a href="{{ route('ordenes.index') }}" class="px-4 py-2 rounded-md border text-gray-700 hover:bg-gray-50">Cancelar</a>
             <button type="button" id="btnPreview"
@@ -704,9 +732,7 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
         </div>
     </form>
 
-    {{-- ========================= --}}
     {{-- Modal catálogo productos --}}
-    {{-- ========================= --}}
     <div id="productModal"
          x-show="productModal"
          x-cloak
@@ -724,7 +750,6 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
                     </button>
                 </div>
 
-                {{-- Búsqueda / categoría --}}
                 <div class="flex flex-col sm:flex-row gap-3 mb-4">
                     <input id="productSearch" type="text" class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                            placeholder="Buscar por nombre, descripción o número de parte">
@@ -736,7 +761,6 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
                     </select>
                 </div>
 
-                {{-- Tabla desktop --}}
                 <div class="hidden lg:block overflow-x-auto max-h-96 overflow-y-auto border border-gray-200 rounded-lg">
                     <table class="w-full">
                         <thead class="bg-gray-50 sticky top-0">
@@ -794,7 +818,6 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
                     </table>
                 </div>
 
-                {{-- Lista móvil --}}
                 <div class="lg:hidden space-y-4 max-h-96 overflow-y-auto" id="mobileProductList">
                     @foreach(($productos ?? []) as $producto)
                         @php
@@ -844,9 +867,7 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
         </div>
     </div>
 
-    {{-- ========================= --}}
     {{-- Modal cantidad / seriales --}}
-    {{-- ========================= --}}
     <div id="quantityModal" class="fixed inset-0 flex items-center justify-center z-[70] hidden">
         <div class="absolute inset-0 bg-black/50"></div>
         <div class="relative bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[85vh] overflow-y-auto">
@@ -859,7 +880,7 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
                 </button>
             </div>
 
-            <div class="space-y-4" id="qmBody"><!-- contenido dinámico --></div>
+            <div class="space-y-4" id="qmBody"></div>
 
             <div id="quantityError" class="text-red-600 text-sm mt-2 hidden"></div>
 
@@ -874,9 +895,7 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
         </div>
     </div>
 
-    {{-- ========================= --}}
     {{-- Modal PREVIEW PDF --}}
-    {{-- ========================= --}}
     <div id="pdfPreviewModal" class="fixed inset-0 z-50 hidden">
         <div class="absolute inset-0 bg-black/60" onclick="closePdfModal()"></div>
         <div class="relative mx-auto my-6 bg-white rounded-xl shadow-xl max-w-5xl w-[95vw] h-[85vh] flex flex-col">
@@ -901,9 +920,7 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
         </div>
     </div>
 
-    {{-- ========================= --}}
     {{-- Modal FALTANTES DE STOCK --}}
-    {{-- ========================= --}}
     <div id="stockShortageModal" class="fixed inset-0 z-50 hidden">
         <div class="absolute inset-0 bg-black/60" onclick="closeStockShortageModal()"></div>
         <div class="relative mx-auto my-6 bg-white rounded-xl shadow-xl max-w-2xl w-[95vw]">
@@ -927,20 +944,26 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
         </div>
     </div>
 
-</div> {{-- /x-data wrapper --}}
+</div>
 
 <meta name="csrf-token" content="{{ csrf_token() }}">
 
 <script>
-  // Fallback para CSS.escape
-  (function(){
-    if (!window.CSS) window.CSS = {};
-    if (!CSS.escape) CSS.escape = function (s) { try { return String(s); } catch { return s; } };
-  })();
+function getCsrf() {
+    const tokenEl = document.querySelector('meta[name="csrf-token"]');
+    return tokenEl ? tokenEl.getAttribute('content') : '';
+}
+window.getCsrf = getCsrf;
 </script>
 
 <script>
-  // Endpoints
+(function(){
+  if (!window.CSS) window.CSS = {};
+  if (!CSS.escape) CSS.escape = function (s) { try { return String(s); } catch { return s; } };
+})();
+</script>
+
+<script>
   const SAVE_URL        = @json($saveUrl);
   const PREVIEW_URL     = @json(route('ordenes.preview'));
   const PEEK_SERIES_URL = @json(route('inventario.peekSeries'));
@@ -948,12 +971,10 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
   const CREDITO_URL     = @json(route('ordenes.api.credito'));
   const TIPO_CAMBIO_URL = @json(route('api.tipo-cambio'));
 
-  // ✅ Reservas N/S (ajusta si tu API usa otra ruta)
   const RESERVAR_SERIES_URL = @json(url('/api/inventario/reservar-series'));
   const LIBERAR_SERIES_URL  = @json(url('/api/inventario/liberar-series'));
 </script>
 
-{{-- Catálogo en memoria --}}
 <script>
 const availableProducts = {
   @foreach(($productos ?? []) as $producto)
@@ -961,6 +982,7 @@ const availableProducts = {
       $invFirst = optional($producto->inventario->first());
       $tipoCtrl = (string)($invFirst->tipo_control ?? '');
       $hasSerial = $hasSerialDetect($tipoCtrl);
+      $stockHint = (float) ($invFirst->stock_actual ?? $invFirst->cantidad_disponible ?? $invFirst->cantidad_actual ?? $invFirst->existencia ?? $invFirst->piezas_sueltas ?? $invFirst->cantidad ?? 0);
     @endphp
     [@json((string)$producto->codigo_producto)]: {
       id: @json((string)$producto->codigo_producto),
@@ -972,6 +994,7 @@ const availableProducts = {
       descripcion: @json($producto->descripcion ?? ''),
       tipo_control: @json($tipoCtrl),
       has_serial: {{ $hasSerial ? 'true' : 'false' }},
+      stock_hint: {{ $stockHint }},
     },
   @endforeach
 };
@@ -983,7 +1006,6 @@ const clientesCatalog = {
 };
 </script>
 
-{{-- Lógica de catálogo: filtros, stock y modal de cantidad --}}
 <script>
 (function(){
   const quantityModal   = document.getElementById('quantityModal');
@@ -1001,11 +1023,6 @@ const clientesCatalog = {
 
   const stockCache = {};
   let annotateBusy = false;
-
-  function getCsrf(){
-    const tokenEl = document.querySelector('meta[name="csrf-token"]');
-    return tokenEl ? tokenEl.getAttribute('content') : '';
-  }
 
   async function postJson(url, payload){
     const res = await fetch(url, {
@@ -1083,6 +1100,7 @@ const clientesCatalog = {
 
     annotateStockOnCatalog();
   }
+
   const filterProductsDebounced = debounce(filterProducts, 180);
   productSearch?.addEventListener('input', filterProductsDebounced);
   productCategory?.addEventListener('change', filterProductsDebounced);
@@ -1091,18 +1109,19 @@ const clientesCatalog = {
     const token = getSerialToken();
     const cacheKey = token ? `${code}::${token}` : code;
     if (stockCache.hasOwnProperty(cacheKey)) return stockCache[cacheKey];
+    const fallbackStock = Math.max(parseInt((availableProducts[code]?.stock_hint ?? 0), 10) || 0, 0);
 
     try{
       const r = await fetch(`${STOCK_URL}?codigo=${encodeURIComponent(code)}&token=${encodeURIComponent(token)}&t=${Date.now()}`, { headers:{'Accept':'application/json'} });
       const j = await r.json();
-      const st = Math.max(parseInt((j && j.stock) ? j.stock : 0, 10) || 0, 0);
+      const rawStock = j ? (j.stock ?? j.disponible ?? j.cantidad ?? j.qty) : null;
+      const st = Math.max(parseInt((rawStock ?? fallbackStock), 10) || 0, 0);
       stockCache[cacheKey] = { stock: st, has_serial: !!(j && j.has_serial) };
     } catch(e){
-      stockCache[cacheKey] = { stock: 0, has_serial: !!(availableProducts[code]?.has_serial) };
+      stockCache[cacheKey] = { stock: fallbackStock, has_serial: !!(availableProducts[code]?.has_serial) };
     }
     return stockCache[cacheKey];
   }
-
   async function annotateStockOnCatalog(){
     if (annotateBusy) return;
     annotateBusy = true;
@@ -1160,13 +1179,14 @@ const clientesCatalog = {
     try {
       const sres = await fetch(`${STOCK_URL}?codigo=${encodeURIComponent(productId)}&token=${encodeURIComponent(token)}&t=${Date.now()}`, { headers:{'Accept':'application/json'} });
       const sj = await sres.json();
-      currentStock = Math.max(parseInt((sj && sj.stock) ? sj.stock : 0, 10) || 0, 0);
+      const rawStock = sj ? (sj.stock ?? sj.disponible ?? sj.cantidad ?? sj.qty) : null;
+      const fallbackStock = Math.max(parseInt((currentProduct && currentProduct.stock_hint) ? currentProduct.stock_hint : 0, 10) || 0, 0);
+      currentStock = Math.max(parseInt((rawStock ?? fallbackStock), 10) || 0, 0);
       currentHasSerial = !!(sj && sj.has_serial);
     } catch(e) {
-      currentStock = 0;
+      currentStock = Math.max(parseInt((currentProduct && currentProduct.stock_hint) ? currentProduct.stock_hint : 0, 10) || 0, 0);
       currentHasSerial = !!(currentProduct && currentProduct.has_serial);
     }
-
     currentSerials = [];
     selectedSerials = [];
 
@@ -1239,7 +1259,6 @@ const clientesCatalog = {
       qmBody.innerHTML = html;
       document.getElementById('productModalTitle').textContent = `Agregar producto #${currentProduct.id}`;
 
-      // Filtro N/S
       const nsSearch = document.getElementById('qmNsSearch');
       if (nsSearch) {
         nsSearch.addEventListener('input', debounce(() => {
@@ -1251,7 +1270,6 @@ const clientesCatalog = {
         }, 120));
       }
 
-      // Si no hay stock o no hay seriales, deshabilitar "Agregar"
       qmAddBtn.disabled = (currentHasSerial && !currentSerials.length) || (!currentHasSerial && currentStock <= 0);
   }
 
@@ -1270,8 +1288,6 @@ const clientesCatalog = {
     const { ok, status, data } = await postJson(RESERVAR_SERIES_URL, payload);
 
     if (!ok) {
-      // Si tu backend aún no implementa reservas (404/405), no bloqueamos la captura.
-      // El backend seguirá validando stock y N/S al previsualizar/guardar.
       if (status === 404 || status === 405) {
         return { ok:true, reserved: (series || []).slice(), taken: [], expires_at: null, bypass: true };
       }
@@ -1294,7 +1310,6 @@ const clientesCatalog = {
     } catch(e) {}
   }
 
-  // Exponer release para Alpine (remove/clear)
   window.__releaseSerials = releaseSerials;
 
   async function addSelectedProduct() {
@@ -1324,7 +1339,6 @@ const clientesCatalog = {
              return;
           }
 
-          // ✅ Evitar repetir N/S dentro del mismo form
           const used = getUsedSerialsSet();
           const dup = selectedSerials.find(ns => used.has(String(ns)));
           if (dup) {
@@ -1333,7 +1347,6 @@ const clientesCatalog = {
             return;
           }
 
-          // ✅ Reservar N/S (robusto contra concurrencia)
           qmAddBtn.disabled = true;
           const res = await reserveSelectedSerials(currentProduct.id, selectedSerials, token);
           qmAddBtn.disabled = false;
@@ -1345,14 +1358,12 @@ const clientesCatalog = {
               : (res.message || 'No se pudieron reservar los N/S.');
             quantityError.classList.remove('hidden');
 
-            // refrescar lista
             try {
               await openQuantityModal(currentProduct.id);
             } catch(e){}
             return;
           }
 
-          // usar los reservados (puede venir reordenado)
           selectedSerials = (res.reserved || selectedSerials).slice();
           cantidad = selectedSerials.length;
       } else {
@@ -1405,7 +1416,6 @@ const clientesCatalog = {
      annotateStockOnCatalog();
   });
 
-  // Liberar reservas al salir (best-effort)
   window.addEventListener('beforeunload', (e)=>{
     const comp = getFormComponent();
     if (!comp || comp.hasSaved) return;
@@ -1420,37 +1430,32 @@ const clientesCatalog = {
     } catch(err) {}
   });
 
-  // Export a window para onclick=... (y para evitar 'openQuantityModal is not defined')
   window.openQuantityModal = openQuantityModal;
   window.closeQuantityModal = closeQuantityModal;
   window.addSelectedProduct = addSelectedProduct;
-  // Export para otros scripts (evita 'getFormComponent is not defined')
   window.getFormComponent = getFormComponent;
   window.getSerialToken = getSerialToken;
 })();
 </script>
 
-{{-- Lógica principal del formulario (Alpine) --}}
 <script>
 (function(){
   const OLD_TIPO_PAGO = @json(old('tipo_pago','efectivo'));
-
-  // ✅ OLD Anticipo
   const OLD_ANTICIPO_MODO       = @json(old('anticipo_modo','monto'));
   const OLD_ANTICIPO_MONTO      = @json(old('anticipo_monto', 0));
   const OLD_ANTICIPO_PORCENTAJE = @json(old('anticipo_porcentaje', 0));
+  const OLD_PRECIO_ESCRITO      = @json($precioEscritoPrefill);
+  const AUTO_PRECIO_ESCRITO     = @json($precioEscritoAutoPrefill);
 
   function genToken(){
     try {
       if (window.crypto && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
     } catch(e){}
-    // fallback
     return 'tok_' + Math.random().toString(16).slice(2) + '_' + Date.now();
   }
 
   function formOrdenServicio(prefillProductos, monedaInicial, clienteInicial, tipoOrdenInicial, sinTecnicoInicial, clientesList) {
     return {
-      // estado
       productos: [],
       tipoOrden: tipoOrdenInicial || 'servicio_simple',
       moneda: monedaInicial || 'MXN',
@@ -1461,25 +1466,23 @@ const clientesCatalog = {
       sinTecnico: !!sinTecnicoInicial,
       productModal: false,
 
-      // ✅ Token N/S
       serialToken: '',
       hasSaved: false,
 
-      // ✅ anticipo
       anticipoModo: (OLD_ANTICIPO_MODO || 'monto'),
       anticipoMonto: Number(OLD_ANTICIPO_MONTO || 0),
       anticipoPorcentaje: Number(OLD_ANTICIPO_PORCENTAJE || 0),
       anticipoCalculado: 0,
       saldoPendiente: 0,
       anticipoPctEstimado: 0,
+      precioEscrito: OLD_PRECIO_ESCRITO || '',
+      precioEscritoAuto: !!AUTO_PRECIO_ESCRITO,
 
-      // ===== AUTOCOMPLETE CLIENTE =====
       clientesAll: Array.isArray(clientesList) ? clientesList : [],
       clientesFiltrados: [],
       clienteSearch: '',
       showClienteList: false,
 
-      // totales
       costoServicio: 0,
       costoOperativo: 0,
       totalMaterial: 0,
@@ -1489,7 +1492,6 @@ const clientesCatalog = {
       totalOrden: 0,
       usdToMxn: 16.95,
 
-      // crédito
       credito: {
         loading: false,
         exists: false,
@@ -1509,33 +1511,26 @@ const clientesCatalog = {
       init() {
         window.__osComp = this;
 
-        // Token para reservas
         if (!this.serialToken) this.serialToken = genToken();
 
-        // Prefill servicios desde inputs
         const inServ = document.querySelector('input[name="precio"]');
         const inOp   = document.querySelector('input[name="costo_operativo"]');
         this.costoServicio   = parseFloat(inServ?.value || '0') || 0;
         this.costoOperativo  = parseFloat(inOp?.value || '0') || 0;
 
-        // Ubicación cliente
         this.updateUbicacionCliente();
 
-        // Prefill productos (modo cotización)
         if (Array.isArray(prefillProductos) && prefillProductos.length) {
           this.productos = prefillProductos.map(p => this.normalizarProducto(p));
         }
 
-        // Si ya hay cliente seleccionado (old o prefill), setear texto del buscador
         this.syncClienteSearchFromId();
 
-        // Si es compra, forzar sin técnico
         if (this.tipoOrden === 'compra') {
           this.sinTecnico = true;
           this.clearTecnicos();
         }
 
-        // Watchers Alpine
         if (typeof this.$watch === 'function') {
           this.$watch('idCliente', () => {
             this.updateUbicacionCliente();
@@ -1561,25 +1556,20 @@ const clientesCatalog = {
             }
           });
 
-          // ✅ Recalcular si cambia anticipo
           this.$watch('anticipoModo', () => this.calc());
           this.$watch('anticipoMonto', () => this.calc());
           this.$watch('anticipoPorcentaje', () => this.calc());
         }
 
-        // Cálculo inicial
         this.calc();
 
-        // Tipo de pago crédito
         if (this.tipoPago === 'credito_cliente' && this.idCliente) {
           this.loadCredito();
         }
 
-        // Cargar tipo de cambio real desde la API
         this.loadExchangeRate();
       },
 
-      // ===== AUTOCOMPLETE CLIENTES =====
       filterClientes() {
         const q = (this.clienteSearch || '').toLowerCase().trim();
         if (!q) {
@@ -1618,7 +1608,6 @@ const clientesCatalog = {
         }
       },
 
-      // ==== Cargar tipo de cambio desde la API ====
       async loadExchangeRate() {
         try {
           const res = await fetch(TIPO_CAMBIO_URL, { headers: { 'Accept': 'application/json' } });
@@ -1635,7 +1624,6 @@ const clientesCatalog = {
         }
       },
 
-      // ================== Helpers datos ==================
       updateUbicacionCliente() {
         if (this.idCliente && clientesCatalog[this.idCliente]) {
           this.ubicacionCliente = clientesCatalog[this.idCliente].ubicacion || '';
@@ -1703,11 +1691,127 @@ const clientesCatalog = {
         }
       },
 
+      ajustarNumeroParaMoneda(words) {
+        return String(words || '')
+          .replace(/VEINTIUNO$/, 'VEINTIUN')
+          .replace(/ Y UNO$/, ' Y UN')
+          .replace(/ UNO$/, ' UN');
+      },
+
+      numeroALetrasEntero(number) {
+        const units = ['CERO', 'UNO', 'DOS', 'TRES', 'CUATRO', 'CINCO', 'SEIS', 'SIETE', 'OCHO', 'NUEVE'];
+        const specials = {
+          10: 'DIEZ',
+          11: 'ONCE',
+          12: 'DOCE',
+          13: 'TRECE',
+          14: 'CATORCE',
+          15: 'QUINCE',
+          16: 'DIECISEIS',
+          17: 'DIECISIETE',
+          18: 'DIECIOCHO',
+          19: 'DIECINUEVE',
+          20: 'VEINTE',
+          21: 'VEINTIUNO',
+          22: 'VEINTIDOS',
+          23: 'VEINTITRES',
+          24: 'VEINTICUATRO',
+          25: 'VEINTICINCO',
+          26: 'VEINTISEIS',
+          27: 'VEINTISIETE',
+          28: 'VEINTIOCHO',
+          29: 'VEINTINUEVE',
+        };
+        const tens = {
+          3: 'TREINTA',
+          4: 'CUARENTA',
+          5: 'CINCUENTA',
+          6: 'SESENTA',
+          7: 'SETENTA',
+          8: 'OCHENTA',
+          9: 'NOVENTA',
+        };
+        const hundreds = {
+          1: 'CIENTO',
+          2: 'DOSCIENTOS',
+          3: 'TRESCIENTOS',
+          4: 'CUATROCIENTOS',
+          5: 'QUINIENTOS',
+          6: 'SEISCIENTOS',
+          7: 'SETECIENTOS',
+          8: 'OCHOCIENTOS',
+          9: 'NOVECIENTOS',
+        };
+
+        if (number < 10) return units[number];
+        if (number < 30) return specials[number];
+        if (number < 100) {
+          const ten = Math.floor(number / 10);
+          const rest = number % 10;
+          return tens[ten] + (rest ? ` Y ${this.numeroALetrasEntero(rest)}` : '');
+        }
+        if (number === 100) return 'CIEN';
+        if (number < 1000) {
+          const hundred = Math.floor(number / 100);
+          const rest = number % 100;
+          return hundreds[hundred] + (rest ? ` ${this.numeroALetrasEntero(rest)}` : '');
+        }
+        if (number < 2000) {
+          return 'MIL' + (number % 1000 ? ` ${this.numeroALetrasEntero(number % 1000)}` : '');
+        }
+        if (number < 1000000) {
+          const thousands = Math.floor(number / 1000);
+          const rest = number % 1000;
+          return `${this.numeroALetrasEntero(thousands)} MIL${rest ? ` ${this.numeroALetrasEntero(rest)}` : ''}`;
+        }
+        if (number < 2000000) {
+          return `UN MILLON${number % 1000000 ? ` ${this.numeroALetrasEntero(number % 1000000)}` : ''}`;
+        }
+        if (number < 1000000000000) {
+          const millions = Math.floor(number / 1000000);
+          const rest = number % 1000000;
+          return `${this.ajustarNumeroParaMoneda(this.numeroALetrasEntero(millions))} MILLONES${rest ? ` ${this.numeroALetrasEntero(rest)}` : ''}`;
+        }
+
+        return String(number);
+      },
+
+      numeroALetrasMoneda(num, moneda) {
+        const amount = Number(num || 0);
+        let integer = Math.floor(amount);
+        let cents = Math.round((amount - integer) * 100);
+
+        if (cents === 100) {
+          integer += 1;
+          cents = 0;
+        }
+
+        const words = this.ajustarNumeroParaMoneda(this.numeroALetrasEntero(integer));
+        const noun = moneda === 'USD'
+          ? (integer === 1 ? 'DOLAR' : 'DOLARES')
+          : (integer === 1 ? 'PESO' : 'PESOS');
+        const suffix = moneda === 'USD' ? 'USD' : 'M.N.';
+
+        return `${words} ${noun} ${String(cents).padStart(2, '0')}/100 ${suffix}`;
+      },
+
+      syncPrecioEscrito(force = false) {
+        if (!force && !this.precioEscritoAuto && String(this.precioEscrito || '').trim() !== '') {
+          return;
+        }
+
+        this.precioEscrito = this.numeroALetrasMoneda(this.totalOrden, this.moneda || 'MXN');
+      },
+
+      recalcularPrecioEscrito() {
+        this.precioEscritoAuto = true;
+        this.syncPrecioEscrito(true);
+      },
+
       lineImporte(p) {
         return this.round2(this.cantidadFrom(p) * this.precioFrom(p));
       },
 
-      // ✅ Helpers anticipo en MXN
       anticipoCalculadoMXN() {
         const a = Number(this.anticipoCalculado || 0);
         if (this.moneda === 'USD' && this.usdToMxn > 0) return this.round2(a * this.usdToMxn);
@@ -1720,14 +1824,12 @@ const clientesCatalog = {
         return this.round2(s);
       },
 
-      // ================== Productos ==================
       addProductoDesdeCatalogo(obj) {
         this.productos.push(this.normalizarProducto(obj));
         this.calc();
       },
 
       async clearProductos() {
-        // liberar reservas (solo las reservadas; las asignadas no se tocan)
         const token = this.serialToken;
         if (token && typeof window.__releaseSerials === 'function') {
           await window.__releaseSerials(token);
@@ -1739,7 +1841,6 @@ const clientesCatalog = {
       async removeProducto(idx) {
         if (idx >= 0 && idx < this.productos.length) {
           const p = this.productos[idx];
-          // liberar reservas de N/S si aplica
           if (p && p.has_serial && Array.isArray(p.ns_asignados) && p.ns_asignados.length) {
             if (this.serialToken && typeof window.__releaseSerials === 'function') {
               await window.__releaseSerials(this.serialToken, p.codigo_producto, p.ns_asignados);
@@ -1759,7 +1860,6 @@ const clientesCatalog = {
         }
       },
 
-      // ================== Totales ==================
       calc() {
         let material = 0;
         this.productos.forEach(p => { material += this.cantidadFrom(p) * this.precioFrom(p); });
@@ -1770,7 +1870,6 @@ const clientesCatalog = {
         this.totalImpuestos= this.round2(this.baseGravable * 0.16);
         this.totalOrden    = this.round2(this.subtotal + this.totalImpuestos);
 
-        // ✅ Anticipo calculado sobre totalOrden
         let anticipo = 0;
         const total = Number(this.totalOrden || 0);
 
@@ -1786,6 +1885,7 @@ const clientesCatalog = {
         this.saldoPendiente = this.round2(Math.max(total - this.anticipoCalculado, 0));
         this.anticipoPctEstimado = total > 0 ? this.round2((this.anticipoCalculado / total) * 100) : 0;
 
+        this.syncPrecioEscrito();
         this.updateCreditoInsuf();
       },
 
@@ -1803,7 +1903,6 @@ const clientesCatalog = {
         this.costoOperativo = this.round2(this.costoOperativo * factor);
         this.productos = this.productos.map(p => ({ ...p, precio: this.round2((p.precio || 0) * factor) }));
 
-        // ✅ convertir anticipo si está en modo monto
         if ((this.anticipoModo || 'monto') === 'monto') {
           this.anticipoMonto = this.round2((Number(this.anticipoMonto || 0)) * factor);
         }
@@ -1812,14 +1911,12 @@ const clientesCatalog = {
         this.calc();
       },
 
-      // ✅ Importe a crédito = SALDO pendiente (Total - Anticipo)
       importeParaCreditoMXN() {
         const saldo = Number(this.saldoPendiente || 0);
         if (this.moneda === 'USD' && this.usdToMxn > 0) return this.round2(saldo * this.usdToMxn);
         return this.round2(saldo);
       },
 
-      // ================== Crédito ==================
       async loadCredito() {
         if (!this.idCliente) return;
         this.credito.loading = true;
@@ -1858,7 +1955,6 @@ const clientesCatalog = {
         if (importe > (this.credito.disponible || 0)) this.creditoInsuf = true;
       },
 
-      // ================== Técnicos ==================
       clearTecnicos() {
         const multi = document.querySelector('select[name="tecnicos_ids[]"]');
         if (multi) Array.from(multi.options).forEach(opt => opt.selected = false);
@@ -1866,7 +1962,6 @@ const clientesCatalog = {
         if (single) single.value = '';
       },
 
-      // ================== Preview / Guardado ==================
       async previewPdf() {
         const form = document.getElementById('ordenForm');
         if (!form) return;
@@ -1956,7 +2051,6 @@ const clientesCatalog = {
     };
   }
 
-  // ================== Modales generales PDF / faltantes ==================
   const pdfPreviewModal    = document.getElementById('pdfPreviewModal');
   const pdfPreviewFrame    = document.getElementById('pdfPreviewFrame');
   const stockShortageModal = document.getElementById('stockShortageModal');
@@ -1989,7 +2083,6 @@ const clientesCatalog = {
     stockShortageModal.classList.add('hidden');
   }
 
-  // Botones de acciones
   document.addEventListener('DOMContentLoaded', () => {
     const btnPreview           = document.getElementById('btnPreview');
     const btnGuardar           = document.getElementById('btnGuardar');
@@ -1997,24 +2090,23 @@ const clientesCatalog = {
 
     btnPreview?.addEventListener('click', (e) => {
       e.preventDefault();
-      const comp = getFormComponent();
+      const comp = window.getFormComponent ? window.getFormComponent() : null;
       if (comp && typeof comp.previewPdf === 'function') comp.previewPdf();
     });
 
     btnGuardar?.addEventListener('click', (e) => {
       e.preventDefault();
-      const comp = getFormComponent();
+      const comp = window.getFormComponent ? window.getFormComponent() : null;
       if (comp && typeof comp.saveOrden === 'function') comp.saveOrden(false);
     });
 
     btnGuardarDescargar?.addEventListener('click', (e) => {
       e.preventDefault();
-      const comp = getFormComponent();
+      const comp = window.getFormComponent ? window.getFormComponent() : null;
       if (comp && typeof comp.saveOrden === 'function') comp.saveOrden(true);
     });
   });
 
-  // Export a window para Alpine (x-data) y botones onclick
   window.formOrdenServicio = formOrdenServicio;
   window.closePdfModal = closePdfModal;
   window.closeStockShortageModal = closeStockShortageModal;

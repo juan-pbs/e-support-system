@@ -162,7 +162,8 @@
         thead{ display:table-header-group; }
         tfoot{ display:table-footer-group; }
         tr, img{ page-break-inside:avoid; }
-    </style>
+        @include('pdf.partials.corporate-theme')
+</style>
 </head>
 <body>
 
@@ -274,6 +275,8 @@
 <div class="header">
     @if($barraBase64)
         <img src="{{ $barraBase64 }}" alt="" class="barra-superior">
+    @else
+        <table class="barra-fallback" role="presentation"><tr><td></td></tr></table>
     @endif
 
     <table class="tabla-header">
@@ -281,6 +284,11 @@
             <td class="td-logo">
                 @if($logoBase64)
                     <img src="{{ $logoBase64 }}" class="logo" alt="">
+                @else
+                    <div class="logo-fallback">
+                        <strong>E-SUPPORT QUERETARO</strong>
+                        <span>Soporte y servicio tecnico</span>
+                    </div>
                 @endif
             </td>
             <td class="td-info">
@@ -539,6 +547,7 @@
     $tcInfo = (float)($orden->tasa_cambio ?? 0);
     $totalFinalMXN = ($moneda === 'USD' && $tcInfo > 0) ? round($totalFinal * $tcInfo, 2) : null;
     $saldoMXN      = ($moneda === 'USD' && $tcInfo > 0) ? round($saldoPendiente * $tcInfo, 2) : null;
+    $precioEscrito = trim((string)($orden->precio_escrito ?? ''));
 @endphp
 
 {{-- BLOQUE: TOTALES + FIRMA --}}
@@ -581,6 +590,14 @@
                 <th>Total final (incluye envío):</th>
                 <td><strong>{{ $simboloMoneda }}{{ number_format($totalFinal, 2) }}</strong></td>
             </tr>
+
+            @if($precioEscrito !== '')
+                <tr>
+                    <td colspan="2" class="muted">
+                        Cantidad en letra: <strong>{{ $precioEscrito }}</strong>
+                    </td>
+                </tr>
+            @endif
 
             @if($anticipoOrden > 0 || $pctMostrar > 0)
                 <tr>
@@ -685,3 +702,4 @@
 
 </body>
 </html>
+

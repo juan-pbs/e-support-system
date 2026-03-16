@@ -6,24 +6,25 @@
 <div class="min-h-screen bg-slate-50 py-8">
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
 
-        <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-            <div>
-                <h1 class="text-3xl font-bold text-slate-800">Carga rápida de productos</h1>
-                <p class="text-slate-500 mt-1">
-                    Importa solo productos del catálogo. Esta pantalla no registra inventario.
-                </p>
+        <div class="space-y-4">
+            <div class="flex items-center">
+                <x-boton-volver />
             </div>
 
-            <div class="flex flex-wrap gap-3">
-                <a href="{{ route('catalogo.index') }}"
-                   class="inline-flex items-center gap-2 bg-white border border-slate-300 text-slate-700 px-4 py-2.5 rounded-xl shadow-sm hover:bg-slate-100 transition">
-                    ← Volver al catálogo
-                </a>
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                <div>
+                    <h1 class="text-3xl font-bold text-slate-800">Carga rápida de productos</h1>
+                    <p class="text-slate-500 mt-1">
+                        Importa solo productos del catálogo. Esta pantalla no registra inventario.
+                    </p>
+                </div>
 
-                <a href="{{ route('catalogo.carga_rapida.plantilla') }}"
-                   class="inline-flex items-center gap-2 bg-emerald-600 text-white px-4 py-2.5 rounded-xl shadow hover:bg-emerald-700 transition">
-                    Descargar plantilla Excel
-                </a>
+                <div class="flex flex-wrap gap-3">
+                    <a href="{{ route('catalogo.carga_rapida.plantilla') }}"
+                       class="inline-flex items-center gap-2 bg-emerald-600 text-white px-4 py-2.5 rounded-xl shadow hover:bg-emerald-700 transition">
+                        Descargar plantilla Excel
+                    </a>
+                </div>
             </div>
         </div>
 

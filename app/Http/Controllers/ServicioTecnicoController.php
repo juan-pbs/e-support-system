@@ -16,6 +16,50 @@ use App\Models\OrdenMaterialExtra;
 
 class ServicioTecnicoController extends Controller
 {
+    protected function ordenTieneActaFirmada(OrdenServicio $orden): bool
+    {
+        return mb_strtolower((string) ($orden->acta_estado ?? '')) === 'firmada';
+    }
+
+    protected function statusSeguimientoFallback(OrdenServicio $orden): string
+    {
+        $estado = strtolower((string) $orden->estado);
+
+        if (in_array($estado, ['cancelado', 'cancelada'], true)) {
+            return 'cancelado';
+        }
+
+        if (in_array($estado, ['finalizado', 'finalizada', 'completada', 'completado'], true)) {
+            return mb_strtolower((string) ($orden->acta_estado ?? '')) === 'firmada'
+                ? 'finalizado'
+                : 'finalizado-sin-firmar';
+        }
+
+        return 'en-proceso';
+    }
+
+    protected function ordenBloqueadaParaEdicion(OrdenServicio $orden): bool
+    {
+        if ($this->ordenTieneActaFirmada($orden)) {
+            return true;
+        }
+
+        $status = $orden->status_seguimiento ?? $this->statusSeguimientoFallback($orden);
+
+        return in_array($status, ['finalizado', 'finalizado-sin-firmar'], true);
+    }
+
+    protected function redirectOrdenBloqueada($idOS, OrdenServicio $orden, string $mensajeFinalizada, ?string $mensajeActa = null)
+    {
+        $mensaje = $this->ordenTieneActaFirmada($orden)
+            ? ($mensajeActa ?? $mensajeFinalizada)
+            : $mensajeFinalizada;
+
+        return redirect()
+            ->route('tecnico.detalles', $idOS)
+            ->with('error', $mensaje);
+    }
+
     protected function pkOrdenServicio(): string
     {
         static $pk = null;
@@ -579,7 +623,15 @@ class ServicioTecnicoController extends Controller
         $pk    = $this->pkOrdenServicio();
         $idOS  = $orden->{$pk};
 
-        if (mb_strtolower((string)($orden->acta_estado ?? '')) === 'firmada') {
+        if (! $this->ordenTieneActaFirmada($orden) && $this->ordenBloqueadaParaEdicion($orden)) {
+            return $this->redirectOrdenBloqueada(
+                $idOS,
+                $orden,
+                'La orden ya esta finalizada y no se pueden registrar mas seguimientos ni imagenes.'
+            );
+        }
+
+        if ($this->ordenBloqueadaParaEdicion($orden)) {
             return redirect()
                 ->route('tecnico.detalles', $idOS)
                 ->with('error', 'Esta orden ya cuenta con un acta firmada. No es posible registrar más seguimientos ni imágenes.');
@@ -637,6 +689,14 @@ class ServicioTecnicoController extends Controller
         $pk    = $this->pkOrdenServicio();
         $idOS  = $orden->{$pk};
 
+        if (! $this->ordenTieneActaFirmada($orden) && $this->ordenBloqueadaParaEdicion($orden)) {
+            return $this->redirectOrdenBloqueada(
+                $idOS,
+                $orden,
+                'La orden ya esta finalizada y no se pueden registrar mas materiales no previstos.'
+            );
+        }
+
         if (mb_strtolower((string)($orden->acta_estado ?? '')) === 'firmada') {
             return redirect()
                 ->route('tecnico.detalles', $idOS)
@@ -679,6 +739,14 @@ class ServicioTecnicoController extends Controller
         $pk    = $this->pkOrdenServicio();
         $idOS  = $orden->{$pk};
 
+        if (! $this->ordenTieneActaFirmada($orden) && $this->ordenBloqueadaParaEdicion($orden)) {
+            return $this->redirectOrdenBloqueada(
+                $idOS,
+                $orden,
+                'La orden ya esta finalizada y no se pueden modificar materiales no previstos.'
+            );
+        }
+
         if (mb_strtolower((string)($orden->acta_estado ?? '')) === 'firmada') {
             return redirect()
                 ->route('tecnico.detalles', $idOS)
@@ -713,6 +781,14 @@ class ServicioTecnicoController extends Controller
         $pk    = $this->pkOrdenServicio();
         $idOS  = $orden->{$pk};
 
+        if (! $this->ordenTieneActaFirmada($orden) && $this->ordenBloqueadaParaEdicion($orden)) {
+            return $this->redirectOrdenBloqueada(
+                $idOS,
+                $orden,
+                'La orden ya esta finalizada y no se pueden eliminar materiales no previstos.'
+            );
+        }
+
         if (mb_strtolower((string)($orden->acta_estado ?? '')) === 'firmada') {
             return redirect()
                 ->route('tecnico.detalles', $idOS)
@@ -735,6 +811,14 @@ class ServicioTecnicoController extends Controller
         $orden = $this->findOrdenAsignadaOrFail($ordenId);
         $pk    = $this->pkOrdenServicio();
         $idOS  = $orden->{$pk};
+
+        if (! $this->ordenTieneActaFirmada($orden) && $this->ordenBloqueadaParaEdicion($orden)) {
+            return $this->redirectOrdenBloqueada(
+                $idOS,
+                $orden,
+                'La orden ya esta finalizada y no se pueden modificar seguimientos.'
+            );
+        }
 
         if (mb_strtolower((string)($orden->acta_estado ?? '')) === 'firmada') {
             return redirect()
@@ -767,6 +851,14 @@ class ServicioTecnicoController extends Controller
         $pk    = $this->pkOrdenServicio();
         $idOS  = $orden->{$pk};
 
+        if (! $this->ordenTieneActaFirmada($orden) && $this->ordenBloqueadaParaEdicion($orden)) {
+            return $this->redirectOrdenBloqueada(
+                $idOS,
+                $orden,
+                'La orden ya esta finalizada y no se pueden eliminar seguimientos.'
+            );
+        }
+
         if (mb_strtolower((string)($orden->acta_estado ?? '')) === 'firmada') {
             return redirect()
                 ->route('tecnico.detalles', $idOS)
@@ -789,6 +881,14 @@ class ServicioTecnicoController extends Controller
         $orden = $this->findOrdenAsignadaOrFail($ordenId);
         $pk    = $this->pkOrdenServicio();
         $idOS  = $orden->{$pk};
+
+        if (! $this->ordenTieneActaFirmada($orden) && $this->ordenBloqueadaParaEdicion($orden)) {
+            return $this->redirectOrdenBloqueada(
+                $idOS,
+                $orden,
+                'La orden ya esta finalizada y no se pueden eliminar imagenes.'
+            );
+        }
 
         if (mb_strtolower((string)($orden->acta_estado ?? '')) === 'firmada') {
             return redirect()
