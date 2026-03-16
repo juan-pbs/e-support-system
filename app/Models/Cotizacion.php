@@ -25,6 +25,8 @@ class Cotizacion extends Model
         'iva',
         'total',
         'cantidad_escrita',
+        'condiciones_pago',
+        'tiempo_entrega',
         'archivo_pdf',
         'tasa_cambio',
 

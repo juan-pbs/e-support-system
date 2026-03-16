@@ -11,7 +11,6 @@ use App\Models\DetalleCotizacionProducto;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Route;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
@@ -30,6 +29,8 @@ class CotizacionController extends Controller
 
     /** Carpeta privada para PDFs */
     private string $pdfDir = 'private/cotizaciones/pdfs';
+    private const CONDICIONES_PAGO_DEFAULT = 'efectivo';
+    private const NOTA_FIJA = 'PRECIOS SUJETOS A CAMBIO SIN PREVIO AVISO';
 
     private function ensurePdfDir(): void
     {
@@ -106,11 +107,13 @@ class CotizacionController extends Controller
             ->get();
 
         $firmaDefaultEmpresa = $this->readFirma();
+        $condicionesPagoOptions = $this->condicionesPagoOptions();
 
         return view('vistas-gerente.cotizaciones-gerente.crear_cotizaciones_gerente', compact(
             'clientes',
             'productos',
-            'firmaDefaultEmpresa'
+            'firmaDefaultEmpresa',
+            'condicionesPagoOptions'
         ));
     }
 
@@ -158,7 +161,17 @@ class CotizacionController extends Controller
             $cotizacion->costo_operativo  = $costoOp;
             $cotizacion->iva              = $iva;
             $cotizacion->total            = $total;
-            $cotizacion->cantidad_escrita = $request->input('cantidad_escrita', 'Cero pesos M.N.');
+            $cotizacion->cantidad_escrita = $this->resolveCantidadEscrita(
+                $request->input('cantidad_escrita'),
+                $total,
+                $cotizacion->moneda
+            );
+            if (Schema::hasColumn('cotizaciones', 'condiciones_pago')) {
+                $cotizacion->condiciones_pago = $this->resolveCondicionesPago($request->input('condiciones_pago'));
+            }
+            if (Schema::hasColumn('cotizaciones', 'tiempo_entrega')) {
+                $cotizacion->tiempo_entrega = $this->normalizeOptionalText($request->input('tiempo_entrega'));
+            }
 
             // Tasa cambio
             if ($tasaCambio !== null) {
@@ -263,6 +276,7 @@ class CotizacionController extends Controller
 
         // Default firma para el componente (no afecta al PDF si ya guardaste snapshot)
         $firmaDefaultEmpresa = $this->readFirma();
+        $condicionesPagoOptions = $this->condicionesPagoOptions();
 
         return view('vistas-gerente.cotizaciones-gerente.editar_cotizaciones_gerente', [
             'cotizacion'           => $cotizacion,
@@ -270,6 +284,7 @@ class CotizacionController extends Controller
             'productosDisponibles' => $productosDisponibles,
             'productosJson'        => $productosJson,
             'firmaDefaultEmpresa'  => $firmaDefaultEmpresa,
+            'condicionesPagoOptions' => $condicionesPagoOptions,
         ]);
     }
 
@@ -315,7 +330,17 @@ class CotizacionController extends Controller
             $cotizacion->costo_operativo  = $costoOp;
             $cotizacion->iva              = $iva;
             $cotizacion->total            = $total;
-            $cotizacion->cantidad_escrita = $request->input('cantidad_escrita', $cotizacion->cantidad_escrita);
+            $cotizacion->cantidad_escrita = $this->resolveCantidadEscrita(
+                $request->input('cantidad_escrita'),
+                $total,
+                $cotizacion->moneda
+            );
+            if (Schema::hasColumn('cotizaciones', 'condiciones_pago')) {
+                $cotizacion->condiciones_pago = $this->resolveCondicionesPago($request->input('condiciones_pago'));
+            }
+            if (Schema::hasColumn('cotizaciones', 'tiempo_entrega')) {
+                $cotizacion->tiempo_entrega = $this->normalizeOptionalText($request->input('tiempo_entrega'));
+            }
 
             $cotizacion->tasa_cambio = $tasaCambio;
             if (Schema::hasColumn('cotizaciones','tipo_cambio')) {
@@ -509,52 +534,11 @@ class CotizacionController extends Controller
 
     public function exchangeRate(Request $request)
     {
-        $apiKey = config('services.exchange_rate.key');
+        $rates = app(\App\Services\ExchangeRateService::class)->payload();
 
-        if (!$apiKey) {
-            return response()->json([
-                'ok'      => false,
-                'message' => 'Falta configurar EXCHANGE_RATE_API_KEY en .env',
-            ], 500);
-        }
-
-        try {
-            $response = Http::timeout(10)->get("https://v6.exchangerate-api.com/v6/{$apiKey}/latest/MXN");
-
-            if (!$response->ok()) {
-                return response()->json([
-                    'ok'      => false,
-                    'message' => 'No se pudo obtener el tipo de cambio.',
-                    'status'  => $response->status(),
-                ], 500);
-            }
-
-            $data  = $response->json();
-            $rates = $data['conversion_rates'] ?? [];
-
-            if (!isset($rates['USD'])) {
-                return response()->json([
-                    'ok'      => false,
-                    'message' => 'La respuesta de la API no contiene la tasa MXN→USD.',
-                ], 500);
-            }
-
-            $mxnUsd = (float) $rates['USD'];
-            $usdMxn = $mxnUsd > 0 ? (1 / $mxnUsd) : 0;
-
-            return response()->json([
-                'ok'      => true,
-                'mxn_usd' => $mxnUsd,
-                'usd_mxn' => $usdMxn,
-                'raw'     => $rates,
-            ]);
-        } catch (\Throwable $e) {
-            return response()->json([
-                'ok'      => false,
-                'message' => 'Error al consultar la API de tipo de cambio: '.$e->getMessage(),
-            ], 500);
-        }
+        return response()->json($rates);
     }
+
 
     /* ============================ PREVIEW (NO GUARDA) ============================ */
 
@@ -591,7 +575,14 @@ class CotizacionController extends Controller
             'costo_operativo'  => $costoOp,
             'iva'              => $iva,
             'total'            => $total,
-            'cantidad_escrita' => $request->input('cantidad_escrita', 'Cero pesos M.N.'),
+            'cantidad_escrita' => $this->resolveCantidadEscrita(
+                $request->input('cantidad_escrita'),
+                $total,
+                (string) $request->input('moneda', 'MXN')
+            ),
+            'condiciones_pago' => $this->resolveCondicionesPago($request->input('condiciones_pago')),
+            'tiempo_entrega'   => $this->normalizeOptionalText($request->input('tiempo_entrega')),
+            'nota_fija'        => self::NOTA_FIJA,
             'tipo_solicitud'   => $tipo,
             'tasa_cambio'      => $tasaCambio,
         ];
@@ -761,6 +752,9 @@ class CotizacionController extends Controller
             'precio_servicio'      => 'nullable|numeric|min:0',
             'descripcion'          => 'nullable|string',
             'descripcion_servicio' => 'nullable|string',
+            'condiciones_pago'     => 'nullable|in:efectivo,transferencia,tarjeta,credito_cliente',
+            'tiempo_entrega'       => 'nullable|string|max:255',
+            'cantidad_escrita'     => 'nullable|string|max:255',
             'productos_json'       => 'nullable|string',
             'tasa_cambio'          => 'nullable|numeric|min:0',
 
@@ -877,5 +871,201 @@ class CotizacionController extends Controller
             'empresa' => $defaults['empresa'] ?? 'E-SUPPORT QUERÉTARO',
             'image'   => $this->normalizeDataUri($defaults['image'] ?? null),
         ];
+    }
+
+    private function normalizeOptionalText($value): ?string
+    {
+        $text = trim((string) $value);
+
+        return $text !== '' ? $text : null;
+    }
+
+    private function condicionesPagoOptions(): array
+    {
+        return [
+            'efectivo' => 'Efectivo',
+            'transferencia' => 'Transferencia',
+            'tarjeta' => 'Tarjeta',
+            'credito_cliente' => 'Credito cliente',
+        ];
+    }
+
+    private function resolveCondicionesPago($value): string
+    {
+        $normalized = strtolower(trim((string) $value));
+
+        $legacyMap = [
+            'credito' => 'credito_cliente',
+            'crédito' => 'credito_cliente',
+            'credito cliente' => 'credito_cliente',
+            'crédito cliente' => 'credito_cliente',
+            'contado' => 'efectivo',
+        ];
+
+        if (isset($legacyMap[$normalized])) {
+            return $legacyMap[$normalized];
+        }
+
+        $options = $this->condicionesPagoOptions();
+
+        return array_key_exists($normalized, $options)
+            ? $normalized
+            : self::CONDICIONES_PAGO_DEFAULT;
+    }
+
+    private function resolveCantidadEscrita($value, float $total, string $moneda): string
+    {
+        $text = $this->normalizeOptionalText($value);
+
+        if ($text !== null) {
+            return $text;
+        }
+
+        return $this->moneyToWordsEs($total, $moneda);
+    }
+
+    private function moneyToWordsEs(float $amount, string $currency = 'MXN'): string
+    {
+        $amount = round($amount, 2);
+        $integer = (int) floor($amount);
+        $cents = (int) round(($amount - $integer) * 100);
+
+        if ($cents === 100) {
+            $integer++;
+            $cents = 0;
+        }
+
+        $currency = strtoupper(trim($currency));
+        $words = $this->adjustWordsForNoun($this->numberToWordsEs($integer));
+        $noun = $currency === 'USD'
+            ? ($integer === 1 ? 'DOLAR' : 'DOLARES')
+            : ($integer === 1 ? 'PESO' : 'PESOS');
+        $suffix = $currency === 'USD' ? 'USD' : 'M.N.';
+
+        return sprintf('%s %s %02d/100 %s', $words, $noun, $cents, $suffix);
+    }
+
+    private function adjustWordsForNoun(string $words): string
+    {
+        $words = preg_replace('/VEINTIUNO$/', 'VEINTIUN', $words);
+        $words = preg_replace('/ Y UNO$/', ' Y UN', $words);
+        $words = preg_replace('/ UNO$/', ' UN', $words);
+
+        return $words;
+    }
+
+    private function numberToWordsEs(int $number): string
+    {
+        $units = [
+            0 => 'CERO',
+            1 => 'UNO',
+            2 => 'DOS',
+            3 => 'TRES',
+            4 => 'CUATRO',
+            5 => 'CINCO',
+            6 => 'SEIS',
+            7 => 'SIETE',
+            8 => 'OCHO',
+            9 => 'NUEVE',
+        ];
+
+        $specials = [
+            10 => 'DIEZ',
+            11 => 'ONCE',
+            12 => 'DOCE',
+            13 => 'TRECE',
+            14 => 'CATORCE',
+            15 => 'QUINCE',
+            16 => 'DIECISEIS',
+            17 => 'DIECISIETE',
+            18 => 'DIECIOCHO',
+            19 => 'DIECINUEVE',
+            20 => 'VEINTE',
+            21 => 'VEINTIUNO',
+            22 => 'VEINTIDOS',
+            23 => 'VEINTITRES',
+            24 => 'VEINTICUATRO',
+            25 => 'VEINTICINCO',
+            26 => 'VEINTISEIS',
+            27 => 'VEINTISIETE',
+            28 => 'VEINTIOCHO',
+            29 => 'VEINTINUEVE',
+        ];
+
+        $tens = [
+            3 => 'TREINTA',
+            4 => 'CUARENTA',
+            5 => 'CINCUENTA',
+            6 => 'SESENTA',
+            7 => 'SETENTA',
+            8 => 'OCHENTA',
+            9 => 'NOVENTA',
+        ];
+
+        $hundreds = [
+            1 => 'CIENTO',
+            2 => 'DOSCIENTOS',
+            3 => 'TRESCIENTOS',
+            4 => 'CUATROCIENTOS',
+            5 => 'QUINIENTOS',
+            6 => 'SEISCIENTOS',
+            7 => 'SETECIENTOS',
+            8 => 'OCHOCIENTOS',
+            9 => 'NOVECIENTOS',
+        ];
+
+        if ($number < 10) {
+            return $units[$number];
+        }
+
+        if ($number < 30) {
+            return $specials[$number];
+        }
+
+        if ($number < 100) {
+            $ten = intdiv($number, 10);
+            $rest = $number % 10;
+
+            return $tens[$ten] . ($rest > 0 ? ' Y ' . $this->numberToWordsEs($rest) : '');
+        }
+
+        if ($number === 100) {
+            return 'CIEN';
+        }
+
+        if ($number < 1000) {
+            $hundred = intdiv($number, 100);
+            $rest = $number % 100;
+
+            return $hundreds[$hundred] . ($rest > 0 ? ' ' . $this->numberToWordsEs($rest) : '');
+        }
+
+        if ($number < 2000) {
+            return 'MIL' . ($number % 1000 > 0 ? ' ' . $this->numberToWordsEs($number % 1000) : '');
+        }
+
+        if ($number < 1000000) {
+            $thousands = intdiv($number, 1000);
+            $rest = $number % 1000;
+
+            return $this->numberToWordsEs($thousands)
+                . ' MIL'
+                . ($rest > 0 ? ' ' . $this->numberToWordsEs($rest) : '');
+        }
+
+        if ($number < 2000000) {
+            return 'UN MILLON' . ($number % 1000000 > 0 ? ' ' . $this->numberToWordsEs($number % 1000000) : '');
+        }
+
+        if ($number < 1000000000000) {
+            $millions = intdiv($number, 1000000);
+            $rest = $number % 1000000;
+
+            return $this->adjustWordsForNoun($this->numberToWordsEs($millions))
+                . ' MILLONES'
+                . ($rest > 0 ? ' ' . $this->numberToWordsEs($rest) : '');
+        }
+
+        return (string) $number;
     }
 }

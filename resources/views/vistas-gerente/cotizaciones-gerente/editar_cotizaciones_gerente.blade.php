@@ -164,6 +164,53 @@
                         </div>
                     </div>
 
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Condiciones de pago:</label>
+                            <select name="condiciones_pago" id="condiciones_pago"
+                                    class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                                @php($condicionPagoActual = old('condiciones_pago', $cotizacion->condiciones_pago ?? 'efectivo'))
+                                @foreach($condicionesPagoOptions as $value => $label)
+                                    <option value="{{ $value }}" @selected($condicionPagoActual === $value)>{{ $label }}</option>
+                                @endforeach
+                            </select>
+                            <p class="mt-1 text-xs text-gray-500">Indicativo para la cotizacion. En la orden se confirma el tipo de pago final.</p>
+                            @error('condiciones_pago')
+                            <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700 mb-2">Tiempo de entrega:</label>
+                            <input type="text" name="tiempo_entrega" id="tiempo_entrega"
+                                   value="{{ old('tiempo_entrega', $cotizacion->tiempo_entrega) }}"
+                                   placeholder="Ej. 3 a 5 dias habiles"
+                                   class="w-full px-3 py-2 border border-gray-300 rounded-md">
+                            @error('tiempo_entrega')
+                            <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                            @enderror
+                        </div>
+                    </div>
+
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <label class="block text-sm font-medium text-gray-700">Cantidad con letra:</label>
+                            <button type="button"
+                                    onclick="restaurarCantidadEscrita()"
+                                    class="text-xs font-medium text-blue-600 hover:text-blue-800">
+                                Recalcular
+                            </button>
+                        </div>
+                        <textarea id="cantidad_escrita_editor"
+                                  rows="3"
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-md resize-none">{{ old('cantidad_escrita', $cotizacion->cantidad_escrita) }}</textarea>
+                        <p class="mt-1 text-xs text-gray-500">
+                            Puedes ajustarla manualmente o recalcularla segun el total actual.
+                        </p>
+                        @error('cantidad_escrita')
+                        <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
+
                     {{-- Firma digital --}}
                     <x-firma-digital
                         :firma="($firmaEmpresa ?? $firmaDefaultEmpresa ?? null)"
@@ -218,6 +265,14 @@
                                       class="flex-1 text-right break-words max-h-20 overflow-y-auto text-xs">
                                     {{ $cotizacion->cantidad_escrita }}
                                 </span>
+                            </div>
+                            <div class="flex justify-between text-sm font-thin items-start gap-2">
+                                <span>Condiciones de pago:</span>
+                                <span id="condiciones_pago_text" class="text-right break-words">{{ $condicionesPagoOptions[$condicionPagoActual] ?? 'Efectivo' }}</span>
+                            </div>
+                            <div class="flex justify-between text-sm font-thin items-start gap-2">
+                                <span>Tiempo de entrega:</span>
+                                <span id="tiempo_entrega_text" class="text-right break-words">{{ $cotizacion->tiempo_entrega ?? '-' }}</span>
                             </div>
                         </div>
                     </div>
@@ -390,6 +445,11 @@
                         </div>
                     </div>
 
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Descripción (opcional)</label>
+                        <textarea id="productDescription" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500 text-sm" placeholder="Describe el producto no existente..."></textarea>
+                    </div>
+
                     <div class="flex justify-end pt-4">
                         <button type="button" id="formAddProduct" class="w-full sm:w-auto bg-green-500 hover:bg-green-600 text-white px-6 py-2 rounded-md font-medium text-sm">
                             Agregar
@@ -517,6 +577,11 @@
     const servicioFields = document.getElementById('servicioFields');
     const costoOperativoInput = document.getElementById('costo_operativo');
     const productosJsonInput  = document.getElementById('productos_json');
+    const cantidadEscritaInput = document.getElementById('cantidad_escrita');
+    const cantidadEscritaEditor = document.getElementById('cantidad_escrita_editor');
+    const condicionesPagoInput = document.getElementById('condiciones_pago');
+    const tiempoEntregaInput = document.getElementById('tiempo_entrega');
+    let cantidadEscritaManual = false;
 
     const availableProducts = {
         @foreach($productosDisponibles as $producto)
@@ -694,6 +759,14 @@
         actualizarLabelsTasa();
         cargarExchangeRate();
 
+        cantidadEscritaEditor?.addEventListener('input', () => {
+            cantidadEscritaManual = true;
+            syncCantidadEscrita(cantidadEscritaEditor.value);
+        });
+
+        condicionesPagoInput?.addEventListener('input', updateMetaCotizacion);
+        tiempoEntregaInput?.addEventListener('input', updateMetaCotizacion);
+
         updateProductList();
         updateTotals();
 
@@ -783,6 +856,7 @@
         const name = document.getElementById('productName').value.trim();
         const price = parseFloat(document.getElementById('productPrice').value);
         const quantity = parseInt(document.getElementById('productQuantity').value);
+        const description = (document.getElementById('productDescription').value || '').trim();
 
         if (name && !isNaN(price) && price >= 0 && !isNaN(quantity) && quantity > 0) {
             addProductToQuote({
@@ -792,12 +866,13 @@
                 quantity: quantity,
                 unit: 'unidad',
                 image: '',
-                description: 'Producto personalizado'
+                description: description || 'Producto personalizado'
             });
 
             document.getElementById('productName').value = '';
             document.getElementById('productPrice').value = '';
             document.getElementById('productQuantity').value = 1;
+            document.getElementById('productDescription').value = ''; 
 
             showProductView();
         } else {
@@ -918,13 +993,142 @@
         document.getElementById('impuestos').value = impuestos.toFixed(2);
         document.getElementById('total').value     = total.toFixed(2);
 
-        const cantidadEscrita = numeroALetras(total, moneda);
-        document.getElementById('cantidad_escrita').value = cantidadEscrita;
-        document.getElementById('cantidad_escrita_text').textContent = cantidadEscrita;
+        if (!cantidadEscritaManual || !cantidadEscritaEditor?.value.trim()) {
+            syncCantidadEscrita(numeroALetrasMoneda(total, moneda));
+            cantidadEscritaManual = false;
+        } else {
+            syncCantidadEscrita(cantidadEscritaEditor.value);
+        }
+
+        updateMetaCotizacion();
     }
 
     function numeroALetras(num, moneda) {
         return (num === 0 ? 'Cero' : num.toFixed(2) + (moneda === 'USD' ? ' dólares' : ' pesos')) + ' M.N.';
+    }
+
+    function syncCantidadEscrita(value) {
+        const text = (value || '').trim();
+        cantidadEscritaInput.value = text;
+        if (cantidadEscritaEditor && cantidadEscritaEditor.value !== text) {
+            cantidadEscritaEditor.value = text;
+        }
+        document.getElementById('cantidad_escrita_text').textContent = text || '-';
+    }
+
+    function updateMetaCotizacion() {
+        const selected = condicionesPagoInput?.options?.[condicionesPagoInput.selectedIndex]?.text || 'Efectivo';
+        document.getElementById('condiciones_pago_text').textContent = selected;
+        document.getElementById('tiempo_entrega_text').textContent = (tiempoEntregaInput?.value || '').trim() || '-';
+    }
+
+    function restaurarCantidadEscrita() {
+        cantidadEscritaManual = false;
+        syncCantidadEscrita(numeroALetrasMoneda(parseFloat(document.getElementById('total').value || 0), monedaSelect.value));
+    }
+
+    function numeroALetrasMoneda(num, moneda) {
+        const amount = Number(num || 0);
+        let integer = Math.floor(amount);
+        let cents = Math.round((amount - integer) * 100);
+
+        if (cents === 100) {
+            integer += 1;
+            cents = 0;
+        }
+
+        const words = ajustarNumeroParaMoneda(numeroALetrasEntero(integer));
+        const noun = moneda === 'USD'
+            ? (integer === 1 ? 'DOLAR' : 'DOLARES')
+            : (integer === 1 ? 'PESO' : 'PESOS');
+        const suffix = moneda === 'USD' ? 'USD' : 'M.N.';
+
+        return `${words} ${noun} ${String(cents).padStart(2, '0')}/100 ${suffix}`;
+    }
+
+    function ajustarNumeroParaMoneda(words) {
+        return words
+            .replace(/VEINTIUNO$/, 'VEINTIUN')
+            .replace(/ Y UNO$/, ' Y UN')
+            .replace(/ UNO$/, ' UN');
+    }
+
+    function numeroALetrasEntero(number) {
+        const units = ['CERO', 'UNO', 'DOS', 'TRES', 'CUATRO', 'CINCO', 'SEIS', 'SIETE', 'OCHO', 'NUEVE'];
+        const specials = {
+            10: 'DIEZ',
+            11: 'ONCE',
+            12: 'DOCE',
+            13: 'TRECE',
+            14: 'CATORCE',
+            15: 'QUINCE',
+            16: 'DIECISEIS',
+            17: 'DIECISIETE',
+            18: 'DIECIOCHO',
+            19: 'DIECINUEVE',
+            20: 'VEINTE',
+            21: 'VEINTIUNO',
+            22: 'VEINTIDOS',
+            23: 'VEINTITRES',
+            24: 'VEINTICUATRO',
+            25: 'VEINTICINCO',
+            26: 'VEINTISEIS',
+            27: 'VEINTISIETE',
+            28: 'VEINTIOCHO',
+            29: 'VEINTINUEVE',
+        };
+        const tens = {
+            3: 'TREINTA',
+            4: 'CUARENTA',
+            5: 'CINCUENTA',
+            6: 'SESENTA',
+            7: 'SETENTA',
+            8: 'OCHENTA',
+            9: 'NOVENTA',
+        };
+        const hundreds = {
+            1: 'CIENTO',
+            2: 'DOSCIENTOS',
+            3: 'TRESCIENTOS',
+            4: 'CUATROCIENTOS',
+            5: 'QUINIENTOS',
+            6: 'SEISCIENTOS',
+            7: 'SETECIENTOS',
+            8: 'OCHOCIENTOS',
+            9: 'NOVECIENTOS',
+        };
+
+        if (number < 10) return units[number];
+        if (number < 30) return specials[number];
+        if (number < 100) {
+            const ten = Math.floor(number / 10);
+            const rest = number % 10;
+            return tens[ten] + (rest ? ` Y ${numeroALetrasEntero(rest)}` : '');
+        }
+        if (number === 100) return 'CIEN';
+        if (number < 1000) {
+            const hundred = Math.floor(number / 100);
+            const rest = number % 100;
+            return hundreds[hundred] + (rest ? ` ${numeroALetrasEntero(rest)}` : '');
+        }
+        if (number < 2000) {
+            return 'MIL' + (number % 1000 ? ` ${numeroALetrasEntero(number % 1000)}` : '');
+        }
+        if (number < 1000000) {
+            const thousands = Math.floor(number / 1000);
+            const rest = number % 1000;
+            return `${numeroALetrasEntero(thousands)} MIL${rest ? ` ${numeroALetrasEntero(rest)}` : ''}`;
+        }
+        if (number < 2000000) {
+            return `UN MILLON${number % 1000000 ? ` ${numeroALetrasEntero(number % 1000000)}` : ''}`;
+        }
+        if (number < 1000000000000) {
+            const millions = Math.floor(number / 1000000);
+            const rest = number % 1000000;
+            return `${ajustarNumeroParaMoneda(numeroALetrasEntero(millions))} MILLONES${rest ? ` ${numeroALetrasEntero(rest)}` : ''}`;
+        }
+
+        return String(number);
     }
 
     // Cambio de moneda con snapshot (igual que en crear)
@@ -1047,6 +1251,7 @@ function guardarCambios() {
     window.generarCotizacion  = generarCotizacion;
     window.cerrarModalPDF     = cerrarModalPDF;
     window.guardarCambios     = guardarCambios;
+    window.restaurarCantidadEscrita = restaurarCantidadEscrita;
     /**
  * 🚫 Evita que ENTER envíe el formulario mientras se edita un producto
  */

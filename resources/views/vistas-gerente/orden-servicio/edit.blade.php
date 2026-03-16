@@ -20,10 +20,10 @@ $saveUrl = route('ordenes.update', ['id' => $orden->id_orden_servicio]);
 $pdfUrl  = route('ordenes.pdf', ['id' => $orden->id_orden_servicio]);
 
 $costoServicioPrefill = old('precio', (float)($orden->precio ?? 0));
-
 $costoOperativoPrefill = old('costo_operativo', (float)($orden->costo_operativo ?? 0));
-
 $descripcionServicioPrefill = old('descripcion_servicio', (string)($orden->descripcion_servicio ?? ''));
+$precioEscritoPrefill = old('precio_escrito', $orden->precio_escrito ?? '');
+$precioEscritoAutoPrefill = old('precio_escrito') === null && blank($orden->precio_escrito ?? null);
 
 // ===== lista clientes para AUTOCOMPLETE =====
 $clientesSearchList = collect($clientes ?? [])->map(function($c){
@@ -110,13 +110,12 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
 
         {{-- ✅ Token para reservas de N/S durante la captura --}}
         <input type="hidden" name="serial_token" :value="serialToken">
+        <input type="hidden" name="orden_id_context" value="{{ $orden->id_orden_servicio ?? $orden->getKey() }}">
 
         {{-- Datos calculados --}}
         <input type="hidden" name="tasa_cambio" :value="usdToMxn">
-        {{-- extra: compatibilidad si el controlador usa tipo_cambio --}}
         <input type="hidden" name="tipo_cambio" :value="usdToMxn">
         <input type="hidden" name="impuestos" :value="round2(totalImpuestos)">
-        {{-- extra: total ya calculado en el front por si se desea leer --}}
         <input type="hidden" name="total_orden" :value="round2(totalOrden)">
         <input type="hidden" name="autorizado_por" value="{{ auth()->id() }}">
 
@@ -130,9 +129,7 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
             <h2 class="text-lg font-semibold mb-4 text-gray-800">Datos principales</h2>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {{-- ========================= --}}
-                {{-- CLIENTE (AUTOCOMPLETE) --}}
-                {{-- ========================= --}}
+                {{-- CLIENTE --}}
                 <div class="relative">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
 
@@ -141,7 +138,6 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
                                value="{{ $cotizacion->cliente->nombre }} {{ $cotizacion->cliente->nombre_empresa ? '— '.$cotizacion->cliente->nombre_empresa : '' }}" disabled>
                         <input type="hidden" name="id_cliente" value="{{ $cotizacion->cliente->clave_cliente }}">
                     @else
-                        {{-- input visible --}}
                         <div class="relative">
                             <input type="text"
                                    class="w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-blue-500"
@@ -151,10 +147,8 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
                                    @input="showClienteList = true; filterClientes()"
                                    @keydown.escape="showClienteList=false">
 
-                            {{-- hidden real (lo que se envía) --}}
                             <input type="hidden" name="id_cliente" x-model="idCliente" required>
 
-                            {{-- dropdown --}}
                             <div x-show="showClienteList"
                                  x-cloak
                                  @click.outside="showClienteList=false"
@@ -174,7 +168,6 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
                                 </div>
                             </div>
 
-                            {{-- botón limpiar --}}
                             <button type="button"
                                     class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
                                     x-show="clienteSearch"
@@ -399,7 +392,6 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
                     <label class="block text-sm font-medium text-gray-700 mb-1">Costo operativo / envío</label>
                     <input type="number" step="0.01" name="costo_operativo" x-model.number="costoOperativo" value="{{ $costoOperativoPrefill }}" class="w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-blue-500" @input="calc()">
                 </div>
-
             </div>
 
             {{-- Servicio --}}
@@ -475,7 +467,8 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
                                 <td class="px-3 py-2">
                                     <div class="w-72 md:w-96">
                                         <div class="text-sm font-medium text-gray-900 truncate" x-text="p.nombre_producto || p.descripcion || 'Producto'"></div>
-                                        <div class="text-xs text-gray-600 mt-0.5 whitespace-pre-line" x-text="(p.descripcion ? String(p.descripcion).replace(/\s*NS:\s*[\s\S]*$/mi, ``).trim() : ``) || '—'"></div>
+                                        <div class="text-xs text-gray-600 mt-0.5 whitespace-pre-line"
+                                             x-text="(p.descripcion ? String(p.descripcion).replace(/\s*NS:\s*[\s\S]*$/mi, '').trim() : '') || '—'"></div>
                                         <div x-show="p.has_serial" x-cloak class="mt-1 text-[11px] text-gray-600 whitespace-pre-line">
                                             <template x-if="(p.ns_asignados || []).length">
                                                 <div><span class="font-semibold">N/S:</span> <span x-text="(p.ns_asignados || []).join(', ')"></span></div>
@@ -586,7 +579,6 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
                         <span x-text="formatCurrency(totalOrden)"></span>
                     </div>
 
-                    {{-- ✅ Anticipo + Saldo --}}
                     <div class="border-t my-2"></div>
                     <div class="flex justify-between text-sm mb-2">
                         <span>Anticipo</span>
@@ -600,7 +592,42 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
             </div>
         </div>
 
-        {{-- ✅ Anticipo (UI completa) --}}
+        <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
+            <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div>
+                    <h2 class="text-lg font-semibold text-gray-800">Cantidad por escrito</h2>
+                    <p class="text-sm text-gray-500">
+                        Se usa en el PDF de la orden y como base del acta de conformidad del gerente.
+                    </p>
+                </div>
+
+                <button type="button"
+                        @click="recalcularPrecioEscrito()"
+                        class="inline-flex items-center justify-center rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    Recalcular con el total actual
+                </button>
+            </div>
+
+            <div class="mt-4">
+                <label class="block text-sm font-medium text-gray-700 mb-1">Monto en letra</label>
+                <textarea name="precio_escrito"
+                          x-model="precioEscrito"
+                          @input="precioEscritoAuto = false"
+                          rows="3"
+                          class="w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-blue-500"
+                          placeholder="Ej. DOS MIL QUINIENTOS PESOS 00/100 M.N.">{{ $precioEscritoPrefill }}</textarea>
+                <p class="mt-2 text-xs text-gray-500">
+                    Puedes ajustarlo manualmente si necesitas una redacción distinta.
+                </p>
+            </div>
+
+            <div class="mt-3 rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                <div class="text-xs font-medium uppercase tracking-wide text-gray-500">Vista rápida</div>
+                <div class="mt-1 text-sm font-medium text-gray-800 break-words" x-text="precioEscrito || '-'"></div>
+            </div>
+        </div>
+
+        {{-- ✅ Anticipo --}}
         <div class="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-6">
             <div class="flex items-center justify-between gap-3 mb-4">
                 <div>
@@ -615,7 +642,6 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {{-- Modo --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-2">Modo</label>
                     <div class="flex flex-wrap gap-3">
@@ -630,7 +656,6 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
                     </div>
                 </div>
 
-                {{-- Monto --}}
                 <div x-show="anticipoModo==='monto'" x-cloak>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Anticipo (monto)</label>
                     <input type="number" step="0.01" min="0"
@@ -648,7 +673,6 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
                     </div>
                 </div>
 
-                {{-- Porcentaje --}}
                 <div x-show="anticipoModo==='porcentaje'" x-cloak>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Anticipo (%)</label>
                     <input type="number" step="0.01" min="0" max="100"
@@ -666,7 +690,6 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
                     </div>
                 </div>
 
-                {{-- Resumen --}}
                 <div class="bg-gray-50 rounded-xl border p-4">
                     <div class="text-sm font-semibold text-gray-800 mb-2">Resumen</div>
                     <div class="flex justify-between text-sm mb-1">
@@ -689,10 +712,8 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
             </div>
         </div>
 
-        {{-- Adjuntos y firma --}}
         <x-firma-digital :firma="$firma ?? null" />
 
-        {{-- Acciones --}}
         <div class="flex items-center justify-end gap-3">
             <a href="{{ route('ordenes.index') }}" class="px-4 py-2 rounded-md border text-gray-700 hover:bg-gray-50">Cancelar</a>
 
@@ -709,9 +730,7 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
         </div>
     </form>
 
-    {{-- ========================= --}}
     {{-- Modal catálogo productos --}}
-    {{-- ========================= --}}
     <div id="productModal"
          x-show="productModal"
          x-cloak
@@ -729,7 +748,6 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
                     </button>
                 </div>
 
-                {{-- Búsqueda / categoría --}}
                 <div class="flex flex-col sm:flex-row gap-3 mb-4">
                     <input id="productSearch" type="text" class="flex-1 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"
                            placeholder="Buscar por nombre, descripción o número de parte">
@@ -741,7 +759,6 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
                     </select>
                 </div>
 
-                {{-- Tabla desktop --}}
                 <div class="hidden lg:block overflow-x-auto max-h-96 overflow-y-auto border border-gray-200 rounded-lg">
                     <table class="w-full">
                         <thead class="bg-gray-50 sticky top-0">
@@ -760,6 +777,7 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
                                     $invFirst = optional($producto->inventario->first());
                                     $tipoCtrl = (string)($invFirst->tipo_control ?? '');
                                     $hasSerial = $hasSerialDetect($tipoCtrl);
+      $stockHint = (float) ($invFirst->stock_actual ?? $invFirst->cantidad_disponible ?? $invFirst->cantidad_actual ?? $invFirst->existencia ?? $invFirst->piezas_sueltas ?? $invFirst->cantidad ?? 0);
                                 @endphp
                                 <tr class="border-b border-gray-100 hover:bg-gray-50"
                                     data-name="{{ strtolower((string)$producto->nombre) }}"
@@ -799,7 +817,6 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
                     </table>
                 </div>
 
-                {{-- Lista móvil --}}
                 <div class="lg:hidden space-y-4 max-h-96 overflow-y-auto" id="mobileProductList">
                     @foreach(($productos ?? []) as $producto)
                         @php
@@ -849,9 +866,7 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
         </div>
     </div>
 
-    {{-- ========================= --}}
     {{-- Modal cantidad / seriales --}}
-    {{-- ========================= --}}
     <div id="quantityModal" class="fixed inset-0 flex items-center justify-center z-[70] hidden">
         <div class="absolute inset-0 bg-black/50"></div>
         <div class="relative bg-white rounded-lg p-6 max-w-2xl w-full mx-4 max-h-[85vh] overflow-y-auto">
@@ -864,7 +879,7 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
                 </button>
             </div>
 
-            <div class="space-y-4" id="qmBody"><!-- contenido dinámico --></div>
+            <div class="space-y-4" id="qmBody"></div>
 
             <div id="quantityError" class="text-red-600 text-sm mt-2 hidden"></div>
 
@@ -879,9 +894,7 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
         </div>
     </div>
 
-    {{-- ========================= --}}
     {{-- Modal PREVIEW / PDF ACTUAL --}}
-    {{-- ========================= --}}
     <div id="pdfPreviewModal" class="fixed inset-0 z-50 hidden">
         <div class="absolute inset-0 bg-black/60" onclick="closePdfModal()"></div>
         <div class="relative mx-auto my-6 bg-white rounded-xl shadow-xl max-w-5xl w-[95vw] h-[85vh] flex flex-col">
@@ -911,9 +924,7 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
         </div>
     </div>
 
-    {{-- ========================= --}}
     {{-- Modal FALTANTES DE STOCK --}}
-    {{-- ========================= --}}
     <div id="stockShortageModal" class="fixed inset-0 z-50 hidden">
         <div class="absolute inset-0 bg-black/60" onclick="closeStockShortageModal()"></div>
         <div class="relative mx-auto my-6 bg-white rounded-xl shadow-xl max-w-2xl w-[95vw]">
@@ -937,20 +948,26 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
         </div>
     </div>
 
-</div> {{-- /x-data wrapper --}}
+</div>
 
 <meta name="csrf-token" content="{{ csrf_token() }}">
 
 <script>
-  // Fallback para CSS.escape
-  (function(){
-    if (!window.CSS) window.CSS = {};
-    if (!CSS.escape) CSS.escape = function (s) { try { return String(s); } catch { return s; } };
-  })();
+function getCsrf() {
+    const tokenEl = document.querySelector('meta[name="csrf-token"]');
+    return tokenEl ? tokenEl.getAttribute('content') : '';
+}
+window.getCsrf = getCsrf;
 </script>
 
 <script>
-  // Endpoints
+(function(){
+  if (!window.CSS) window.CSS = {};
+  if (!CSS.escape) CSS.escape = function (s) { try { return String(s); } catch { return s; } };
+})();
+</script>
+
+<script>
   const SAVE_URL        = @json($saveUrl);
   const PREVIEW_URL     = @json(route('ordenes.preview'));
   const PDF_CURRENT_URL = @json($pdfUrl);
@@ -959,12 +976,10 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
   const CREDITO_URL     = @json(route('ordenes.api.credito'));
   const TIPO_CAMBIO_URL = @json(route('api.tipo-cambio'));
 
-  // ✅ Reservas N/S (ajusta si tu API usa otra ruta)
   const RESERVAR_SERIES_URL = @json(url('/api/inventario/reservar-series'));
   const LIBERAR_SERIES_URL  = @json(url('/api/inventario/liberar-series'));
 </script>
 
-{{-- Catálogo en memoria --}}
 <script>
 const availableProducts = {
   @foreach(($productos ?? []) as $producto)
@@ -972,6 +987,7 @@ const availableProducts = {
       $invFirst = optional($producto->inventario->first());
       $tipoCtrl = (string)($invFirst->tipo_control ?? '');
       $hasSerial = $hasSerialDetect($tipoCtrl);
+      $stockHint = (float) ($invFirst->stock_actual ?? $invFirst->cantidad_disponible ?? $invFirst->cantidad_actual ?? $invFirst->existencia ?? $invFirst->piezas_sueltas ?? $invFirst->cantidad ?? 0);
     @endphp
     [@json((string)$producto->codigo_producto)]: {
       id: @json((string)$producto->codigo_producto),
@@ -994,10 +1010,8 @@ const clientesCatalog = {
 };
 </script>
 
-{{-- Lógica de catálogo: filtros, stock y modal de cantidad --}}
 <script>
 (function(){
-  // (misma lógica que create) — se mantiene completa para no depender de includes.
   const quantityModal   = document.getElementById('quantityModal');
   const qmBody          = document.getElementById('qmBody');
   const qmAddBtn        = document.getElementById('qmAddBtn');
@@ -1013,11 +1027,6 @@ const clientesCatalog = {
 
   const stockCache = {};
   let annotateBusy = false;
-
-  function getCsrf(){
-    const tokenEl = document.querySelector('meta[name="csrf-token"]');
-    return tokenEl ? tokenEl.getAttribute('content') : '';
-  }
 
   async function postJson(url, payload){
     const res = await fetch(url, {
@@ -1095,6 +1104,7 @@ const clientesCatalog = {
 
     annotateStockOnCatalog();
   }
+
   const filterProductsDebounced = debounce(filterProducts, 180);
   productSearch?.addEventListener('input', filterProductsDebounced);
   productCategory?.addEventListener('change', filterProductsDebounced);
@@ -1103,14 +1113,16 @@ const clientesCatalog = {
     const token = getSerialToken();
     const cacheKey = token ? `${code}::${token}` : code;
     if (stockCache.hasOwnProperty(cacheKey)) return stockCache[cacheKey];
+    const fallbackStock = Math.max(parseInt((availableProducts[code]?.stock_hint ?? 0), 10) || 0, 0);
 
     try{
       const r = await fetch(`${STOCK_URL}?codigo=${encodeURIComponent(code)}&token=${encodeURIComponent(token)}&t=${Date.now()}`, { headers:{'Accept':'application/json'} });
       const j = await r.json();
-      const st = Math.max(parseInt((j && j.stock) ? j.stock : 0, 10) || 0, 0);
+      const rawStock = j ? (j.stock ?? j.disponible ?? j.cantidad ?? j.qty) : null;
+      const st = Math.max(parseInt((rawStock ?? fallbackStock), 10) || 0, 0);
       stockCache[cacheKey] = { stock: st, has_serial: !!(j && j.has_serial) };
     } catch(e){
-      stockCache[cacheKey] = { stock: 0, has_serial: !!(availableProducts[code]?.has_serial) };
+      stockCache[cacheKey] = { stock: fallbackStock, has_serial: !!(availableProducts[code]?.has_serial) };
     }
     return stockCache[cacheKey];
   }
@@ -1172,10 +1184,12 @@ const clientesCatalog = {
     try {
       const sres = await fetch(`${STOCK_URL}?codigo=${encodeURIComponent(productId)}&token=${encodeURIComponent(token)}&t=${Date.now()}`, { headers:{'Accept':'application/json'} });
       const sj = await sres.json();
-      currentStock = Math.max(parseInt((sj && sj.stock) ? sj.stock : 0, 10) || 0, 0);
+      const rawStock = sj ? (sj.stock ?? sj.disponible ?? sj.cantidad ?? sj.qty) : null;
+      const fallbackStock = Math.max(parseInt((currentProduct && currentProduct.stock_hint) ? currentProduct.stock_hint : 0, 10) || 0, 0);
+      currentStock = Math.max(parseInt((rawStock ?? fallbackStock), 10) || 0, 0);
       currentHasSerial = !!(sj && sj.has_serial);
     } catch(e) {
-      currentStock = 0;
+      currentStock = Math.max(parseInt((currentProduct && currentProduct.stock_hint) ? currentProduct.stock_hint : 0, 10) || 0, 0);
       currentHasSerial = !!(currentProduct && currentProduct.has_serial);
     }
 
@@ -1251,7 +1265,6 @@ const clientesCatalog = {
       qmBody.innerHTML = html;
       document.getElementById('productModalTitle').textContent = `Agregar producto #${currentProduct.id}`;
 
-      // Filtro N/S
       const nsSearch = document.getElementById('qmNsSearch');
       if (nsSearch) {
         nsSearch.addEventListener('input', debounce(() => {
@@ -1404,7 +1417,7 @@ const clientesCatalog = {
      annotateStockOnCatalog();
   });
 
-  window.addEventListener('beforeunload', (e)=>{
+  window.addEventListener('beforeunload', ()=>{
     const comp = getFormComponent();
     if (!comp || comp.hasSaved) return;
 
@@ -1426,15 +1439,14 @@ const clientesCatalog = {
 })();
 </script>
 
-{{-- Lógica principal del formulario (Alpine) --}}
 <script>
 (function(){
   const OLD_TIPO_PAGO = @json(old('tipo_pago', $orden->tipo_pago ?? 'efectivo'));
-
-  // ✅ OLD Anticipo
   const OLD_ANTICIPO_MODO       = @json(old('anticipo_modo', ((float)($orden->anticipo_porcentaje ?? 0) > 0 ? 'porcentaje' : 'monto')));
   const OLD_ANTICIPO_MONTO      = @json(old('anticipo_monto', (float)($orden->anticipo ?? 0)));
   const OLD_ANTICIPO_PORCENTAJE = @json(old('anticipo_porcentaje', (float)($orden->anticipo_porcentaje ?? 0)));
+  const OLD_PRECIO_ESCRITO      = @json($precioEscritoPrefill);
+  const AUTO_PRECIO_ESCRITO     = @json($precioEscritoAutoPrefill);
 
   function genToken(){
     try {
@@ -1464,6 +1476,8 @@ const clientesCatalog = {
       anticipoCalculado: 0,
       saldoPendiente: 0,
       anticipoPctEstimado: 0,
+      precioEscrito: OLD_PRECIO_ESCRITO || '',
+      precioEscritoAuto: !!AUTO_PRECIO_ESCRITO,
 
       clientesAll: Array.isArray(clientesList) ? clientesList : [],
       clientesFiltrados: [],
@@ -1678,6 +1692,123 @@ const clientesCatalog = {
         }
       },
 
+      ajustarNumeroParaMoneda(words) {
+        return String(words || '')
+          .replace(/VEINTIUNO$/, 'VEINTIUN')
+          .replace(/ Y UNO$/, ' Y UN')
+          .replace(/ UNO$/, ' UN');
+      },
+
+      numeroALetrasEntero(number) {
+        const units = ['CERO', 'UNO', 'DOS', 'TRES', 'CUATRO', 'CINCO', 'SEIS', 'SIETE', 'OCHO', 'NUEVE'];
+        const specials = {
+          10: 'DIEZ',
+          11: 'ONCE',
+          12: 'DOCE',
+          13: 'TRECE',
+          14: 'CATORCE',
+          15: 'QUINCE',
+          16: 'DIECISEIS',
+          17: 'DIECISIETE',
+          18: 'DIECIOCHO',
+          19: 'DIECINUEVE',
+          20: 'VEINTE',
+          21: 'VEINTIUNO',
+          22: 'VEINTIDOS',
+          23: 'VEINTITRES',
+          24: 'VEINTICUATRO',
+          25: 'VEINTICINCO',
+          26: 'VEINTISEIS',
+          27: 'VEINTISIETE',
+          28: 'VEINTIOCHO',
+          29: 'VEINTINUEVE',
+        };
+        const tens = {
+          3: 'TREINTA',
+          4: 'CUARENTA',
+          5: 'CINCUENTA',
+          6: 'SESENTA',
+          7: 'SETENTA',
+          8: 'OCHENTA',
+          9: 'NOVENTA',
+        };
+        const hundreds = {
+          1: 'CIENTO',
+          2: 'DOSCIENTOS',
+          3: 'TRESCIENTOS',
+          4: 'CUATROCIENTOS',
+          5: 'QUINIENTOS',
+          6: 'SEISCIENTOS',
+          7: 'SETECIENTOS',
+          8: 'OCHOCIENTOS',
+          9: 'NOVECIENTOS',
+        };
+
+        if (number < 10) return units[number];
+        if (number < 30) return specials[number];
+        if (number < 100) {
+          const ten = Math.floor(number / 10);
+          const rest = number % 10;
+          return tens[ten] + (rest ? ` Y ${this.numeroALetrasEntero(rest)}` : '');
+        }
+        if (number === 100) return 'CIEN';
+        if (number < 1000) {
+          const hundred = Math.floor(number / 100);
+          const rest = number % 100;
+          return hundreds[hundred] + (rest ? ` ${this.numeroALetrasEntero(rest)}` : '');
+        }
+        if (number < 2000) {
+          return 'MIL' + (number % 1000 ? ` ${this.numeroALetrasEntero(number % 1000)}` : '');
+        }
+        if (number < 1000000) {
+          const thousands = Math.floor(number / 1000);
+          const rest = number % 1000;
+          return `${this.numeroALetrasEntero(thousands)} MIL${rest ? ` ${this.numeroALetrasEntero(rest)}` : ''}`;
+        }
+        if (number < 2000000) {
+          return `UN MILLON${number % 1000000 ? ` ${this.numeroALetrasEntero(number % 1000000)}` : ''}`;
+        }
+        if (number < 1000000000000) {
+          const millions = Math.floor(number / 1000000);
+          const rest = number % 1000000;
+          return `${this.ajustarNumeroParaMoneda(this.numeroALetrasEntero(millions))} MILLONES${rest ? ` ${this.numeroALetrasEntero(rest)}` : ''}`;
+        }
+
+        return String(number);
+      },
+
+      numeroALetrasMoneda(num, moneda) {
+        const amount = Number(num || 0);
+        let integer = Math.floor(amount);
+        let cents = Math.round((amount - integer) * 100);
+
+        if (cents === 100) {
+          integer += 1;
+          cents = 0;
+        }
+
+        const words = this.ajustarNumeroParaMoneda(this.numeroALetrasEntero(integer));
+        const noun = moneda === 'USD'
+          ? (integer === 1 ? 'DOLAR' : 'DOLARES')
+          : (integer === 1 ? 'PESO' : 'PESOS');
+        const suffix = moneda === 'USD' ? 'USD' : 'M.N.';
+
+        return `${words} ${noun} ${String(cents).padStart(2, '0')}/100 ${suffix}`;
+      },
+
+      syncPrecioEscrito(force = false) {
+        if (!force && !this.precioEscritoAuto && String(this.precioEscrito || '').trim() !== '') {
+          return;
+        }
+
+        this.precioEscrito = this.numeroALetrasMoneda(this.totalOrden, this.moneda || 'MXN');
+      },
+
+      recalcularPrecioEscrito() {
+        this.precioEscritoAuto = true;
+        this.syncPrecioEscrito(true);
+      },
+
       lineImporte(p) {
         return this.round2(this.cantidadFrom(p) * this.precioFrom(p));
       },
@@ -1755,6 +1886,7 @@ const clientesCatalog = {
         this.saldoPendiente = this.round2(Math.max(total - this.anticipoCalculado, 0));
         this.anticipoPctEstimado = total > 0 ? this.round2((this.anticipoCalculado / total) * 100) : 0;
 
+        this.syncPrecioEscrito();
         this.updateCreditoInsuf();
       },
 
@@ -1837,6 +1969,7 @@ const clientesCatalog = {
         this.previewLoading = true;
 
         const fd = new FormData(form);
+        fd.delete('_method'); // evitar method spoofing (PUT) en preview
 
         try {
           const r = await fetch(PREVIEW_URL, {
@@ -1987,7 +2120,7 @@ const clientesCatalog = {
 
     btnPreview?.addEventListener('click', (e) => {
       e.preventDefault();
-      const comp = getFormComponent();
+      const comp = window.getFormComponent ? window.getFormComponent() : null;
       if (comp && typeof comp.previewPdf === 'function') comp.previewPdf();
     });
 
@@ -1998,13 +2131,13 @@ const clientesCatalog = {
 
     btnGuardarLocal?.addEventListener('click', (e) => {
       e.preventDefault();
-      const comp = getFormComponent();
+      const comp = window.getFormComponent ? window.getFormComponent() : null;
       if (comp && typeof comp.saveOrden === 'function') comp.saveOrden(false);
     });
 
     btnGuardarDescLocal?.addEventListener('click', (e) => {
       e.preventDefault();
-      const comp = getFormComponent();
+      const comp = window.getFormComponent ? window.getFormComponent() : null;
       if (comp && typeof comp.saveOrden === 'function') comp.saveOrden(true);
     });
 

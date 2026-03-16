@@ -1,62 +1,54 @@
 <?php
 
-declare(strict_types=1);
-
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
-
-use App\Services\Ordenes\OrdenServicioService;
-
-use App\Models\User;
 use App\Models\Cliente;
 use App\Models\OrdenServicio;
-
+use App\Models\User;
+use App\Services\Ordenes\OrdenServicioService;
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 
 class OrdenServicioPdfController extends Controller
 {
     public function __construct(private OrdenServicioService $svc) {}
 
-    /**
-     * PREVIEW (NO guarda nada, NO consume inventario)
-     * - Valida formulario
-     * - Pre-carga N/S sugeridos si el producto es serial y no vienen asignados
-     * - Revisa stock
-     * - Genera PDF base64
-     */
     public function previewPdf(Request $request)
     {
-        $data = $this->svc->validateOrden($request, false);
+        $data  = $this->svc->validateOrden($request, false);
+        $token = !empty($data['serial_token']) ? (string) $data['serial_token'] : null;
 
-        // ✅ Preparar líneas (para preview) con N/S sugeridos si aplica
-        $productosPreview = $this->svc->prepareLineItemsWithSerials($data['productos'] ?? []);
+        // ✅ IMPORTANTE:
+        // respetar el token actual para que la preview no bloquee
+        // seriales que el mismo formulario ya reservó
+        $productosPreview = $this->svc->prepareLineItemsWithSerials(
+            $data['productos'] ?? [],
+            $token
+        );
 
-        // ✅ Validar stock con el mismo array que usaremos para PDF/UI
-        $check = $this->svc->preflightStockCheck($productosPreview);
+        $check = ((int) $request->input('orden_id_context', 0) > 0) ? ['ok' => true, 'shortages' => [], 'annotated' => $productosPreview] : $this->svc->preflightStockCheck($productosPreview, $token);
+
         if (!($check['ok'] ?? false)) {
             return response()->json([
                 'ok'                => false,
                 'message'           => 'Hay productos sin stock suficiente.',
                 'shortages'         => $check['shortages'] ?? [],
-                'productos_preview' => $check['annotated'] ?? [],
+                'productos_preview' => $check['annotated'] ?? $productosPreview,
             ], 422);
         }
 
         $orden = new OrdenServicio();
         $this->svc->fillOrden($orden, $data);
 
-        // Técnicos (múltiples)
         $idsTecnicos = array_map('intval', $data['tecnicos_ids'] ?? []);
         $orden->setRelation(
             'tecnicos',
             !empty($idsTecnicos)
                 ? User::whereIn('id', $idsTecnicos)->get(['id', 'name'])
-                : collect()
+                : new Collection()
         );
 
-        // Totales / IVA
         $adicional = 0.0;
         try {
             $adicional = (float) ($orden->total_adicional ?? 0);
@@ -71,14 +63,20 @@ class OrdenServicioPdfController extends Controller
             $adicional
         );
 
-        $orden->impuestos = (float) ($totales['iva'] ?? 0);
+        if (property_exists($orden, 'impuestos') || isset($orden->impuestos)) {
+            $orden->impuestos = (float) ($totales['iva'] ?? 0);
+        }
 
-        // ✅ Anticipo / saldo (se guarda en el objeto $orden para que el PDF lo muestre)
+        $orden->precio_escrito = $this->svc->resolvePrecioEscrito(
+            $data['precio_escrito'] ?? ($orden->precio_escrito ?? null),
+            (float) ($totales['total'] ?? 0),
+            (string) ($orden->moneda ?? 'MXN')
+        );
+
         $this->svc->applyAnticipoToOrden($orden, $data, $totales);
 
         $cliente = Cliente::findOrFail((int) $data['id_cliente']);
 
-        // Map a objetos para el PDF
         $productosMapped = array_map(function ($i) {
             $qty = $this->svc->quantityFrom($i);
             $pu  = $this->svc->unitPriceFrom($i);
@@ -94,18 +92,13 @@ class OrdenServicioPdfController extends Controller
             ];
         }, $productosPreview);
 
-        // Firma (preferencia: input del form -> default guardada)
         $firma = $this->svc->getFirma();
 
         $firmaIn = $request->input('firma_base64')
             ?: $request->input('firma_autorizacion')
             ?: $request->input('firma_autorizacion_base64');
 
-        if ($firmaIn && strpos($firmaIn, 'data:image/') !== 0) {
-            if (strpos($firmaIn, 'base64,') === false) {
-                $firmaIn = 'data:image/png;base64,' . $firmaIn;
-            }
-        }
+        $firmaBase64 = $this->svc->normalizeDataUriImage($firmaIn ?: ($firma['image'] ?? null));
 
         config([
             'dompdf.options.isRemoteEnabled'      => true,
@@ -116,7 +109,7 @@ class OrdenServicioPdfController extends Controller
             'orden'        => $orden,
             'cliente'      => $cliente,
             'productos'    => $productosMapped,
-            'firma_base64' => $firmaIn,
+            'firma_base64' => $firmaBase64,
             'firma'        => $firma,
         ])->setPaper('letter')->setOptions([
             'isRemoteEnabled'      => true,
@@ -126,37 +119,22 @@ class OrdenServicioPdfController extends Controller
         return response()->json([
             'ok'                => true,
             'pdf_base64'        => base64_encode($pdf->output()),
-            // ✅ Devolver lo mismo que ve el usuario (con stock + N/S)
-            'productos_preview' => $check['annotated'] ?? [],
+            'productos_preview' => $productosPreview,
         ]);
     }
 
-    /**
-     * PDF DEFINITIVO
-     * - Si existe archivo_pdf, lo sirve
-     * - Si no existe, lo genera, lo guarda y lo sirve
-     */
     public function pdf(Request $request, $id)
     {
-        $orden = OrdenServicio::with(['cliente', 'tecnicos'])->findOrFail($id);
+        $orden = OrdenServicio::findOrFail($id);
 
-        $isCompra = (string) $orden->tipo_orden === 'compra';
-        $prefijo  = $isCompra ? 'OC' : 'OS';
-        $baseName = $isCompra ? 'orden-compra' : 'orden-servicio';
-        $filename = $baseName . '-' . $prefijo . '-' . $orden->id_orden_servicio . '.pdf';
-
-        // ✅ Forzar regeneración (útil si ya existía un archivo antiguo sin N/S).
-        if ($request->boolean('refresh')) {
-            $this->svc->deleteArchivoPdfIfExists($orden);
-            $orden->archivo_pdf = null;
-            $orden->save();
+        if (empty($orden->archivo_pdf) || !\Storage::disk('public')->exists($orden->archivo_pdf)) {
+            $this->svc->generarYGuardarPdfOrden((int) $orden->getKey());
+            $orden->refresh();
         }
 
-        if (!empty($orden->archivo_pdf) && Storage::disk('public')->exists($orden->archivo_pdf)) {
-            return $this->svc->responsePublicPdf($orden->archivo_pdf, $filename, $request->boolean('download'));
-        }
+        $download = $request->boolean('download');
+        $filename = 'orden_servicio_' . $orden->getKey() . '.pdf';
 
-        $path = $this->svc->generarYGuardarPdfOrden((int) $orden->getKey());
-        return $this->svc->responsePublicPdf($path, $filename, $request->boolean('download'));
+        return $this->svc->responsePublicPdf($orden->archivo_pdf, $filename, $download);
     }
 }

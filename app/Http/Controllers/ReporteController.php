@@ -26,8 +26,6 @@ use App\Exports\Reportes\ClientesTopExport;
 use App\Exports\Reportes\CotizacionesEstadoExport;
 
 use Barryvdh\DomPDF\Facade\Pdf;
-use Illuminate\Support\Facades\Http;
-use Illuminate\Support\Facades\Cache;
 
 class ReporteController extends Controller
 {
@@ -243,33 +241,9 @@ class ReporteController extends Controller
 
     protected function obtenerTipoCambio(string $moneda): float
     {
-        return Cache::remember('reportes.tipo_cambio_usd_mxn', 60 * 60 * 24, function () {
-            $apiKey = config('services.exchange_rate.key');
-            $fallback = 18.0;
-
-            if (!$apiKey) {
-                return $fallback;
-            }
-
-            try {
-                $response = Http::timeout(10)->get(
-                    "https://v6.exchangerate-api.com/v6/{$apiKey}/latest/USD"
-                );
-
-                if (!$response->successful()) {
-                    return $fallback;
-                }
-
-                $data  = $response->json();
-                $rates = $data['conversion_rates'] ?? [];
-                $mxn   = $rates['MXN'] ?? null;
-
-                return $mxn ?: $fallback;
-            } catch (\Throwable $e) {
-                return $fallback;
-            }
-        });
+        return app(\App\Services\ExchangeRateService::class)->usdMxn();
     }
+
 
     protected function parseRango($d, $h): array
     {

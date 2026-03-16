@@ -85,7 +85,7 @@ class SeguimientoServiciosController extends Controller
         $hasSegTable   = Schema::hasTable('seguimiento_servicio');
         $hasExtraTable = Schema::hasTable((new OrdenMaterialExtra())->getTable());
 
-        $with = ['tecnico', 'tecnicos', 'productos'];
+        $with = ['cliente', 'tecnico', 'tecnicos', 'productos'];
         if ($hasSegTable)   $with[] = 'seguimientos';
         if ($hasExtraTable) $with[] = 'materialesExtras';
 
@@ -251,11 +251,20 @@ class SeguimientoServiciosController extends Controller
             $tec = trim((string) ($o->tecnicos_nombres ?? ''));
             if ($tec === '') $tec = optional($o->tecnico)->name ?? '—';
 
+            $clienteNombre = trim((string) (
+                optional($o->cliente)->nombre_empresa
+                ?: optional($o->cliente)->nombre
+                ?: ''
+            ));
+            if ($clienteNombre === '') $clienteNombre = '—';
+
             $estadoSeguimiento = $o->status_seguimiento ?? $this->statusSeguimientoFallback($o);
 
             return [
                 'id'                  => $o->id_orden_servicio,
                 'orderId'             => 'OS-' . $o->id_orden_servicio,
+                'cliente'             => $clienteNombre,
+                'client'              => $clienteNombre,
                 'technician'          => $tec,
                 'status'              => $estadoSeguimiento,
                 'acta_estado'         => $o->acta_estado,
@@ -312,6 +321,24 @@ class SeguimientoServiciosController extends Controller
         ]);
     }
 
+    // Compat: rutas antiguas apuntan a estos nombres.
+    public function progress(Request $request, $ordenId)
+    {
+        return $this->seguimientosIndex($request, $ordenId);
+    }
+
+    // Compat: rutas antiguas apuntan a estos nombres.
+    public function storeComment(Request $request, $ordenId)
+    {
+        return $this->seguimientosStore($request, $ordenId);
+    }
+
+    // Compat: algunas rutas envian {seguimiento}; no es necesario para guardar imagenes.
+    public function storeImages(Request $request, $ordenId, $seguimiento = null)
+    {
+        return $this->imagenesStore($request, $ordenId);
+    }
+
     private function statusSeguimientoFallback(OrdenServicio $o): string
     {
         $estado = strtolower((string) $o->estado);
@@ -320,7 +347,7 @@ class SeguimientoServiciosController extends Controller
             return 'cancelado';
         }
 
-        if (in_array($estado, ['finalizado', 'finalizada', 'completada'], true)) {
+        if (in_array($estado, ['finalizado', 'finalizada', 'completada', 'completado'], true)) {
             return ((string) $o->acta_estado === 'firmada')
                 ? 'finalizado'
                 : 'finalizado-sin-firmar';
@@ -335,7 +362,7 @@ class SeguimientoServiciosController extends Controller
         if ($actaFirmada) return true;
 
         $status = $orden->status_seguimiento ?? $this->statusSeguimientoFallback($orden);
-        return $status === 'finalizado';
+        return in_array($status, ['finalizado', 'finalizado-sin-firmar'], true);
     }
 
     /* ===================== API: EXTRAS (Materiales no previstos) ===================== */
@@ -599,3 +626,4 @@ class SeguimientoServiciosController extends Controller
         return response()->json(['ok' => true, 'count' => count($created), 'imagenes' => $created], 201);
     }
 }
+

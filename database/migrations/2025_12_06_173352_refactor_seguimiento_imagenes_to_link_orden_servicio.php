@@ -14,6 +14,8 @@ return new class extends Migration
      */
     public function up(): void
     {
+        $driver = DB::getDriverName();
+
         // 1) Agregamos la columna id_orden_servicio (por ahora nullable para no romper nada)
         Schema::table('seguimiento_imagenes', function (Blueprint $table) {
             $table->unsignedBigInteger('id_orden_servicio')
@@ -23,12 +25,25 @@ return new class extends Migration
 
         // 2) Migramos datos existentes (si los hay) desde seguimiento_servicio → orden_servicio
         //    Si tu tabla está vacía, este UPDATE no hará nada y no pasa nada.
-        DB::statement('
-            UPDATE seguimiento_imagenes si
-            INNER JOIN seguimiento_servicio ss
-                ON si.id_seguimiento = ss.id_seguimiento
-            SET si.id_orden_servicio = ss.id_orden_servicio
-        ');
+        if ($driver === 'sqlite') {
+            DB::statement('
+                UPDATE seguimiento_imagenes
+                SET id_orden_servicio = (
+                    SELECT ss.id_orden_servicio
+                    FROM seguimiento_servicio ss
+                    WHERE ss.id_seguimiento = seguimiento_imagenes.id_seguimiento
+                    LIMIT 1
+                )
+                WHERE id_seguimiento IS NOT NULL
+            ');
+        } else {
+            DB::statement('
+                UPDATE seguimiento_imagenes si
+                INNER JOIN seguimiento_servicio ss
+                    ON si.id_seguimiento = ss.id_seguimiento
+                SET si.id_orden_servicio = ss.id_orden_servicio
+            ');
+        }
 
         // 3) Creamos FK e índice nuevo sobre id_orden_servicio y orden
         Schema::table('seguimiento_imagenes', function (Blueprint $table) {
@@ -43,7 +58,7 @@ return new class extends Migration
 
             // 4) Eliminamos la relación anterior con seguimiento_servicio
             //    FK + índice + columna id_seguimiento
-            $table->dropForeign('seguimiento_imagenes_id_seguimiento_foreign');
+            $table->dropForeign(['id_seguimiento']);
             $table->dropIndex('seguimiento_imagenes_id_seguimiento_orden_index');
             $table->dropColumn('id_seguimiento');
         });
@@ -51,6 +66,8 @@ return new class extends Migration
 
     public function down(): void
     {
+        $driver = DB::getDriverName();
+
         // Volvemos al esquema anterior (dependiente de seguimiento_servicio)
         Schema::table('seguimiento_imagenes', function (Blueprint $table) {
             // Recuperamos la columna id_seguimiento
@@ -61,12 +78,25 @@ return new class extends Migration
 
         // Recuperamos datos (de forma aproximada) si existe relación por orden
         // Si hay varios seguimientos por orden, se asignará alguno de ellos.
-        DB::statement('
-            UPDATE seguimiento_imagenes si
-            INNER JOIN seguimiento_servicio ss
-                ON si.id_orden_servicio = ss.id_orden_servicio
-            SET si.id_seguimiento = ss.id_seguimiento
-        ');
+        if ($driver === 'sqlite') {
+            DB::statement('
+                UPDATE seguimiento_imagenes
+                SET id_seguimiento = (
+                    SELECT ss.id_seguimiento
+                    FROM seguimiento_servicio ss
+                    WHERE ss.id_orden_servicio = seguimiento_imagenes.id_orden_servicio
+                    LIMIT 1
+                )
+                WHERE id_orden_servicio IS NOT NULL
+            ');
+        } else {
+            DB::statement('
+                UPDATE seguimiento_imagenes si
+                INNER JOIN seguimiento_servicio ss
+                    ON si.id_orden_servicio = ss.id_orden_servicio
+                SET si.id_seguimiento = ss.id_seguimiento
+            ');
+        }
 
         Schema::table('seguimiento_imagenes', function (Blueprint $table) {
             // Índice y FK originales

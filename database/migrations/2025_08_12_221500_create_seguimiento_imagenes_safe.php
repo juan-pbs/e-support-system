@@ -15,27 +15,32 @@ return new class extends Migration {
 
         // 1) Asegura motor InnoDB en la tabla padre
         if (Schema::hasTable('seguimiento_servicio')) {
-            DB::statement('ALTER TABLE seguimiento_servicio ENGINE=InnoDB;');
+            if (in_array(DB::getDriverName(), ['mysql', 'mariadb'], true)) {
+                DB::statement('ALTER TABLE seguimiento_servicio ENGINE=InnoDB;');
+            }
         } else {
             // Si no existe la tabla padre, salimos para no crear una FK inválida
             throw new RuntimeException("La tabla 'seguimiento_servicio' no existe. Crea esa tabla antes.");
         }
 
         // 2) Detecta tipo/unsigned del id_seguimiento en la tabla padre
-        $col = DB::selectOne("
+        $col = null;
+        if (in_array(DB::getDriverName(), ['mysql', 'mariadb'], true)) {
+            $col = DB::selectOne("
             SELECT DATA_TYPE, COLUMN_TYPE
             FROM INFORMATION_SCHEMA.COLUMNS
             WHERE TABLE_SCHEMA = DATABASE()
               AND TABLE_NAME = 'seguimiento_servicio'
               AND COLUMN_NAME = 'id_seguimiento'
             LIMIT 1
-        ");
+            ");
+        }
 
-        if (!$col) {
+        if (in_array(DB::getDriverName(), ['mysql', 'mariadb'], true) && !$col) {
             throw new RuntimeException("No se encontró la columna 'id_seguimiento' en 'seguimiento_servicio'.");
         }
 
-        $columnType = strtolower($col->COLUMN_TYPE ?? 'int unsigned'); // p.ej. 'int unsigned', 'bigint unsigned', 'int'
+        $columnType = strtolower($col->COLUMN_TYPE ?? 'bigint unsigned'); // p.ej. 'int unsigned', 'bigint unsigned', 'int'
         $isBig      = str_contains($columnType, 'bigint');
         $isUnsigned = str_contains($columnType, 'unsigned');
 

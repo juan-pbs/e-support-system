@@ -240,6 +240,7 @@
     thead { display: table-header-group; }
     tfoot { display: table-footer-group; }
     tr, img { page-break-inside: avoid; }
+    .totales-panel,.tabla-totales,.totales-firmas-block > .section:first-child,.table-bordered th:nth-child(2),.table-bordered td:nth-child(2),.table-bordered th:nth-child(3),.table-bordered td:nth-child(3),.tabla-seccion th:nth-child(3),.tabla-seccion td:nth-child(3),.tabla-seccion th:nth-child(4),.tabla-seccion td:nth-child(4){display:none;}
       @include('pdf.partials.corporate-theme')
 </style>
 </head>
@@ -356,7 +357,6 @@
     $total_extras       = $extrasDisplay;
     $otros_costos       = $costoOperativo;
     $total_general      = $totalGeneral;
-    $cantidadEscrita    = trim((string)($cantidad_escrita ?? ($actaData['cantidad_escrita'] ?? '')));
 
     // Conteo de extras pendientes (solo informativo)
     $extrasPendientes = 0;
@@ -543,9 +543,9 @@
         <thead>
           <tr>
             <th style="width:54%;">Producto</th>
-            <th style="width:10%;" class="text-right">Cant.</th>
             <th style="width:18%;" class="text-right">P. unitario</th>
             <th style="width:18%;" class="text-right">Importe</th>
+            <th style="width:10%;" class="text-right">Cant.</th>
           </tr>
         </thead>
         <tbody>
@@ -563,9 +563,9 @@
                   <div class="muted"><strong>N/S:</strong> {{ $seriesTexto }}</div>
                 @endif
               </td>
-              <td class="text-right">{{ number_format($cant, 2, '.', ',') }}</td>
               <td class="text-right">{{ $fmt($pu) }}</td>
               <td class="text-right">{{ $fmt($importe) }}</td>
+              <td class="text-right">{{ number_format($cant, 2, '.', ',') }}</td>
             </tr>
           @endforeach
         </tbody>
@@ -577,23 +577,14 @@
   @if(!empty($extras) && count($extras))
     <div class="section">
       <strong>Materiales / gastos extra</strong>
-      <div class="muted small" style="margin-top:3px;">
-        Nota: Los extras se capturan en <strong>MXN</strong>.
-        @if($monedaOrden === 'USD')
-          En este documento se muestran convertidos a <strong>USD</strong> con el tipo de cambio de la orden.
-        @endif
-        @if($extrasPendientes > 0)
-          <br>Extras pendientes de precio (no suman al total): <strong>{{ $extrasPendientes }}</strong>
-        @endif
-      </div>
 
       <table class="table-bordered small" style="margin-top:6px;">
         <thead>
           <tr>
             <th style="width:54%;">Material extra</th>
-            <th style="width:10%;" class="text-right">Cant.</th>
             <th style="width:18%;" class="text-right">P. unitario</th>
             <th style="width:18%;" class="text-right">Importe</th>
+            <th style="width:10%;" class="text-right">Cant.</th>
           </tr>
         </thead>
         <tbody>
@@ -619,7 +610,6 @@
             @endphp
             <tr>
               <td>{{ $nombreExtra }}</td>
-              <td class="text-right">{{ number_format($cant, 2, '.', ',') }}</td>
               <td class="text-right">
                 @if($pendiente)
                   <span class="muted">—</span>
@@ -634,6 +624,7 @@
                   {{ $fmt($importeDisplay) }}
                 @endif
               </td>
+              <td class="text-right">{{ number_format($cant, 2, '.', ',') }}</td>
             </tr>
           @endforeach
         </tbody>
@@ -675,13 +666,6 @@
               <th><strong>TOTAL GENERAL</strong></th>
               <td><strong>{{ $fmt($total_general ?? 0) }}</strong></td>
             </tr>
-            @if($cantidadEscrita !== '')
-              <tr>
-                <td colspan="2" class="small muted note-tc">
-                  Cantidad en letra: <strong>{{ $cantidadEscrita }}</strong>
-                </td>
-              </tr>
-            @endif
 
             @if($monedaOrden === 'USD')
               <tr>

@@ -282,7 +282,7 @@ class OrdenServicioApiController extends Controller
         }
 
         $venc    = $this->svc->checkCreditoVencido($cred);
-        $estatus = $venc['expired'] ? 'vencido' : ($cred->estatus ?? 'activo');
+        $estatus = $venc['estatus'] ?? ($venc['expired'] ? 'vencido' : ($cred->estatus ?? 'activo'));
 
         return response()->json([
             'ok'             => true,

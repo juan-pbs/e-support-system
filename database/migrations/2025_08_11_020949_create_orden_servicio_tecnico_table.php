@@ -34,9 +34,13 @@ return new class extends Migration
 
         // Backfill opcional: copiar el técnico actual (id_tecnico) a la pivote
         if (Schema::hasColumn('orden_servicio', 'id_tecnico')) {
+            $nowExpr = DB::getDriverName() === 'sqlite'
+                ? "datetime('now')"
+                : 'CURRENT_TIMESTAMP';
+
             DB::statement("
                 INSERT INTO orden_servicio_tecnico (id_orden_servicio, user_id, created_at, updated_at)
-                SELECT id_orden_servicio, id_tecnico, NOW(), NOW()
+                SELECT id_orden_servicio, id_tecnico, {$nowExpr}, {$nowExpr}
                 FROM orden_servicio
                 WHERE id_tecnico IS NOT NULL
             ");
@@ -48,3 +52,4 @@ return new class extends Migration
         Schema::dropIfExists('orden_servicio_tecnico');
     }
 };
+

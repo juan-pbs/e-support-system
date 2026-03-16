@@ -103,6 +103,9 @@
                     unidad: @js($p->unidad),
                     proveedores: @js($p->proveedores_str),
                     stock_total: {{ (int)($p->stock_total ?? 0) }},
+                    stock_fisico: {{ (int)($p->stock_fisico ?? $p->stock_total ?? 0) }},
+                    stock_disponible: {{ (int)($p->stock_disponible ?? 0) }},
+                    sin_disponible: {{ !empty($p->sin_disponible) ? 'true':'false' }},
                     stock_seguridad: {{ (int)($p->stock_seguridad ?? 0) }},
                     descripcion: @js($p->descripcion),
                     activo: {{ $p->activo ? 'true':'false' }},
@@ -137,10 +140,20 @@
                         </div>
                     </div>
 
-                    <div class="grid grid-cols-2 gap-2 text-center text-xs mt-2">
+                    @if(!empty($p->sin_disponible))
+                        <div class="mt-1 inline-flex items-center self-start rounded-full bg-red-100 text-red-700 px-2 py-1 text-[11px] font-semibold">
+                            No disponible
+                        </div>
+                    @endif
+
+                    <div class="grid grid-cols-3 gap-2 text-center text-xs mt-2">
                         <div class="bg-gray-50 rounded-lg p-2">
-                            <div class="font-semibold">{{ $p->stock_total ?? 0 }}</div>
-                            <div class="text-gray-500">Stock</div>
+                            <div class="font-semibold">{{ (int)($p->stock_disponible ?? 0) }}</div>
+                            <div class="text-gray-500">Disponible</div>
+                        </div>
+                        <div class="bg-gray-50 rounded-lg p-2">
+                            <div class="font-semibold">{{ (int)($p->stock_fisico ?? $p->stock_total ?? 0) }}</div>
+                            <div class="text-gray-500">Físico</div>
                         </div>
                         <div class="bg-gray-50 rounded-lg p-2">
                             <div class="font-semibold">{{ $p->stock_seguridad ?? 0 }}</div>
@@ -228,7 +241,8 @@
                         <div><span class="text-gray-500">Categoría:</span> <span x-text="detail.categoria || '—'"></span></div>
                         <div><span class="text-gray-500">Unidad:</span> <span x-text="(detail.unidad || '—').toUpperCase()"></span></div>
                         <div class="col-span-2"><span class="text-gray-500">Proveedores:</span> <span x-text="detail.proveedores || '—'"></span></div>
-                        <div><span class="text-gray-500">Stock / Mínimo:</span> <span x-text="(detail.stock_total ?? 0) + ' / ' + (detail.stock_seguridad ?? 0)"></span></div>
+                        <div><span class="text-gray-500">Disponible / Físico:</span> <span x-text="(detail.stock_disponible ?? 0) + ' / ' + (detail.stock_fisico ?? detail.stock_total ?? 0)"></span></div>
+                        <div><span class="text-gray-500">Mínimo:</span> <span x-text="detail.stock_seguridad ?? 0"></span></div>
                         <div><span class="text-gray-500">Estado:</span>
                             <span class="px-2 py-0.5 rounded text-xs"
                                   :class="detail.activo ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-700'"

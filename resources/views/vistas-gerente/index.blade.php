@@ -115,6 +115,46 @@
                 <p class="mt-2 text-slate-600">Abre una orden y asigna técnico.</p>
             </a>
 
+
+            <a href="{{ route('inventario') }}"
+               class="block rounded-2xl p-5 shadow-sm border border-teal-100
+                      bg-gradient-to-br from-teal-50 to-white
+                      hover:shadow-md hover:-translate-y-0.5 transition">
+                <div class="flex items-center justify-between">
+                    <h3 class="font-semibold text-slate-800">Entradas de Inventario</h3>
+                    <div class="rounded-xl p-2 bg-teal-100">
+                        <i data-lucide="package-plus" class="w-6 h-6 text-teal-700"></i>
+                    </div>
+                </div>
+                <p class="mt-2 text-slate-600">Registra entradas manuales de inventario.</p>
+            </a>
+
+            <a href="{{ route('catalogo.carga_rapida.index') }}"
+               class="block rounded-2xl p-5 shadow-sm border border-indigo-100
+                      bg-gradient-to-br from-indigo-50 to-white
+                      hover:shadow-md hover:-translate-y-0.5 transition">
+                <div class="flex items-center justify-between">
+                    <h3 class="font-semibold text-slate-800">Carga Rápida de Productos</h3>
+                    <div class="rounded-xl p-2 bg-indigo-100">
+                        <i data-lucide="notebook-tabs" class="w-6 h-6 text-indigo-700"></i>
+                    </div>
+                </div>
+                <p class="mt-2 text-slate-600">Importa productos al catálogo por archivo.</p>
+            </a>
+
+            <a href="{{ route('inventario.carga_rapida.index') }}"
+               class="block rounded-2xl p-5 shadow-sm border border-emerald-100
+                      bg-gradient-to-br from-emerald-50 to-white
+                      hover:shadow-md hover:-translate-y-0.5 transition">
+                <div class="flex items-center justify-between">
+                    <h3 class="font-semibold text-slate-800">Carga Rápida de Inventario</h3>
+                    <div class="rounded-xl p-2 bg-emerald-100">
+                        <i data-lucide="boxes" class="w-6 h-6 text-emerald-700"></i>
+                    </div>
+                </div>
+                <p class="mt-2 text-slate-600">Importa entradas por piezas, paquetes o series.</p>
+            </a>
+
             <a href="{{ route('inventario.salidas') }}"
                class="block rounded-2xl p-5 shadow-sm border border-amber-100
                       bg-gradient-to-br from-amber-50 to-white

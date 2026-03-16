@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Inventario;
 use App\Models\Producto;
 use App\Models\Proveedor;
+use App\Services\Ordenes\OrdenServicioService;
 use App\Services\Importacion\ArchivoImportService;
 use Carbon\Carbon;
 use Illuminate\Http\Request;
@@ -21,7 +22,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
 class CargaRapidaInventarioController extends Controller
 {
     public function __construct(
-        private ArchivoImportService $archivoImportService
+        private ArchivoImportService $archivoImportService,
+        private OrdenServicioService $ordenService
     ) {}
 
     public function index()
@@ -36,6 +38,11 @@ class CargaRapidaInventarioController extends Controller
     public function plantilla(): StreamedResponse
     {
         $spreadsheet = new Spreadsheet();
+        $this->applyWorkbookMeta(
+            $spreadsheet,
+            'Plantilla de carga rapida de inventario',
+            'Plantilla para importar entradas de inventario en Sistema E-Support.'
+        );
 
         // =========================
         // Hoja 1: Plantilla
@@ -62,6 +69,10 @@ class CargaRapidaInventarioController extends Controller
             $sheet->setCellValueByColumnAndRow($index + 1, 1, $header);
         }
 
+        $sheet->fromArray(['__EJEMPLO__ SWT-24G-TP (NO_IMPORTAR)','', 'Cisco','XAXX010101000',1250.50,1699.00,'PAQUETES',5,20,'','2026-03-08',''], null, 'A2');
+        $sheet->fromArray(['__EJEMPLO__ MOUSE-USB-BASICO (NO_IMPORTAR)','', '', '',120.00,179.00,'PIEZAS',12,'','','2026-03-08',''], null, 'A3');
+
+        $sheet->fromArray(['__EJEMPLO__ LAPTOP-I5-14 (NO_IMPORTAR)','', 'Dell','XAXX010101000',9800.00,11500.00,'SERIE','','','SN-LAP-0001,SN-LAP-0002','2026-03-08',''], null, 'A4');
         $sheet->freezePane('A2');
         $this->styleTemplateHeader(
             $sheet,
@@ -69,6 +80,15 @@ class CargaRapidaInventarioController extends Controller
             ['A', 'G'],
             ['B', 'C', 'D', 'E', 'F', 'H', 'I', 'J', 'K', 'L']
         );
+        $this->styleTemplateBody($sheet, 'A2:L4');
+        $sheet->setAutoFilter('A1:L1');
+        $sheet->getRowDimension(1)->setRowHeight(22);
+        $sheet->getRowDimension(2)->setRowHeight(20);
+        $sheet->getRowDimension(3)->setRowHeight(20);
+        $sheet->getRowDimension(4)->setRowHeight(20);
+        $sheet->getStyle('A2:J4')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+        $sheet->getStyle('K2:L4')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $sheet->getTabColor()->setRGB('1D4ED8');
         $this->autoSizeColumns($sheet, 'A', 'L');
 
         // =========================
@@ -79,6 +99,8 @@ class CargaRapidaInventarioController extends Controller
 
         $guide->setCellValue('A1', 'Plantilla de carga rápida de inventario');
         $guide->mergeCells('A1:F1');
+        $guide->setCellValue('A2', 'Llena solo la hoja "Plantilla". Esta guia y la hoja "Ejemplos" son de referencia.');
+        $guide->mergeCells('A2:F2');
         $guide->setCellValue('A3', 'Campo');
         $guide->setCellValue('B3', 'Obligatorio');
         $guide->setCellValue('C3', 'Puede ir en blanco');
@@ -117,9 +139,19 @@ class CargaRapidaInventarioController extends Controller
         $guide->setCellValue('B21', 'Solo aplica cuando tipo_control = SERIE.');
 
         $this->styleGuideSheet($guide, 'A3:F3', 'A4:F15');
-        $guide->getStyle('A1')->getFont()->setBold(true)->setSize(14);
+        $guide->getStyle('A1:F1')->getFont()->setBold(true)->setSize(14)->getColor()->setARGB('FFFFFFFF');
+        $guide->getStyle('A1:F1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FF0F172A');
+        $guide->getStyle('A2:F2')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFE2E8F0');
+        $guide->getStyle('A1:F2')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT)->setVertical(Alignment::VERTICAL_CENTER);
+        $guide->getStyle('D4:D15')->getAlignment()->setWrapText(true);
+        $guide->getStyle('E4:E15')->getAlignment()->setWrapText(true);
+        $guide->getStyle('F4:F15')->getAlignment()->setWrapText(true);
+        $guide->getRowDimension(1)->setRowHeight(24);
+        $guide->getRowDimension(2)->setRowHeight(22);
         $guide->getStyle('A18:B21')->getFont()->setBold(true);
+        $guide->getStyle('A18:B21')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFF8FAFC');
         $guide->setAutoFilter('A3:F15');
+        $guide->getTabColor()->setRGB('0F172A');
         $this->autoSizeColumns($guide, 'A', 'F');
 
         // =========================
@@ -132,7 +164,7 @@ class CargaRapidaInventarioController extends Controller
             $examples->setCellValueByColumnAndRow($index + 1, 1, $header);
         }
 
-        // Ejemplo completo
+        // Ejemplo PAQUETES
         $examples->fromArray([
             'SWT-24G-TP',
             '',
@@ -148,7 +180,7 @@ class CargaRapidaInventarioController extends Controller
             '',
         ], null, 'A2');
 
-        // Ejemplo mínimo
+        // Ejemplo PIEZAS
         $examples->fromArray([
             'MOUSE-USB-BASICO',
             '',
@@ -164,10 +196,28 @@ class CargaRapidaInventarioController extends Controller
             '',
         ], null, 'A3');
 
+        // Ejemplo SERIE
+        $examples->fromArray([
+            'LAPTOP-I5-14',
+            '',
+            'Dell',
+            'XAXX010101000',
+            9800.00,
+            11500.00,
+            'SERIE',
+            '',
+            '',
+            'SN-LAP-0001,SN-LAP-0002',
+            '2026-03-08',
+            '',
+        ], null, 'A4');
+
         $examples->setCellValue('N1', 'Fila 2');
-        $examples->setCellValue('O1', 'Ejemplo completo');
+        $examples->setCellValue('O1', 'Ejemplo PAQUETES');
         $examples->setCellValue('N2', 'Fila 3');
-        $examples->setCellValue('O2', 'Ejemplo mínimo');
+        $examples->setCellValue('O2', 'Ejemplo PIEZAS');
+        $examples->setCellValue('N3', 'Fila 4');
+        $examples->setCellValue('O3', 'Ejemplo SERIE');
 
         $this->styleTemplateHeader(
             $examples,
@@ -175,9 +225,17 @@ class CargaRapidaInventarioController extends Controller
             ['A', 'G'],
             ['B', 'C', 'D', 'E', 'F', 'H', 'I', 'J', 'K', 'L']
         );
-        $examples->getStyle('N1:O2')->getFont()->setBold(true);
-        $examples->getStyle('N1:O2')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFF8FAFC');
-        $examples->getStyle('N1:O2')->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        $this->styleTemplateBody($examples, 'A2:L4');
+        $examples->setAutoFilter('A1:L4');
+        $examples->freezePane('A2');
+        $examples->getStyle('A2:J4')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_LEFT);
+        $examples->getStyle('K2:L4')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+        $this->styleLegendBlock($examples, 'N1:O3');
+        $examples->getRowDimension(1)->setRowHeight(22);
+        $examples->getRowDimension(2)->setRowHeight(20);
+        $examples->getRowDimension(3)->setRowHeight(20);
+        $examples->getRowDimension(4)->setRowHeight(20);
+        $examples->getTabColor()->setRGB('334155');
         $this->autoSizeColumns($examples, 'A', 'O');
 
         $spreadsheet->setActiveSheetIndex(0);
@@ -205,6 +263,9 @@ class CargaRapidaInventarioController extends Controller
         $seenSeries = [];
 
         foreach ($parsed['rows'] as $row) {
+            if ($this->isTemplateExampleRow($row)) {
+                continue;
+            }
             $codigoProducto  = $this->parseInt($row['codigo_producto'] ?? null);
             $numeroParte     = $this->sanitizeText($row['numero_parte'] ?? '');
             $nombreProducto  = $this->sanitizeText($row['producto'] ?? '');
@@ -605,21 +666,7 @@ class CargaRapidaInventarioController extends Controller
 
     private function recalcularStockProducto(int $codigoProducto): void
     {
-        $agg = Inventario::where('codigo_producto', $codigoProducto)
-            ->selectRaw('COALESCE(SUM(paquetes_restantes),0) as paquetes')
-            ->selectRaw('COALESCE(SUM(piezas_sueltas),0) as piezas')
-            ->selectRaw('COALESCE(SUM((paquetes_restantes * COALESCE(piezas_por_paquete,1)) + piezas_sueltas),0) as total')
-            ->first();
-
-        $producto = Producto::find($codigoProducto);
-        if (!$producto) {
-            return;
-        }
-
-        $producto->stock_total          = (int) ($agg->total ?? 0);
-        $producto->stock_paquetes       = (int) ($agg->paquetes ?? 0);
-        $producto->stock_piezas_sueltas = (int) ($agg->piezas ?? 0);
-        $producto->save();
+        $this->ordenService->refreshProductStockTotals($codigoProducto);
     }
 
     private function filterInventarioColumns(array $payload): array
@@ -631,6 +678,14 @@ class CargaRapidaInventarioController extends Controller
             }
         }
         return $filtered;
+    }
+
+    private function isTemplateExampleRow(array $row): bool
+    {
+        $numeroParte = mb_strtoupper(trim((string) ($row['numero_parte'] ?? '')), 'UTF-8');
+
+        return str_contains($numeroParte, '__EJEMPLO__')
+            || str_contains($numeroParte, 'NO_IMPORTAR');
     }
 
     private function sanitizeText(mixed $value): string
@@ -750,14 +805,15 @@ class CargaRapidaInventarioController extends Controller
     {
         $sheet->getStyle($range)->getFont()->setBold(true)->getColor()->setARGB('FFFFFFFF');
         $sheet->getStyle($range)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
-        $sheet->getStyle($range)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
+        $sheet->getStyle($range)->getAlignment()->setVertical(Alignment::VERTICAL_CENTER);
+        $sheet->getStyle($range)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN)->getColor()->setARGB('FFE2E8F0');
 
         foreach ($requiredCols as $col) {
             $sheet->getStyle($col . '1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFDC2626');
         }
 
         foreach ($optionalCols as $col) {
-            $sheet->getStyle($col . '1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FF2563EB');
+            $sheet->getStyle($col . '1')->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FF1D4ED8');
         }
     }
 
@@ -770,6 +826,42 @@ class CargaRapidaInventarioController extends Controller
 
         $sheet->getStyle($bodyRange)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN);
         $sheet->getStyle($bodyRange)->getAlignment()->setVertical(Alignment::VERTICAL_CENTER);
+        [$start, $end] = explode(':', $bodyRange);
+        $startRow = (int) preg_replace('/\\D+/', '', $start);
+        $endCol = preg_replace('/\\d+/', '', $end);
+        $endRow = (int) preg_replace('/\\D+/', '', $end);
+        for ($r = $startRow; $r <= $endRow; $r++) {
+            if (($r % 2) === 0) {
+                $sheet->getStyle("A{$r}:{$endCol}{$r}")
+                    ->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFF8FAFC');
+            }
+        }
+    }
+
+    private function styleTemplateBody($sheet, string $range): void
+    {
+        $sheet->getStyle($range)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN)->getColor()->setARGB('FFE2E8F0');
+        $sheet->getStyle($range)->getAlignment()->setVertical(Alignment::VERTICAL_CENTER);
+        $sheet->getStyle($range)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFF8FAFC');
+    }
+
+    private function styleLegendBlock($sheet, string $range): void
+    {
+        $sheet->getStyle($range)->getFont()->setBold(true)->getColor()->setARGB('FF0F172A');
+        $sheet->getStyle($range)->getFill()->setFillType(Fill::FILL_SOLID)->getStartColor()->setARGB('FFE2E8F0');
+        $sheet->getStyle($range)->getBorders()->getAllBorders()->setBorderStyle(Border::BORDER_THIN)->getColor()->setARGB('FFE2E8F0');
+        $sheet->getStyle($range)->getAlignment()->setVertical(Alignment::VERTICAL_CENTER);
+    }
+
+    private function applyWorkbookMeta(Spreadsheet $spreadsheet, string $title, string $description): void
+    {
+        $spreadsheet->getProperties()
+            ->setCreator('Sistema E-Support')
+            ->setLastModifiedBy('Sistema E-Support')
+            ->setTitle($title)
+            ->setSubject('Carga rapida')
+            ->setDescription($description)
+            ->setCategory('Plantillas');
     }
 
     private function autoSizeColumns($sheet, string $from, string $to): void
