@@ -487,8 +487,8 @@
 <table class="tabla-productos">
     <thead>
         <tr>
-            <th>DESCRIPCIÓN</th>
             <th class="cant" style="width: 70px;">CANTIDAD</th>
+            <th>DESCRIPCIÓN</th>
             <th class="num" style="width: 95px;">PRECIO UNT</th>
             <th class="num" style="width: 95px;">TOTAL</th>
         </tr>
@@ -496,6 +496,7 @@
     <tbody>
         @foreach ($productos as $producto)
             <tr>
+                <td class="cant">{{ $producto->cantidad }}</td>
                 <td>
                     {{ $producto->nombre_producto }}
                     @php
@@ -507,7 +508,6 @@
                         <div class="descripcion-producto">{{ $desc }}</div>
                     @endif
                 </td>
-                <td class="cant">{{ $producto->cantidad }}</td>
                 <td class="monto">{{ $fmt($producto->precio_unitario) }}</td>
                 <td class="monto">{{ $fmt($producto->total) }}</td>
             </tr>
@@ -515,6 +515,7 @@
 
         @if(!empty($servicio))
             <tr>
+                <td class="cant">1</td>
                 <td>
                     <strong>Servicio:</strong>
                     @if(!empty($servicio->descripcion))
@@ -523,7 +524,6 @@
                         </div>
                     @endif
                 </td>
-                <td class="cant">1</td>
                 <td class="monto">{{ $fmt($servicio->precio) }}</td>
                 <td class="monto">{{ $fmt($servicio->precio) }}</td>
             </tr>
