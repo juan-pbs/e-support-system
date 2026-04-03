@@ -1,12 +1,12 @@
-{{-- resources/views/vistas-gerente/reportes/preview/ventas.blade.php --}}
+﻿{{-- resources/views/vistas-gerente/reportes/preview/ventas.blade.php --}}
 <div x-show="f.tipo === 'ventas'" x-cloak class="space-y-6"
      x-data="{
         pdfCols() {
-            return ['Fecha','Orden','Cliente','Tipo de pago','Estado','Total orden','Total pagado'];
+            return ['Fecha','Orden','Cliente','Tipo de pago','Estado','Facturacion','Total orden','Total pagado'];
         }
      }">
 
-    {{-- Cuando SÍ hay datos --}}
+    {{-- Cuando SI hay datos --}}
     <template x-if="tabla.rows.length">
         <div class="space-y-6">
 
@@ -14,10 +14,10 @@
             <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                 <div>
                     <h3 class="text-sm font-semibold text-slate-800">
-                        Resumen del reporte de ventas (Órdenes finalizadas)
+                        Resumen del reporte de ventas (Ordenes finalizadas)
                     </h3>
                     <p class="text-xs text-slate-500">
-                        Previsualiza cómo se verá el PDF y el Excel antes de descargar.
+                        Previsualiza como se vera el PDF y el Excel antes de descargar.
                     </p>
                 </div>
                 <div class="flex flex-wrap items-center gap-2 text-[11px]">
@@ -41,7 +41,7 @@
                         </div>
                         <div class="mt-1 text-sm font-semibold text-slate-800 flex items-center gap-1.5">
                             <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-100 text-red-500 text-[10px] font-bold">P</span>
-                            Hoja tamaño carta
+                            Hoja tamano carta
                         </div>
                     </div>
                     <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-red-50 text-red-600 border border-red-100">
@@ -56,10 +56,10 @@
                             <div class="flex items-start justify-between gap-4">
                                 <div>
                                     <div class="text-[11px] font-semibold text-blue-700 tracking-wide">
-                                        E-SUPPORT QUERÉTARO
+                                        E-SUPPORT QUERETARO
                                     </div>
                                     <div class="mt-0.5 text-[11px] text-slate-500">
-                                        Reporte de ventas (Órdenes finalizadas)
+                                        Reporte de ventas (Ordenes finalizadas)
                                     </div>
                                 </div>
                                 <div class="text-right">
@@ -92,7 +92,7 @@
 
                             <div class="flex items-center justify-between pt-1">
                                 <div class="text-[10px] text-slate-400">Mostrando solo las primeras 8 filas.</div>
-                                <div class="text-[10px] text-slate-400 italic">El PDF contendrá todos los registros.</div>
+                                <div class="text-[10px] text-slate-400 italic">El PDF contendra todos los registros.</div>
                             </div>
 
                         </div>
@@ -143,8 +143,8 @@
                         </div>
 
                         <div class="px-4 py-2.5 border-t border-slate-100 bg-slate-50 text-[10px] text-slate-400 flex items-center justify-between">
-                            <span>Vista previa rápida basada en las primeras 10 filas.</span>
-                            <span class="hidden sm:inline">El archivo Excel incluirá todos los registros.</span>
+                            <span>Vista previa rapida basada en las primeras 10 filas.</span>
+                            <span class="hidden sm:inline">El archivo Excel incluira todos los registros.</span>
                         </div>
                     </div>
                 </div>
@@ -165,10 +165,11 @@
                         <path d="M8 11h3" />
                     </svg>
                 </div>
-                <p class="text-sm font-medium text-slate-600">Aún no hay datos de ventas para este rango.</p>
+                <p class="text-sm font-medium text-slate-600">Aun no hay datos de ventas para este rango.</p>
                 <p class="text-xs text-slate-500 max-w-md">Ajusta fechas y vuelve a generar el reporte.</p>
             </div>
         </div>
     </template>
 
 </div>
+

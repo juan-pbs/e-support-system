@@ -183,6 +183,8 @@ Route::middleware(['auth', 'gerente'])->group(function () {
             })->values());
         })->name('autocomplete');
 
+        Route::get('/exportar', [OrdenServicioController::class, 'export'])->name('export');
+        Route::patch('/{id}/facturacion', [OrdenServicioController::class, 'updateFacturacion'])->name('facturacion.update');
         Route::post('/preview', [OrdenServicioPdfController::class, 'previewPdf'])->name('preview');
         Route::get('/{id}/pdf', [OrdenServicioPdfController::class, 'pdf'])->name('pdf');
 

@@ -1,4 +1,4 @@
-@extends('layouts.sidebar-navigation')
+﻿@extends('layouts.sidebar-navigation')
 
 @section('title', 'Vistas de Reportes')
 
@@ -17,7 +17,7 @@
   {{-- Barra superior descriptiva --}}
 
 <div class="bg-gradient-to-r from-blue-50 via-sky-50 to-slate-50 border border-sky-100 rounded-2xl px-4 py-3 sm:px-6 sm:py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-    <!-- IZQUIERDA: Botón + Título -->
+    <!-- IZQUIERDA: Boton + Titulo -->
     <div class="flex items-start sm:items-center gap-3">
         <x-boton-volver />
 
@@ -44,10 +44,10 @@
 </div>
 
 
-  {{-- Layout principal: izquierda configuración / derecha preview --}}
+  {{-- Layout principal: izquierda configuracion / derecha preview --}}
   <div class="grid grid-cols-1 xl:grid-cols-[0.9fr,2.1fr] gap-6 2xl:gap-8">
 
-    {{-- Columna izquierda: Configuración --}}
+    {{-- Columna izquierda: Configuracion --}}
     <div class="flex flex-col">
       <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden fade-in flex flex-col">
         <div class="bg-gradient-to-r from-blue-600 to-sky-500 px-6 py-4">
@@ -59,10 +59,10 @@
                       <path d="M4 8h16v12H4z" />
                   </svg>
               </span>
-              Configuración del reporte
+              Configuracion del reporte
           </h2>
           <p class="text-xs text-blue-100 mt-1">
-              Define el período y el tipo de reporte a visualizar.
+              Define el periodo y el tipo de reporte a visualizar.
           </p>
         </div>
 
@@ -90,7 +90,7 @@
               </div>
             </div>
             <p class="text-[11px] text-slate-400">
-                Sugerencia: usa rangos de 1 a 3 meses para reportes más claros.
+                Sugerencia: usa rangos de 1 a 3 meses para reportes mas claros.
             </p>
           </div>
 
@@ -113,7 +113,7 @@
             </div>
           </div>
 
-          <!-- Botón de generar -->
+          <!-- Boton de generar -->
           <div class="pt-2 border-t border-dashed border-slate-200 mt-2">
             <button type="submit"
                     class="w-full bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium py-3 px-4 rounded-lg transition-colors flex items-center justify-center shadow-sm">
@@ -123,7 +123,7 @@
               Generar reporte
             </button>
             <p class="mt-2 text-[11px] text-slate-400 text-center">
-                Al cambiar el <strong>tipo de reporte</strong> la vista previa se actualiza automáticamente.
+                Al cambiar el <strong>tipo de reporte</strong> la vista previa se actualiza automaticamente.
                 Si modificas el <strong>rango de fechas</strong>, haz clic en <strong>"Generar reporte"</strong>.
             </p>
           </div>
@@ -140,15 +140,15 @@
                   Vista previa del reporte
               </h2>
               <p class="text-xs text-blue-100 mt-1">
-                  Simulación del PDF y del Excel según la configuración seleccionada.
+                  Simulacion del PDF y del Excel segun la configuracion seleccionada.
               </p>
           </div>
           <div class="hidden sm:flex flex-col items-end text-[11px] text-blue-100">
               <span class="flex items-center gap-1">
                   <span class="w-1.5 h-1.5 rounded-full bg-emerald-300 animate-pulse"></span>
-                  Vista dinámica
+                  Vista dinamica
               </span>
-              <span>Basada en la información real del sistema.</span>
+              <span>Basada en la informacion real del sistema.</span>
           </div>
         </div>
 
@@ -157,7 +157,7 @@
                  max-h-[80vh] overflow-auto
                  bg-slate-50/40"
         >
-          <!-- Título genérico (se alimenta desde JS según tipo) -->
+          <!-- Titulo genÃ©rico (se alimenta desde JS segun tipo) -->
           <div class="bg-orange-50 border border-orange-100 p-4 rounded-xl flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
             <div>
                 <h3 class="text-center sm:text-left font-bold text-orange-800 text-base" x-text="titulo"></h3>
@@ -166,12 +166,12 @@
             <div class="flex items-center justify-center sm:justify-end gap-2 text-[11px] text-orange-700">
                 <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-white/70 border border-orange-200">
                     <span class="w-1.5 h-1.5 rounded-full bg-orange-400"></span>
-                    Previsualización
+                    Previsualizacion
                 </span>
             </div>
           </div>
 
-          {{-- Vista previa específica según tipo (partials) --}}
+          {{-- Vista previa especÃ­fica segun tipo (partials) --}}
           @include('gerencia.reportes.preview.ventas')
           @include('gerencia.reportes.preview.tecnicos_top')
           @include('gerencia.reportes.preview.entradas')
@@ -190,7 +190,7 @@
                           <path d="M4 4h16v16H4z" />
                       </svg>
                   </span>
-                  Descargar versión final
+                  Descargar version final
               </span>
               <div class="flex space-x-3">
                 <a :href="urlDescarga('pdf')"
@@ -229,7 +229,7 @@ function reportesUI() {
     },
     titulo: 'Reporte de Ventas',
     rango: '',
-    tabla: { cols: [], rows: [] },
+    tabla: { cols: [], rows: [], meta: {} },
     grafica: { barras: [] },
 
     // Se ejecuta al montar el componente
@@ -237,7 +237,7 @@ function reportesUI() {
       // Primera carga
       this.generar();
 
-      // Cuando cambie el TIPO de reporte, recargamos automáticamente
+      // Cuando cambie el TIPO de reporte, recargamos automaticamente
       if (this.$watch) {
         this.$watch('f.tipo', () => {
           this.generar();
@@ -256,9 +256,9 @@ function reportesUI() {
 
       const titulos = {
         ventas: 'Reporte de Ventas',
-        productos_top: 'Productos Más Vendidos',
+        productos_top: 'Productos Mas Vendidos',
         productos_bottom: 'Productos Menos Vendidos',
-        tecnicos_top: 'Técnicos con Más Ventas',
+        tecnicos_top: 'Tecnicos con Mas Ventas',
         entradas: 'Entradas de Inventario',
         salidas: 'Salidas de Inventario',
         stock_critico: 'Reporte de Productos',
@@ -268,7 +268,7 @@ function reportesUI() {
       this.titulo = titulos[this.f.tipo] || 'Reporte';
 
       this.rango = (this.f.desde || this.f.hasta)
-        ? `Del ${this.f.desde || '…'} al ${this.f.hasta || '…'}`
+        ? `Del ${this.f.desde || '...'} al ${this.f.hasta || '...'}`
         : 'Sin rango de fechas';
 
       fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' }})
@@ -377,6 +377,7 @@ function reportesUI() {
     render(json) {
       this.tabla.cols = json.cols || [];
       this.tabla.rows = json.rows || [];
+      this.tabla.meta = json.meta || {};
 
       let barras = this.buildBarsFromChart(json.chart);
       if (!barras.length && this.f.tipo === 'ventas') {
@@ -434,7 +435,7 @@ function reportesUI() {
             rows: [
               { 'Producto': 'Cable UTP Cat6', 'Cantidad': 180 },
               { 'Producto': 'Router AC1200', 'Cantidad': 145 },
-              { 'Producto': 'Cámara IP 4MP', 'Cantidad': 120 },
+              { 'Producto': 'Camara IP 4MP', 'Cantidad': 120 },
             ],
             chart: [
               { label:'P1', h: 90 }, { label:'P2', h: 72 }, { label:'P3', h: 60 }
@@ -443,36 +444,36 @@ function reportesUI() {
 
         case 'tecnicos_top':
           return {
-            cols: ['Técnico', 'Órdenes', 'Importe'],
+            cols: ['Tecnico', 'Ordenes', 'Importe'],
             rows: [
-              { 'Técnico': 'Ana López', 'Órdenes': 24, 'Importe': '$120,000' },
-              { 'Técnico': 'Luis Pérez', 'Órdenes': 18, 'Importe': '$92,500' },
-              { 'Técnico': 'María Díaz', 'Órdenes': 15, 'Importe': '$80,300' },
+              { 'Tecnico': 'Ana Lopez', 'Ordenes': 24, 'Importe': '$120,000' },
+              { 'Tecnico': 'Luis Perez', 'Ordenes': 18, 'Importe': '$92,500' },
+              { 'Tecnico': 'Maria Diaz', 'Ordenes': 15, 'Importe': '$80,300' },
             ],
             chart: [
-              { label:'Ana', h: 88 }, { label:'Luis', h: 70 }, { label:'María', h: 65 }
+              { label:'Ana', h: 88 }, { label:'Luis', h: 70 }, { label:'Maria', h: 65 }
             ]
           };
 
         case 'stock_critico':
           return {
-            cols: ['Producto', 'Stock actual', 'Precio (última entrada)'],
+            cols: ['Producto', 'Stock actual', 'Precio (ultima entrada)'],
             rows: [
-              { 'Producto':'Conector RJ45', 'Stock actual': 120, 'Precio (última entrada)': '$15.50' },
-              { 'Producto':'Clemas 12p', 'Stock actual': 80,  'Precio (última entrada)': '$9.99' },
+              { 'Producto':'Conector RJ45', 'Stock actual': 120, 'Precio (ultima entrada)': '$15.50' },
+              { 'Producto':'Clemas 12p', 'Stock actual': 80,  'Precio (ultima entrada)': '$9.99' },
             ],
             chart: []
           };
 
         case 'clientes_top':
           return {
-            cols: ['Cliente', 'Órdenes', 'Monto generado'],
+            cols: ['Cliente', 'Ordenes', 'Monto generado'],
             rows: [
-              { 'Cliente': 'Industrias Ríos', 'Órdenes': 9, 'Monto generado': '$210,500' },
-              { 'Cliente': 'Tiendas Nova', 'Órdenes': 7, 'Monto generado': '$175,200' },
+              { 'Cliente': 'Industrias Rios', 'Ordenes': 9, 'Monto generado': '$210,500' },
+              { 'Cliente': 'Tiendas Nova', 'Ordenes': 7, 'Monto generado': '$175,200' },
             ],
             chart: [
-              { label:'Ríos', h: 85 }, { label:'Nova', h: 70 }
+              { label:'Rios', h: 85 }, { label:'Nova', h: 70 }
             ]
           };
 
@@ -500,3 +501,4 @@ function reportesUI() {
 @endpush
 
 @endsection
+

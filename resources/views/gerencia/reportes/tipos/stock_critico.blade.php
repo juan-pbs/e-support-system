@@ -1,4 +1,4 @@
-{{-- resources/views/vistas-gerente/reportes/tipos/stock_critico.blade.php --}}
+﻿{{-- resources/views/vistas-gerente/reportes/tipos/stock_critico.blade.php --}}
 
 <label class="flex items-center space-x-3 p-3 rounded-lg hover:bg-gray-50 border border-gray-200 cursor-pointer">
     <input
@@ -12,7 +12,8 @@
         <div class="font-medium text-gray-800">Productos</div>
         <div class="text-xs text-gray-500 mt-1">
             Lista de todos los productos con su stock actual y precio
-            (precio tomado de la última entrada de inventario).
+            (precio tomado de la ultima entrada de inventario).
         </div>
     </div>
 </label>
+

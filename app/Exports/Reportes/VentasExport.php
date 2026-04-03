@@ -283,10 +283,12 @@ class VentasExport implements
                     $s_usd = $get('servicios', 'usd');
                     $m_mxn = $get('materiales_no_previstos', 'mxn');
                     $m_usd = $get('materiales_no_previstos', 'usd');
+                    $i_mxn = $get('impuestos', 'mxn');
+                    $i_usd = $get('impuestos', 'usd');
                     $g_mxn = $get('general', 'mxn');
                     $g_usd = $get('general', 'usd');
-                    $a_mxn = $get('anticipo', 'mxn');
-                    $a_usd = $get('anticipo', 'usd');
+                    $pd_mxn = $get('pagado', 'mxn');
+                    $pd_usd = $get('pagado', 'usd');
                     $sl_mxn = $get('saldo', 'mxn');
                     $sl_usd = $get('saldo', 'usd');
 
@@ -295,8 +297,9 @@ class VentasExport implements
                     $p_total = $p_mxn + $toMXN($p_usd);
                     $s_total = $s_mxn + $toMXN($s_usd);
                     $m_total = $m_mxn + $toMXN($m_usd);
+                    $i_total = $i_mxn + $toMXN($i_usd);
                     $g_total = $g_mxn + $toMXN($g_usd);
-                    $a_total = $a_mxn + $toMXN($a_usd);
+                    $pd_total = $pd_mxn + $toMXN($pd_usd);
                     $sl_total = $sl_mxn + $toMXN($sl_usd);
 
                     $sheet->mergeCells("A{$summaryStartRow}:D{$summaryStartRow}");
@@ -330,8 +333,9 @@ class VentasExport implements
                     $block('Total productos', $p_mxn, $p_usd, $p_total, $r);
                     $block('Total servicios', $s_mxn, $s_usd, $s_total, $r);
                     $block('Materiales no previstos', $m_mxn, $m_usd, $m_total, $r);
+                    $block('Impuestos', $i_mxn, $i_usd, $i_total, $r);
                     $block('Total general', $g_mxn, $g_usd, $g_total, $r);
-                    $block('Anticipos', $a_mxn, $a_usd, $a_total, $r);
+                    $block('Cobrado', $pd_mxn, $pd_usd, $pd_total, $r);
                     $block('Saldo', $sl_mxn, $sl_usd, $sl_total, $r);
 
                     $summaryRange = "A" . ($summaryStartRow + 1) . ":B" . ($r - 1);

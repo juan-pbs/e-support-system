@@ -1,8 +1,8 @@
-{{-- resources/views/vistas-gerente/reportes/preview/entradas.blade.php --}}
+﻿{{-- resources/views/vistas-gerente/reportes/preview/entradas.blade.php --}}
 
 <div x-show="f.tipo === 'entradas'" x-cloak class="space-y-6">
 
-    {{-- Cuando SÍ hay datos de entradas --}}
+    {{-- Cuando SI hay datos de entradas --}}
     <template x-if="tabla.rows.length">
         <div class="space-y-6">
 
@@ -13,7 +13,7 @@
                         Resumen del reporte de entradas de inventario
                     </h3>
                     <p class="text-xs text-slate-500">
-                        Previsualiza cómo se verá el PDF y el Excel antes de descargar.
+                        Previsualiza como se vera el PDF y el Excel antes de descargar.
                     </p>
                 </div>
                 <div class="flex flex-wrap items-center gap-2 text-[11px]">
@@ -39,7 +39,7 @@
                             <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-100 text-red-500 text-[10px] font-bold">
                                 P
                             </span>
-                            Hoja tamaño carta
+                            Hoja tamano carta
                         </div>
                     </div>
                     <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-red-50 text-red-600 border border-red-100">
@@ -47,7 +47,7 @@
                     </span>
                 </div>
 
-                {{-- “Hoja” simulando el PDF --}}
+                {{-- "Hoja" simulando el PDF --}}
                 <div class="p-4 sm:p-5 bg-slate-50">
                     <div class="bg-white rounded-xl shadow-inner border border-slate-200 overflow-hidden">
                         <div class="p-4 sm:p-5 space-y-4 text-[11px] sm:text-xs">
@@ -56,7 +56,7 @@
                             <div class="flex items-start justify-between gap-4">
                                 <div>
                                     <div class="text-[11px] font-semibold text-blue-700 tracking-wide">
-                                        E-SUPPORT QUERÉTARO
+                                        E-SUPPORT QUERETARO
                                     </div>
                                     <div class="mt-0.5 text-[11px] text-slate-500">
                                         Entradas de inventario
@@ -71,8 +71,8 @@
                             {{-- Tabla recortada con SCROLL HORIZONTAL --}}
                             <div class="border-t border-dashed border-slate-200 pt-3">
                                 <div class="overflow-x-auto">
-                                    <div class="min-w-[1100px] grid"
-                                         :class="`grid-cols-${tabla.cols.length} gap-2 text-[11px]`">
+                                    <div class="min-w-[1100px] grid gap-2 text-[11px]"
+                                         :style="`grid-template-columns: repeat(${Math.max(tabla.cols.length, 1)}, minmax(0, 1fr));`">
 
                                         {{-- Encabezados --}}
                                         <template x-for="(col, ci) in tabla.cols" :key="'ent-pdf-h-'+ci">
@@ -100,7 +100,7 @@
                                     Mostrando solo las primeras 8 filas.
                                 </div>
                                 <div class="text-[10px] text-slate-400 italic">
-                                    El PDF contendrá todos los registros de entradas.
+                                    El PDF contendra todos los registros de entradas.
                                 </div>
                             </div>
                         </div>
@@ -158,9 +158,9 @@
                         </div>
 
                         <div class="px-4 py-2.5 border-t border-slate-100 bg-slate-50 text-[10px] text-slate-400 flex items-center justify-between">
-                            <span>Vista previa rápida basada en las primeras 10 filas.</span>
+                            <span>Vista previa rapida basada en las primeras 10 filas.</span>
                             <span class="hidden sm:inline">
-                                El archivo Excel incluirá todas las columnas y registros.
+                                El archivo Excel incluira todas las columnas y registros.
                             </span>
                         </div>
                     </div>
@@ -183,14 +183,15 @@
                     </svg>
                 </div>
                 <p class="text-sm font-medium text-slate-600">
-                    Aún no hay datos de entradas de inventario para este rango de fechas.
+                    Aun no hay datos de entradas de inventario para este rango de fechas.
                 </p>
                 <p class="text-xs text-slate-500 max-w-md">
                     Ajusta el rango de fechas en la columna izquierda y vuelve a generar el reporte
-                    para ver la previsualización del PDF y del Excel.
+                    para ver la previsualizacion del PDF y del Excel.
                 </p>
             </div>
         </div>
     </template>
 
 </div>
+

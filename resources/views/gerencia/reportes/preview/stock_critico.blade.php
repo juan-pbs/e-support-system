@@ -1,9 +1,9 @@
-{{-- resources/views/vistas-gerente/reportes/preview/stock_critico.blade.php --}}
+﻿{{-- resources/views/vistas-gerente/reportes/preview/stock_critico.blade.php --}}
 {{-- Este reporte ahora es: PRODUCTOS (stock + precio) --}}
 
 <div x-show="f.tipo === 'stock_critico'" x-cloak class="space-y-6">
 
-    {{-- Cuando SÍ hay productos --}}
+    {{-- Cuando SI hay productos --}}
     <template x-if="tabla.rows.length">
         <div class="space-y-6">
 
@@ -15,7 +15,7 @@
                     </h3>
                     <p class="text-xs text-slate-500">
                         Vista general de todos los productos con su stock actual y el
-                        precio obtenido de la última entrada de inventario.
+                        precio obtenido de la ultima entrada de inventario.
                     </p>
                 </div>
                 <div class="flex flex-wrap items-center gap-2 text-[11px]">
@@ -37,7 +37,7 @@
                             <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-100 text-red-500 text-[10px] font-bold">
                                 P
                             </span>
-                            Hoja tamaño carta
+                            Hoja tamano carta
                         </div>
                     </div>
                     <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-red-50 text-red-600 border border-red-100">
@@ -45,7 +45,7 @@
                     </span>
                 </div>
 
-                {{-- “Hoja” simulando el PDF --}}
+                {{-- "Hoja" simulando el PDF --}}
                 <div class="p-4 sm:p-5 bg-slate-50">
                     <div class="bg-white rounded-xl shadow-inner border border-slate-200 overflow-hidden">
                         <div class="p-4 sm:p-5 space-y-4 text-[11px] sm:text-xs">
@@ -54,10 +54,10 @@
                             <div class="flex items-start justify-between gap-4">
                                 <div>
                                     <div class="text-[11px] font-semibold text-blue-700 tracking-wide">
-                                        E-SUPPORT QUERÉTARO
+                                        E-SUPPORT QUERETARO
                                     </div>
                                     <div class="mt-0.5 text-[11px] text-slate-500">
-                                        Catálogo de productos
+                                        Catalogo de productos
                                     </div>
                                 </div>
                                 <div class="text-right">
@@ -69,8 +69,8 @@
                             {{-- Tabla recortada con SCROLL HORIZONTAL --}}
                             <div class="border-t border-dashed border-slate-200 pt-3">
                                 <div class="overflow-x-auto">
-                                    <div class="min-w-[900px] grid"
-                                         :class="`grid-cols-${tabla.cols.length} gap-2 text-[11px]`">
+                                    <div class="min-w-[900px] grid gap-2 text-[11px]"
+                                         :style="`grid-template-columns: repeat(${Math.max(tabla.cols.length, 1)}, minmax(0, 1fr));`">
 
                                         {{-- Encabezados --}}
                                         <template x-for="(col, ci) in tabla.cols" :key="'prod-pdf-h-'+ci">
@@ -98,7 +98,7 @@
                                     Mostrando solo las primeras 8 filas.
                                 </div>
                                 <div class="text-[10px] text-slate-400 italic">
-                                    El PDF contendrá todos los productos.
+                                    El PDF contendra todos los productos.
                                 </div>
                             </div>
                         </div>
@@ -117,7 +117,7 @@
                             <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-green-100 text-green-600 text-[10px] font-bold">
                                 X
                             </span>
-                            Catálogo de productos
+                            Catalogo de productos
                         </div>
                     </div>
                     <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-green-50 text-green-700 border border-green-100">
@@ -158,7 +158,7 @@
                         <div class="px-4 py-2.5 border-t border-slate-100 bg-slate-50 text-[10px] text-slate-400 flex items-center justify-between">
                             <span>Vista previa basada en las primeras 10 filas.</span>
                             <span class="hidden sm:inline">
-                                El archivo Excel incluirá todos los productos y columnas.
+                                El archivo Excel incluira todos los productos y columnas.
                             </span>
                         </div>
                     </div>
@@ -184,11 +184,12 @@
                     No hay productos para mostrar con el filtro actual.
                 </p>
                 <p class="text-xs text-slate-500 max-w-md">
-                    Ajusta el rango de fechas o parámetros en la columna izquierda y vuelve a generar el reporte
-                    para ver el catálogo de productos, stock y precios.
+                    Ajusta el rango de fechas o parametros en la columna izquierda y vuelve a generar el reporte
+                    para ver el catalogo de productos, stock y precios.
                 </p>
             </div>
         </div>
     </template>
 
 </div>
+

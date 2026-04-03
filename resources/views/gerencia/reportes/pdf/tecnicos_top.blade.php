@@ -3,7 +3,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <title>{{ $titulo ?? 'Técnicos con Más Órdenes' }}</title>
+    <title>{{ $titulo ?? 'Tecnicos con Mas Ordenes' }}</title>
     <style>
         @page { margin: 30px 35px; }
 
@@ -49,7 +49,7 @@
         .info-empresa strong{ font-size: 13px; font-weight: 700; }
         .info-empresa span{ display:block; font-size:10px; }
 
-        /* ✅ Contenedor global SIN padding (para alinear perfecto con header) */
+        /* âœ… Contenedor global SIN padding (para alinear perfecto con header) */
         .container{
             width: 100%;
         }
@@ -93,7 +93,7 @@
 
         /* ===== Tabla principal (compacta y alineada) ===== */
         .table-wrap{
-            padding: 0 8px;      /* ✅ gutter aquí, NO en container */
+            padding: 0 8px;      /* âœ… gutter aquÃ­, NO en container */
             margin-top: 8px;
         }
 
@@ -149,7 +149,7 @@
         .tabla-totales th,
         .tabla-totales td{
             border: none;
-            padding: 3px 8px;   /* ✅ mismo gutter 8 */
+            padding: 3px 8px;   /* âœ… mismo gutter 8 */
             background: transparent;
             line-height: 1.15;
         }
@@ -172,7 +172,7 @@
 </head>
 <body>
 @php
-    $tituloTxt = $titulo ?? 'Técnicos con Más Órdenes';
+    $tituloTxt = $titulo ?? 'Tecnicos con Mas Ordenes';
     $rangoTxt  = $rango ?? 'Sin rango de fechas especificado';
 
     $cols = $cols ?? [];
@@ -192,13 +192,13 @@
     // Helpers
     $norm = function($s){
         $s = mb_strtolower(trim((string)$s));
-        $s = str_replace(['á','é','í','ó','ú','ñ'], ['a','e','i','o','u','n'], $s);
+        $s = str_replace(['Ã¡','Ã©','Ã­','Ã³','Ãº','Ã±'], ['a','e','i','o','u','n'], $s);
         return $s;
     };
 
     $isNumericCol = function ($name) {
         $lc = mb_strtolower(trim((string)$name));
-        foreach (['total','importe','monto','mxn','usd','ordenes','órdenes','cantidad'] as $k) {
+        foreach (['total','importe','monto','mxn','usd','ordenes','ordenes','cantidad'] as $k) {
             if (strpos($lc, $k) !== false) return true;
         }
         return false;
@@ -214,9 +214,9 @@
     // ===== Anchos sugeridos =====
     $widthMap = [
         'tecnico'     => 34,
-        'técnico'     => 34,
+        'tecnico'     => 34,
         'ordenes'     => 12,
-        'órdenes'     => 12,
+        'ordenes'     => 12,
         'importe mxn' => 14,
         'mxn'         => 10,
         'importe usd' => 14,
@@ -256,11 +256,11 @@
             </td>
             <td class="td-info">
                 <div class="info-empresa">
-                    <strong>E-SUPPORT QUERÉTARO</strong>
-                    <span>Jose Alberto Rivera Rodríguez</span>
+                    <strong>E-SUPPORT QUERETARO</strong>
+                    <span>Jose Alberto Rivera Rodriguez</span>
                     <span>RFC: RIRA781030RI8</span>
-                    <span>Av. Emeterio González No. 27 int. 2</span>
-                    <span>Hércules, Querétaro, Qro. C.P. 76069</span>
+                    <span>Av. Emeterio Gonzalez No. 27 int. 2</span>
+                    <span>Hercules, Queretaro, Qro. C.P. 76069</span>
                     <span>Cel: 442-169-7094</span>
                 </div>
             </td>
@@ -278,7 +278,7 @@
                     <div class="titulo-doc">{{ $tituloTxt }}</div>
 
                     <div class="sub-doc muted">
-                        Listado de técnicos con órdenes asignadas y el importe generado en el período.
+                        Listado de tecnicos con ordenes asignadas y el importe generado en el periodo.
                     </div>
 
                     <div class="sub-doc muted">
@@ -286,7 +286,7 @@
                     </div>
 
                     <div class="sub-doc muted">
-                        Fecha de generación: {{ now()->format('d/m/Y H:i') }}
+                        Fecha de generacion: {{ now()->format('d/m/Y H:i') }}
                     </div>
                 </td>
 
@@ -298,7 +298,7 @@
     </div>
 
     <div class="desc small muted">
-        Este reporte permite evaluar el desempeño de cada técnico según el número de órdenes atendidas y el importe total asociado.
+        Este reporte permite evaluar el desempeÃ±o de cada tecnico segun el numero de ordenes atendidas y el importe total asociado.
     </div>
 
     @if(!empty($cols) && !empty($rows))
@@ -372,16 +372,17 @@
         @endif
     @else
         <div class="desc muted">
-            No se encontraron técnicos con órdenes para los filtros seleccionados.
+            No se encontraron tecnicos con ordenes para los filtros seleccionados.
         </div>
     @endif
 
 </div>
 
 <div class="footer">
-    Generado el {{ now()->format('d/m/Y H:i') }} — Sistema E-Support
+    Generado el {{ now()->format('d/m/Y H:i') }} - Sistema E-Support
 </div>
 
 </body>
 </html>
+
 

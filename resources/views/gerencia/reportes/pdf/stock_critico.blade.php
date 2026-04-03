@@ -49,7 +49,7 @@
         .info-empresa strong{ font-size: 13px; font-weight: 700; }
         .info-empresa span{ display:block; font-size:10px; }
 
-        /* ✅ Contenedor global SIN padding (alineación perfecta) */
+        /* âœ… Contenedor global SIN padding (alineaciÃ³n perfecta) */
         .container{ width: 100%; }
 
         /* ===== Panel gris (dompdf safe) ===== */
@@ -63,11 +63,11 @@
         .panel-table td{ border: none; vertical-align: top; }
         .panel-td-left{
             width: 78%;
-            padding: 8px 8px 10px 8px; /* ✅ gutter interno */
+            padding: 8px 8px 10px 8px; /* âœ… gutter interno */
         }
         .panel-td-right{
             width: 22%;
-            padding: 8px 8px 10px 8px; /* ✅ gutter interno */
+            padding: 8px 8px 10px 8px; /* âœ… gutter interno */
             text-align: right;
             white-space: nowrap;
             font-size: 10px;
@@ -81,16 +81,16 @@
         }
         .sub-doc{ font-size: 10px; margin-top: 2px; }
 
-        /* Descripción alineada con tabla */
+        /* DescripciÃ³n alineada con tabla */
         .desc{
-            padding: 0 8px;        /* ✅ gutter aquí */
+            padding: 0 8px;        /* âœ… gutter aquÃ­ */
             margin-top: 8px;
             font-size: 9.6px;
         }
 
         /* ===== Tabla (alineada) ===== */
         .table-wrap{
-            padding: 0 8px;        /* ✅ gutter aquí */
+            padding: 0 8px;        /* âœ… gutter aquÃ­ */
             margin-top: 8px;
         }
 
@@ -98,13 +98,13 @@
             width: 100%;
             border-collapse: collapse;
             table-layout: fixed;
-            font-size: 9.2px;      /* ✅ más compacto */
+            font-size: 9.2px;      /* âœ… mas compacto */
         }
 
         .table-bordered th,
         .table-bordered td{
             border: none;
-            padding: 4px 6px;      /* ✅ compacto */
+            padding: 4px 6px;      /* âœ… compacto */
             vertical-align: top;
             line-height: 1.15;
         }
@@ -161,11 +161,11 @@
     // Helpers
     $norm = function($s){
         $s = mb_strtolower(trim((string)$s));
-        $s = str_replace(['á','é','í','ó','ú','ñ'], ['a','e','i','o','u','n'], $s);
+        $s = str_replace(['Ã¡','Ã©','Ã­','Ã³','Ãº','Ã±'], ['a','e','i','o','u','n'], $s);
         return $s;
     };
 
-    // Alineación por tipo de columna
+    // AlineaciÃ³n por tipo de columna
     $isNumericCol = function ($name) {
         $lc = mb_strtolower(trim((string)$name));
         foreach (['stock','existencia','costo','precio','importe','total','mxn','usd','cantidad'] as $k) {
@@ -227,11 +227,11 @@
             </td>
             <td class="td-info">
                 <div class="info-empresa">
-                    <strong>E-SUPPORT QUERÉTARO</strong>
-                    <span>Jose Alberto Rivera Rodríguez</span>
+                    <strong>E-SUPPORT QUERETARO</strong>
+                    <span>Jose Alberto Rivera Rodriguez</span>
                     <span>RFC: RIRA781030RI8</span>
-                    <span>Av. Emeterio González No. 27 int. 2</span>
-                    <span>Hércules, Querétaro, Qro. C.P. 76069</span>
+                    <span>Av. Emeterio Gonzalez No. 27 int. 2</span>
+                    <span>Hercules, Queretaro, Qro. C.P. 76069</span>
                     <span>Cel: 442-169-7094</span>
                 </div>
             </td>
@@ -249,7 +249,7 @@
                     <div class="titulo-doc">{{ $tituloTxt }}</div>
 
                     <div class="sub-doc muted">
-                        Productos con su stock actual y el precio obtenido de la última entrada registrada en inventario.
+                        Productos con su stock actual y el precio obtenido de la ultima entrada registrada en inventario.
                     </div>
 
                     <div class="sub-doc muted">
@@ -257,7 +257,7 @@
                     </div>
 
                     <div class="sub-doc muted">
-                        Fecha de generación: {{ now()->format('d/m/Y H:i') }}
+                        Fecha de generacion: {{ now()->format('d/m/Y H:i') }}
                     </div>
                 </td>
 
@@ -269,8 +269,8 @@
     </div>
 
     <div class="desc small muted">
-        Este reporte permite consultar rápidamente la existencia de cada producto y el precio más reciente registrado en inventario.
-        Es útil para validar costos, planear compras y revisar disponibilidad para proyectos y servicios.
+        Este reporte permite consultar rapidamente la existencia de cada producto y el precio mas reciente registrado en inventario.
+        Es util para validar costos, planear compras y revisar disponibilidad para proyectos y servicios.
     </div>
 
     @if(!empty($cols) && !empty($rows))
@@ -334,9 +334,10 @@
 </div>
 
 <div class="footer">
-    Generado el {{ now()->format('d/m/Y H:i') }} — Sistema E-Support
+    Generado el {{ now()->format('d/m/Y H:i') }} - Sistema E-Support
 </div>
 
 </body>
 </html>
+
 

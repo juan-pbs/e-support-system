@@ -24,7 +24,6 @@ class OrdenServicio extends Model
         'fecha_orden',
         'estado',
         'prioridad',
-        'fecha_finalizacion',
         'servicio',
         'descripcion_servicio',
         'descripcion',
@@ -35,6 +34,7 @@ class OrdenServicio extends Model
         'condiciones_generales',
         'firma_conformidad',
         'tipo_pago',
+        'facturado',
         'tipo_orden',
         'archivo_pdf',
         'autorizado_por',
@@ -65,11 +65,11 @@ class OrdenServicio extends Model
 
     protected $casts = [
         'fecha_orden'           => 'date',
-        'fecha_finalizacion'    => 'date',
         'precio'                => 'float',
         'costo_operativo'       => 'float',
         'impuestos'             => 'float',
         'tasa_cambio'           => 'float',
+        'facturado'             => 'boolean',
         'total_adicional_mxn'   => 'float',
 
         // ✅ Anticipo
@@ -201,6 +201,13 @@ class OrdenServicio extends Model
     public function getUsaCreditoAttribute()
     {
         return $this->tipo_pago === 'credito_cliente';
+    }
+
+    public function getFacturacionLabelAttribute(): string
+    {
+        return (bool) ($this->attributes['facturado'] ?? false)
+            ? 'Facturado'
+            : 'No facturado';
     }
 
     public function getActaFirmadaAttribute(): bool

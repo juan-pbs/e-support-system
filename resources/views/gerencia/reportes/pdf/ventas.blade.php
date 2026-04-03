@@ -184,7 +184,7 @@
     $metaTotales = $meta['totales'] ?? [];
     $tc = (float)($tipo_cambio ?? 0);
 
-    // ===== Totales por categoría (MXN/USD) =====
+    // ===== Totales por categorÃ­a (MXN/USD) =====
     $prodMXN = (float)($metaTotales['productos']['mxn'] ?? 0);
     $prodUSD = (float)($metaTotales['productos']['usd'] ?? 0);
 
@@ -197,9 +197,12 @@
     $genMXN  = (float)($metaTotales['general']['mxn'] ?? 0);
     $genUSD  = (float)($metaTotales['general']['usd'] ?? 0);
 
-    // Total pagado (anticipos)
-    $antiMXN = (float)($metaTotales['anticipo']['mxn'] ?? 0);
-    $antiUSD = (float)($metaTotales['anticipo']['usd'] ?? 0);
+    $impMXN  = (float)($metaTotales['impuestos']['mxn'] ?? 0);
+    $impUSD  = (float)($metaTotales['impuestos']['usd'] ?? 0);
+
+    // Total pagado real segun tipo de pago
+    $paidMXN = (float)($metaTotales['pagado']['mxn'] ?? 0);
+    $paidUSD = (float)($metaTotales['pagado']['usd'] ?? 0);
 
     $toMXN = fn($usd) => $tc > 0 ? ($usd * $tc) : 0.0;
 
@@ -208,7 +211,8 @@
     $servTotalMXN = $servMXN + $toMXN($servUSD);
     $matTotalMXN  = $matMXN  + $toMXN($matUSD);
     $genTotalMXN  = $genMXN  + $toMXN($genUSD);
-    $antiTotalMXN = $antiMXN + $toMXN($antiUSD);
+    $impTotalMXN  = $impMXN  + $toMXN($impUSD);
+    $paidTotalMXN = $paidMXN + $toMXN($paidUSD);
 
     $numRegistros = is_countable($rows ?? []) ? count($rows) : 0;
     $rangoTxt = $rango ?? 'Sin rango de fechas especificado';
@@ -220,13 +224,14 @@
         'Cliente',
         'Tipo de pago',
         'Estado',
+        'Facturacion',
         'Total orden',
         'Total pagado',
     ];
 
-    // Alineación
+    // AlineaciÃ³n
     $rightCols  = ['Total orden','Total pagado'];
-    $centerCols = ['Fecha','Orden','Tipo de pago','Estado'];
+    $centerCols = ['Fecha','Orden','Tipo de pago','Estado','Facturacion'];
 
     // Anchos
     $w = [
@@ -234,7 +239,8 @@
         'Orden'       => '8%',
         'Cliente'     => '28%',
         'Tipo de pago'=> '14%',
-        'Estado'      => '12%',
+        'Estado'      => '10%',
+        'Facturacion' => '12%',
         'Total orden' => '14%',
         'Total pagado'=> '14%',
     ];
@@ -262,11 +268,11 @@
             </td>
             <td class="td-info">
                 <div class="info-empresa">
-                    <strong>E-SUPPORT QUERÉTARO</strong>
-                    <span>Jose Alberto Rivera Rodríguez</span>
+                    <strong>E-SUPPORT QUERETARO</strong>
+                    <span>Jose Alberto Rivera Rodriguez</span>
                     <span>RFC: RIRA781030RI8</span>
-                    <span>Av. Emeterio González No. 27 int. 2</span>
-                    <span>Hércules, Querétaro, Qro. C.P. 76069</span>
+                    <span>Av. Emeterio Gonzalez No. 27 int. 2</span>
+                    <span>Hercules, Queretaro, Qro. C.P. 76069</span>
                     <span>Cel: 442-169-7094</span>
                 </div>
             </td>
@@ -282,7 +288,7 @@
                 <div class="titulo-doc">{{ $titulo ?? 'Reporte de Ventas' }}</div>
 
                 <div class="sub-doc muted">
-                    Reporte de órdenes de servicio <strong>finalizadas</strong>.
+                    Reporte de ordenes de servicio <strong>finalizadas</strong>.
                 </div>
 
                 <div class="sub-doc muted">
@@ -290,7 +296,7 @@
                 </div>
 
                 <div class="sub-doc muted">
-                    Fecha de generación: {{ now()->format('d/m/Y H:i') }}
+                    Fecha de generacion: {{ now()->format('d/m/Y H:i') }}
                 </div>
             </td>
             <td class="panel-td-right muted">
@@ -301,8 +307,8 @@
 </div>
 
 <div class="desc muted">
-    <strong>Total orden</strong> = Productos + Servicios + Materiales extra.
-    <strong>Total pagado</strong> = Anticipo.
+    <strong>Total orden</strong> = Productos + Servicios + Impuestos + Materiales extra.
+    <strong>Total pagado</strong> = Cobro aplicado segun el tipo de pago de la OS.
 </div>
 
 {{-- TABLA --}}
@@ -353,7 +359,7 @@
         <div class="totales-inner">
             <table class="totals-grid">
                 <tr>
-                    <td class="label">Cantidad de órdenes finalizadas</td>
+                    <td class="label">Cantidad de ordenes finalizadas</td>
                     <td class="value">{{ $numRegistros }}</td>
                 </tr>
 
@@ -387,6 +393,15 @@
                 </tr>
 
                 <tr>
+                    <td class="label">Impuestos</td>
+                    <td class="value">
+                        ${{ number_format($impMXN, 2, '.', ',') }}
+                        <span class="muted">|</span>
+                        US${{ number_format($impUSD, 2, '.', ',') }}
+                    </td>
+                </tr>
+
+                <tr>
                     <td class="label"><strong>Total general</strong></td>
                     <td class="value">
                         <strong>${{ number_format($genMXN, 2, '.', ',') }}</strong>
@@ -398,22 +413,26 @@
                 <tr><td class="group" colspan="2">Totales estimados a MXN</td></tr>
 
                 <tr>
-                    <td class="label">Productos (≈ MXN)</td>
+                    <td class="label">Productos (aprox. MXN)</td>
                     <td class="value">${{ number_format($prodTotalMXN, 2, '.', ',') }}</td>
                 </tr>
 
                 <tr>
-                    <td class="label">Servicios (≈ MXN)</td>
+                    <td class="label">Servicios (aprox. MXN)</td>
                     <td class="value">${{ number_format($servTotalMXN, 2, '.', ',') }}</td>
                 </tr>
 
                 <tr>
-                    <td class="label">Materiales extra (≈ MXN)</td>
+                    <td class="label">Materiales extra (aprox. MXN)</td>
                     <td class="value">${{ number_format($matTotalMXN, 2, '.', ',') }}</td>
+                </tr>
+                <tr>
+                    <td class="label">Impuestos (aprox. MXN)</td>
+                    <td class="value">${{ number_format($impTotalMXN, 2, '.', ',') }}</td>
                 </tr>
 
                 <tr>
-                    <td class="label"><strong>Total general (≈ MXN)</strong></td>
+                    <td class="label"><strong>Total general (aprox. MXN)</strong></td>
                     <td class="value">
                         <strong>${{ number_format($genTotalMXN, 2, '.', ',') }}</strong>
                         @if($tc > 0)
@@ -422,19 +441,19 @@
                     </td>
                 </tr>
 
-                <tr><td class="group" colspan="2">Total pagado (Anticipos)</td></tr>
+                <tr><td class="group" colspan="2">Total pagado</td></tr>
                 <tr>
-                    <td class="label">Anticipos</td>
+                    <td class="label">Cobrado</td>
                     <td class="value">
-                        ${{ number_format($antiMXN, 2, '.', ',') }}
+                        ${{ number_format($paidMXN, 2, '.', ',') }}
                         <span class="muted">|</span>
-                        US${{ number_format($antiUSD, 2, '.', ',') }}
+                        US${{ number_format($paidUSD, 2, '.', ',') }}
                     </td>
                 </tr>
                 <tr>
-                    <td class="label">Anticipos (≈ MXN)</td>
+                    <td class="label">Cobrado (aprox. MXN)</td>
                     <td class="value">
-                        ${{ number_format($antiTotalMXN, 2, '.', ',') }}
+                        ${{ number_format($paidTotalMXN, 2, '.', ',') }}
                         @if($tc > 0)
                             <span class="muted">(TC: {{ number_format($tc, 4, '.', ',') }})</span>
                         @endif
@@ -450,9 +469,10 @@
 @endif
 
 <div class="footer">
-    Generado el {{ now()->format('d/m/Y H:i') }} — Sistema E-Support
+    Generado el {{ now()->format('d/m/Y H:i') }} - Sistema E-Support
 </div>
 
 </body>
 </html>
+
 

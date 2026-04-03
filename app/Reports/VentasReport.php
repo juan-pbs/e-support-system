@@ -3,212 +3,123 @@
 namespace App\Reports;
 
 use App\Models\OrdenServicio;
-use App\Models\DetalleOrdenProducto;
-use App\Models\Producto;
-use App\Models\Cliente;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Schema;
+use App\Services\Ordenes\OrdenFinanzasService;
 use Carbon\Carbon;
+use Illuminate\Support\Facades\Schema;
 
 class VentasReport
 {
+    public function __construct(private OrdenFinanzasService $finanzas) {}
+
     public function build($desde = null, $hasta = null): array
     {
-        $osTable   = (new OrdenServicio)->getTable();
-        $detTable  = (new DetalleOrdenProducto)->getTable();
-        $prodTable = (new Producto)->getTable();
-        $cliTable  = (new Cliente)->getTable();
+        $ordenTable = (new OrdenServicio())->getTable();
+        $fechaCol = Schema::hasColumn($ordenTable, 'fecha_orden') ? 'fecha_orden' : 'created_at';
 
-        $osCols   = Schema::getColumnListing($osTable);
-        $detCols  = Schema::getColumnListing($detTable);
-        $prodCols = Schema::getColumnListing($prodTable);
-        $cliCols  = Schema::getColumnListing($cliTable);
+        $ordenes = OrdenServicio::query()
+            ->with(['cliente', 'productos.producto'])
+            ->when($desde, function ($query) use ($fechaCol, $desde) {
+                if ($fechaCol === 'fecha_orden') {
+                    $query->whereDate('fecha_orden', '>=', $this->toDateString($desde));
+                    return;
+                }
 
-        // columnas base orden_servicio
-        $fechaCol     = in_array('fecha_orden', $osCols, true) ? 'fecha_orden' : 'created_at';
-        $idOrdenCol   = in_array('id_orden_servicio', $osCols, true) ? 'id_orden_servicio' : 'id';
-        $tipoPagoCol  = in_array('tipo_pago', $osCols, true) ? 'tipo_pago' : null;
-        $monedaCol    = in_array('moneda', $osCols, true) ? 'moneda' : null;
-        $estadoCol    = in_array('estado', $osCols, true) ? 'estado' : (in_array('estado_pago', $osCols, true) ? 'estado_pago' : null);
-        $tipoOrdenCol = in_array('tipo_orden', $osCols, true) ? 'tipo_orden' : null;
+                $query->where($fechaCol, '>=', $this->toDateTimeString($desde, true));
+            })
+            ->when($hasta, function ($query) use ($fechaCol, $hasta) {
+                if ($fechaCol === 'fecha_orden') {
+                    $query->whereDate('fecha_orden', '<=', $this->toDateString($hasta));
+                    return;
+                }
 
-        // columnas clave
-        $anticipoCol = $this->pickCol($osCols, ['anticipo', 'monto_anticipo', 'anticipo_pagado', 'pago_inicial']);
+                $query->where($fechaCol, '<=', $this->toDateTimeString($hasta, false));
+            })
+            ->orderBy($fechaCol)
+            ->orderBy('id_orden_servicio')
+            ->get()
+            ->filter(fn (OrdenServicio $orden) => $this->isCompletedStatus((string) ($orden->estado ?? '')))
+            ->values();
 
-        $costoServicioCol = $this->pickCol($osCols, ['costo_servicio', 'costo_servicio_mxn', 'costo_servicio_usd']);
-        $costoOperativoCol = $this->pickCol($osCols, ['costo_operativo', 'costo_operativo_mxn', 'costo_operativo_usd', 'costo_operativo_envio']);
+        $cutoff = $hasta instanceof Carbon
+            ? $hasta->copy()->endOfDay()
+            : ($hasta ? Carbon::parse((string) $hasta)->endOfDay() : Carbon::now()->endOfDay());
 
-        $materialesNPCol = $this->pickCol($osCols, [
-            'total_adicional_mxn',
-            'total_adicional',
-            'total_material_extra',
-            'materiales_no_previstos',
-            'total_materiales_no_previstos'
-        ]);
-
-        // cliente fk/pk/nombre
-        $osCliFk = in_array('id_cliente', $osCols, true) ? 'id_cliente' : (in_array('cliente_id', $osCols, true) ? 'cliente_id' : null);
-        $cliPk   = in_array('clave_cliente', $cliCols, true) ? 'clave_cliente' : (in_array('id', $cliCols, true) ? 'id' : null);
-        $cliName = in_array('nombre', $cliCols, true) ? 'nombre' : (in_array('nombre_cliente', $cliCols, true) ? 'nombre_cliente' : $cliPk);
-
-        // detalle fk orden/producto
-        $detOsFk = in_array('id_orden_servicio', $detCols, true) ? 'id_orden_servicio' : (in_array('orden_servicio_id', $detCols, true) ? 'orden_servicio_id' : null);
-        $detProdFk = collect(['id_producto', 'producto_id', 'codigo_producto', 'id_prod'])
-            ->first(fn($c) => in_array($c, $detCols, true)) ?? null;
-
-        // producto pk + numero_parte
-        $prodPk = collect(['id', 'id_producto', 'codigo_producto'])
-            ->first(fn($c) => in_array($c, $prodCols, true)) ?? $prodCols[0];
-
-        $prodNumeroParteCol = collect(['numero_parte', 'sku', 'codigo', 'codigo_producto'])
-            ->first(fn($c) => in_array($c, $prodCols, true));
-
-        // Query base
-        $q = DB::table("$osTable as os")
-            ->leftJoin("$cliTable as c", function ($join) use ($osCliFk, $cliPk) {
-                if ($osCliFk && $cliPk) $join->on("c.$cliPk", '=', "os.$osCliFk");
-            });
-
-        if ($detOsFk) {
-            $q->leftJoin("$detTable as d", "d.$detOsFk", '=', "os.$idOrdenCol");
-        }
-
-        $joinProducts = $detProdFk && $prodNumeroParteCol;
-        if ($joinProducts) {
-            $q->leftJoin("$prodTable as p", "p.$prodPk", '=', "d.$detProdFk");
-        }
-
-        // rango fechas
-        $this->spanWhere($q, $desde, $hasta, "os.$fechaCol");
-
-        // solo finalizadas
-        if ($estadoCol) {
-            $q->whereRaw("LOWER(os.$estadoCol) IN ('finalizada','completada','pagada','pagado','cerrada','cerrado')");
-        }
-
-        // SELECT
-        $select = [
-            DB::raw("DATE(os.$fechaCol) as fecha"),
-            "os.$idOrdenCol as id_orden",
-            DB::raw("COALESCE(c.$cliName, '') as cliente"),
-            $tipoOrdenCol ? "os.$tipoOrdenCol as tipo_orden" : DB::raw("'' as tipo_orden"),
-            $tipoPagoCol  ? "os.$tipoPagoCol as tipo_pago"   : DB::raw("'' as tipo_pago"),
-            $monedaCol    ? "os.$monedaCol as moneda"        : DB::raw("'MXN' as moneda"),
-            $estadoCol    ? "os.$estadoCol as estado_pago"   : DB::raw("'' as estado_pago"),
-        ];
-
-        // total productos
-        if ($detOsFk && in_array('cantidad', $detCols, true) && in_array('precio_unitario', $detCols, true)) {
-            $select[] = DB::raw("COALESCE(SUM(d.cantidad * d.precio_unitario),0) as total_productos");
-        } else {
-            $sumProdCol = $this->pickCol($osCols, ['total_productos', 'total_productos_mxn', 'total_producto']);
-            $select[] = $sumProdCol ? DB::raw("COALESCE(MAX(os.$sumProdCol),0) as total_productos") : DB::raw("0 as total_productos");
-        }
-
-        $select[] = $costoServicioCol  ? DB::raw("COALESCE(MAX(os.$costoServicioCol),0) as costo_servicio") : DB::raw("0 as costo_servicio");
-        $select[] = $costoOperativoCol ? DB::raw("COALESCE(MAX(os.$costoOperativoCol),0) as costo_operativo") : DB::raw("0 as costo_operativo");
-        $select[] = $materialesNPCol   ? DB::raw("COALESCE(MAX(os.$materialesNPCol),0) as materiales_no_previstos") : DB::raw("0 as materiales_no_previstos");
-        $select[] = $anticipoCol       ? DB::raw("COALESCE(MAX(os.$anticipoCol),0) as anticipo") : DB::raw("0 as anticipo");
-
-        // numeros_parte (solo para Excel/preview)
-        if ($joinProducts) {
-            $select[] = DB::raw("GROUP_CONCAT(DISTINCT p.$prodNumeroParteCol ORDER BY p.$prodNumeroParteCol SEPARATOR ', ') as numeros_parte");
-        } elseif ($detProdFk) {
-            $select[] = DB::raw("GROUP_CONCAT(DISTINCT d.$detProdFk ORDER BY d.$detProdFk SEPARATOR ', ') as numeros_parte");
-        } else {
-            $select[] = DB::raw("NULL as numeros_parte");
-        }
-
-        $rowsDb = $q->select($select)
-            ->groupBy(
-                DB::raw("DATE(os.$fechaCol)"),
-                "os.$idOrdenCol",
-                "cliente",
-                "tipo_orden",
-                "tipo_pago",
-                "moneda",
-                "estado_pago"
-            )
-            ->orderBy("os.$fechaCol", 'asc')
-            ->orderBy("os.$idOrdenCol", 'asc')
-            ->get();
+        $snapshots = $this->finanzas->mapSnapshots($ordenes, $cutoff);
 
         $rowsOut = [];
-
         $sum = [
             'productos' => ['MXN' => 0.0, 'USD' => 0.0],
             'servicios' => ['MXN' => 0.0, 'USD' => 0.0],
+            'impuestos' => ['MXN' => 0.0, 'USD' => 0.0],
             'materiales_no_previstos' => ['MXN' => 0.0, 'USD' => 0.0],
-            'general'   => ['MXN' => 0.0, 'USD' => 0.0],
-            'anticipo'  => ['MXN' => 0.0, 'USD' => 0.0],
-            'saldo'     => ['MXN' => 0.0, 'USD' => 0.0],
+            'general' => ['MXN' => 0.0, 'USD' => 0.0],
+            'pagado' => ['MXN' => 0.0, 'USD' => 0.0],
+            'anticipo' => ['MXN' => 0.0, 'USD' => 0.0],
+            'saldo' => ['MXN' => 0.0, 'USD' => 0.0],
         ];
 
-        foreach ($rowsDb as $row) {
-            $monedaRow = strtoupper(trim((string)($row->moneda ?? 'MXN')));
-            if (!in_array($monedaRow, ['MXN', 'USD'], true)) $monedaRow = 'MXN';
+        foreach ($ordenes as $orden) {
+            $snapshot = $snapshots->get((int) $orden->getKey(), []);
 
-            $totalProductos = (float)($row->total_productos ?? 0);
-            $costoServicio  = (float)($row->costo_servicio ?? 0);
-            $costoOperativo = (float)($row->costo_operativo ?? 0);
-            $totalServicios = $costoServicio + $costoOperativo;
+            $currency = $this->normalizeCurrency((string) ($orden->moneda ?? 'MXN'));
+            $sign = $currency === 'USD' ? 'US$' : '$';
 
-            $materialesNP = (float)($row->materiales_no_previstos ?? 0);
+            $totalProductos = round((float) ($orden->materiales_total ?? 0), 2);
+            $costoServicio = round((float) ($orden->precio ?? 0), 2);
+            $costoOperativo = round((float) ($orden->costo_operativo ?? 0), 2);
+            $totalServicios = round($costoServicio + $costoOperativo, 2);
+            $impuestos = round((float) ($orden->impuestos ?? 0), 2);
+            $materialesNP = round((float) ($orden->total_adicional ?? 0), 2);
+            $totalOrden = round((float) ($snapshot['total_orden'] ?? $orden->total_final ?? 0), 2);
+            $totalPagado = round((float) ($snapshot['total_pagado'] ?? 0), 2);
+            $saldo = round((float) ($snapshot['saldo_cobro'] ?? 0), 2);
 
-            // Total orden = productos + servicios + materiales extra
-            $totalOrden = $totalProductos + $totalServicios + $materialesNP;
+            $cliente = trim((string) (
+                optional($orden->cliente)->nombre
+                ?: optional($orden->cliente)->nombre_empresa
+                ?: ''
+            ));
 
-            // Total pagado = anticipo
-            $totalPagado = (float)($row->anticipo ?? 0);
+            $numerosParte = $orden->productos
+                ->map(fn ($detalle) => trim((string) ($detalle->producto?->numero_parte ?: $detalle->codigo_producto ?: '')))
+                ->filter()
+                ->unique()
+                ->implode(', ');
 
-            $saldo = max($totalOrden - $totalPagado, 0);
-
-            $fechaCarbon = $row->fecha ? Carbon::parse($row->fecha) : null;
-            $sign = $monedaRow === 'USD' ? 'US$' : '$';
+            if ($numerosParte === '') {
+                $numerosParte = '-';
+            }
 
             $rowsOut[] = [
-                'Fecha'                 => $fechaCarbon ? $fechaCarbon->format('d/m/Y') : ((string)($row->fecha ?? '')),
-                'Orden'                 => $row->id_orden,
-                'Cliente'               => $row->cliente ?: '—',
-                'Tipo de orden'         => (string)($row->tipo_orden ?? '—') ?: '—',
-                'Tipo de pago'          => (string)($row->tipo_pago ?? '—') ?: '—',
-                'Moneda'                => $monedaRow,
-                'Estado'                => (string)($row->estado_pago ?? '—') ?: '—',
-
-                'Total productos'       => $this->fmtMoneyNoSign($totalProductos),
-                'Costo servicio'        => $this->fmtMoneyNoSign($costoServicio),
-                'Costo operativo'       => $this->fmtMoneyNoSign($costoOperativo),
-                'Total servicios'       => $this->fmtMoneyNoSign($totalServicios),
-
+                'Fecha' => $this->formatDate($orden->{$fechaCol} ?? null),
+                'Orden' => (int) $orden->id_orden_servicio,
+                'Cliente' => $cliente !== '' ? $cliente : '-',
+                'Tipo de orden' => $this->tipoOrdenLabel((string) ($orden->tipo_orden ?? '')),
+                'Tipo de pago' => $this->tipoPagoLabel((string) ($orden->tipo_pago ?? '')),
+                'Moneda' => $currency,
+                'Estado' => (string) ($orden->estado ?? '-'),
+                'Facturacion' => (int) ($orden->facturado ?? 0) === 1 ? 'Facturado' : 'No facturado',
+                'Total productos' => $this->fmtMoneyNoSign($totalProductos),
+                'Costo servicio' => $this->fmtMoneyNoSign($costoServicio),
+                'Costo operativo' => $this->fmtMoneyNoSign($costoOperativo),
+                'Total servicios' => $this->fmtMoneyNoSign($totalServicios),
+                'Impuestos' => $this->fmtMoneyNoSign($impuestos),
                 'Materiales no previstos' => $this->fmtMoneyNoSign($materialesNP),
-
-                // Para PDF ya te queda bonito con signo, y para Excel lo limpiamos en el controlador (abajo te dejo snippet)
-                'Total orden'           => $sign . $this->fmtMoneyNoSign($totalOrden),
-                'Total pagado'          => $sign . $this->fmtMoneyNoSign($totalPagado),
-
-                'Saldo'                 => $this->fmtMoneyNoSign($saldo),
-                'Números de parte'      => $row->numeros_parte ?: '—',
+                'Total orden' => $sign . $this->fmtMoneyNoSign($totalOrden),
+                'Total pagado' => $sign . $this->fmtMoneyNoSign($totalPagado),
+                'Saldo' => $this->fmtMoneyNoSign($saldo),
+                'Números de parte' => $numerosParte,
             ];
 
-            $sum['productos'][$monedaRow] += $totalProductos;
-            $sum['servicios'][$monedaRow] += $totalServicios;
-            $sum['materiales_no_previstos'][$monedaRow] += $materialesNP;
-            $sum['general'][$monedaRow]   += $totalOrden;
-            $sum['anticipo'][$monedaRow]  += $totalPagado;
-            $sum['saldo'][$monedaRow]     += $saldo;
+            $sum['productos'][$currency] += $totalProductos;
+            $sum['servicios'][$currency] += $totalServicios;
+            $sum['impuestos'][$currency] += $impuestos;
+            $sum['materiales_no_previstos'][$currency] += $materialesNP;
+            $sum['general'][$currency] += $totalOrden;
+            $sum['pagado'][$currency] += $totalPagado;
+            $sum['anticipo'][$currency] += round((float) ($snapshot['anticipo'] ?? 0), 2);
+            $sum['saldo'][$currency] += $saldo;
         }
-
-        $meta = [
-            'num_registros' => count($rowsOut),
-            'totales' => [
-                'productos' => ['mxn' => $sum['productos']['MXN'], 'usd' => $sum['productos']['USD']],
-                'servicios' => ['mxn' => $sum['servicios']['MXN'], 'usd' => $sum['servicios']['USD']],
-                'materiales_no_previstos' => ['mxn' => $sum['materiales_no_previstos']['MXN'], 'usd' => $sum['materiales_no_previstos']['USD']],
-                'general'   => ['mxn' => $sum['general']['MXN'], 'usd' => $sum['general']['USD']],
-                'anticipo'  => ['mxn' => $sum['anticipo']['MXN'], 'usd' => $sum['anticipo']['USD']],
-                'saldo'     => ['mxn' => $sum['saldo']['MXN'], 'usd' => $sum['saldo']['USD']],
-            ],
-        ];
 
         return [
             'cols' => [
@@ -219,10 +130,12 @@ class VentasReport
                 'Tipo de pago',
                 'Moneda',
                 'Estado',
+                'Facturacion',
                 'Total productos',
                 'Costo servicio',
                 'Costo operativo',
                 'Total servicios',
+                'Impuestos',
                 'Materiales no previstos',
                 'Total orden',
                 'Total pagado',
@@ -230,29 +143,92 @@ class VentasReport
                 'Números de parte',
             ],
             'rows' => $rowsOut,
-            'meta' => $meta,
+            'meta' => [
+                'num_registros' => count($rowsOut),
+                'totales' => [
+                    'productos' => ['mxn' => $sum['productos']['MXN'], 'usd' => $sum['productos']['USD']],
+                    'servicios' => ['mxn' => $sum['servicios']['MXN'], 'usd' => $sum['servicios']['USD']],
+                    'impuestos' => ['mxn' => $sum['impuestos']['MXN'], 'usd' => $sum['impuestos']['USD']],
+                    'materiales_no_previstos' => ['mxn' => $sum['materiales_no_previstos']['MXN'], 'usd' => $sum['materiales_no_previstos']['USD']],
+                    'general' => ['mxn' => $sum['general']['MXN'], 'usd' => $sum['general']['USD']],
+                    'pagado' => ['mxn' => $sum['pagado']['MXN'], 'usd' => $sum['pagado']['USD']],
+                    'anticipo' => ['mxn' => $sum['anticipo']['MXN'], 'usd' => $sum['anticipo']['USD']],
+                    'saldo' => ['mxn' => $sum['saldo']['MXN'], 'usd' => $sum['saldo']['USD']],
+                ],
+            ],
         ];
     }
 
-    /* ================= Helpers ================= */
-
-    protected function pickCol(array $cols, array $candidates): ?string
+    protected function formatDate(mixed $value): string
     {
-        foreach ($candidates as $c) {
-            if (in_array($c, $cols, true)) return $c;
+        if (!$value) {
+            return '';
         }
-        return null;
+
+        try {
+            return Carbon::parse((string) $value)->format('d/m/Y');
+        } catch (\Throwable) {
+            return (string) $value;
+        }
     }
 
-    protected function fmtMoneyNoSign(float $v): string
+    protected function isCompletedStatus(string $status): bool
     {
-        return number_format((float)$v, 2, '.', ',');
+        return in_array(
+            mb_strtolower(trim($status)),
+            ['finalizada', 'finalizado', 'completada', 'completado', 'pagada', 'pagado', 'cerrada', 'cerrado'],
+            true
+        );
     }
 
-    protected function spanWhere($query, $desde, $hasta, $col = 'created_at')
+    protected function normalizeCurrency(string $currency): string
     {
-        if ($desde) $query->where($col, '>=', $desde);
-        if ($hasta) $query->where($col, '<=', $hasta);
-        return $query;
+        $currency = strtoupper(trim($currency));
+
+        return in_array($currency, ['MXN', 'USD'], true) ? $currency : 'MXN';
+    }
+
+    protected function fmtMoneyNoSign(float $value): string
+    {
+        return number_format((float) $value, 2, '.', ',');
+    }
+
+    protected function tipoOrdenLabel(string $tipo): string
+    {
+        return match ($tipo) {
+            'compra' => 'Compra',
+            'servicio_simple' => 'Servicio (simple)',
+            'servicio_proyecto' => 'Servicio (proyecto)',
+            default => $tipo !== '' ? $tipo : '-',
+        };
+    }
+
+    protected function tipoPagoLabel(string $tipoPago): string
+    {
+        return match ($tipoPago) {
+            'efectivo' => 'efectivo',
+            'transferencia' => 'transferencia',
+            'tarjeta' => 'tarjeta',
+            'credito_cliente' => 'credito_cliente',
+            default => $tipoPago !== '' ? $tipoPago : '-',
+        };
+    }
+
+    protected function toDateString(mixed $value): string
+    {
+        return $value instanceof Carbon
+            ? $value->toDateString()
+            : Carbon::parse((string) $value)->toDateString();
+    }
+
+    protected function toDateTimeString(mixed $value, bool $start): string
+    {
+        if ($value instanceof Carbon) {
+            return ($start ? $value->copy()->startOfDay() : $value->copy()->endOfDay())->toDateTimeString();
+        }
+
+        $carbon = Carbon::parse((string) $value);
+
+        return ($start ? $carbon->startOfDay() : $carbon->endOfDay())->toDateTimeString();
     }
 }

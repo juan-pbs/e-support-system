@@ -50,7 +50,7 @@
 
     <!-- Resumen (arriba) -->
     <div class="px-6 pt-4">
-      <div id="serviceSummary" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4"></div>
+      <div id="serviceSummary" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4"></div>
     </div>
 
     <!-- Filtros + quincena -->
@@ -257,6 +257,10 @@
       <div>
         <div class="text-xs text-gray-500 uppercase tracking-wide">Moneda</div>
         <div id="financeCurrency" class="mt-1 text-sm font-medium text-gray-900">-</div>
+      </div>
+      <div>
+        <div class="text-xs text-gray-500 uppercase tracking-wide">Facturacion</div>
+        <div id="financeFacturacion" class="mt-1 text-sm font-medium text-gray-900">-</div>
       </div>
       <div>
         <div class="text-xs text-gray-500 uppercase tracking-wide">Total adicional</div>
@@ -721,7 +725,7 @@ function closeOpsModal() {
   if (modal) modal.classList.add('hidden');
 }
 
-function openFinanceModal(orderId, currency, additionalTotal, finalTotal, additionalTotalMxn = 0) {
+function openFinanceModal(orderId, currency, additionalTotal, finalTotal, additionalTotalMxn = 0, facturacion = 'No facturado') {
   const modal = document.getElementById('financeModal');
   if (!modal) return;
 
@@ -732,6 +736,7 @@ function openFinanceModal(orderId, currency, additionalTotal, finalTotal, additi
 
   document.getElementById('financeOrderLabel').textContent = orderId || '—';
   document.getElementById('financeCurrency').textContent = curr;
+  document.getElementById('financeFacturacion').textContent = facturacion || 'No facturado';
   document.getElementById('financeAdditional').textContent = formatCurrency(additional, curr);
   document.getElementById('financeFinal').textContent = formatCurrency(finalVal, curr);
 
@@ -920,6 +925,7 @@ function renderCards(rows) {
     const priority = item.priority ?? item.prioridad ?? '';
     const currency = (item.currency || 'MXN').toUpperCase();
     const clientName = item.client || item.cliente || '—';
+    const facturacion = item.facturacion || ((item.facturado === true || item.facturado === 1) ? 'Facturado' : 'No facturado');
 
     const matRaw = item.unforeseeenMaterial || item.unforeseenMaterial || '—';
     const mat = escapeHtml(matRaw);
@@ -959,6 +965,10 @@ function renderCards(rows) {
             <div class="mt-1 text-sm text-gray-800">
               <span class="text-xs text-gray-500">Cliente:</span>
               <span class="font-medium">${escapeHtml(clientName)}</span>
+            </div>
+            <div class="mt-1 text-sm text-gray-800">
+              <span class="text-xs text-gray-500">Facturacion:</span>
+              <span class="font-medium ${facturacion === 'Facturado' ? 'text-emerald-700' : 'text-amber-700'}">${escapeHtml(facturacion)}</span>
             </div>
           </div>
 
@@ -1035,6 +1045,7 @@ function renderTable(rows) {
     const priority   = item.priority ?? item.prioridad ?? '';
     const matRaw     = item.unforeseeenMaterial || item.unforeseenMaterial || '-';
     const mat        = escapeHtml(matRaw);
+    const facturacion = item.facturacion || ((item.facturado === true || item.facturado === 1) ? 'Facturado' : 'No facturado');
     const clientName = item.client || item.cliente || '—';
 
     const pendingCount = Number(item.extrasPendingCount || 0);
@@ -1078,7 +1089,7 @@ function renderTable(rows) {
     }
 
     const opsOnclick = "openOpsModal(" + JSON.stringify(item.orderId) + ", " + JSON.stringify(item.technician || '—') + ", " + JSON.stringify(item.status || '') + ", " + JSON.stringify(priority || '') + ")";
-    const financeOnclick = "openFinanceModal(" + JSON.stringify(item.orderId) + ", " + JSON.stringify(currency) + ", " + Number(additionalTotal || 0) + ", " + Number(item.finalTotal || 0) + ", " + Number(additionalTotalMxn || 0) + ")";
+    const financeOnclick = "openFinanceModal(" + JSON.stringify(item.orderId) + ", " + JSON.stringify(currency) + ", " + Number(additionalTotal || 0) + ", " + Number(item.finalTotal || 0) + ", " + Number(additionalTotalMxn || 0) + ", " + JSON.stringify(facturacion) + ")";
 
     tableBody.innerHTML += `
       <tr class="hover:bg-slate-50/80 transition-colors">
@@ -1092,6 +1103,7 @@ function renderTable(rows) {
             <div class="flex flex-wrap items-center gap-1">
               ${getStatusBadge(item.status)}
               ${getPriorityBadge(priority)}
+              <span class="inline-flex px-2 py-0.5 rounded-full text-[11px] font-semibold ${facturacion === 'Facturado' ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}">${escapeHtml(facturacion)}</span>
             </div>
             <button type="button"
                     class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border border-slate-200 text-slate-700 bg-slate-50 hover:bg-slate-100"
@@ -1124,6 +1136,7 @@ function renderTable(rows) {
         <td class="px-4 py-3">
           <div class="flex flex-col gap-1 min-w-[220px]">
             <div class="text-xs text-gray-500">Moneda: <span class="font-medium text-gray-700">${currency}</span></div>
+            <div class="text-xs text-gray-500">Facturacion: <span class="font-medium ${facturacion === 'Facturado' ? 'text-emerald-700' : 'text-amber-700'}">${escapeHtml(facturacion)}</span></div>
             <div class="text-sm text-gray-800">Adicional: <span class="font-semibold tabular-nums">${totalExtraHtml}</span></div>
             <div class="text-sm text-gray-800">Final: <span class="font-semibold tabular-nums">${formatCurrency(item.finalTotal, currency)}</span></div>
             <button type="button"
@@ -1154,13 +1167,15 @@ function summaryCard(label, value, emphasize = false) {
 
 function renderSummary(s) {
   const totalFact = s.totalFacturado ?? 0;
+  const facturadas = s.facturadas ?? 0;
   const resumenMoneda = s.monedaResumen || 'MXN';
 
   summary.innerHTML = `
     ${summaryCard('Total de servicios', s.total ?? 0, true)}
     ${summaryCard('En proceso', s.enProceso ?? 0, false)}
     ${summaryCard('Finalizados', s.finalizados ?? 0, false)}
-    ${summaryCard('Total facturado', formatCurrency(totalFact, resumenMoneda), true)}
+    ${summaryCard('OS facturadas', facturadas, false)}
+    ${summaryCard('Monto facturado', formatCurrency(totalFact, resumenMoneda), true)}
   `;
 }
 
@@ -1169,7 +1184,7 @@ async function updateView() {
     showOnly('loading');
     const data = await fetchSeguimiento();
     renderTable(data.rows || []);
-    renderSummary(data.summary || { total:0, enProceso:0, finalizados:0, totalFacturado:0, monedaResumen: 'MXN' });
+    renderSummary(data.summary || { total:0, enProceso:0, finalizados:0, facturadas:0, totalFacturado:0, monedaResumen: 'MXN' });
   } catch (e) {
     console.error(e);
     showOnly('error');

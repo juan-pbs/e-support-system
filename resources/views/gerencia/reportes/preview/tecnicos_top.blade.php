@@ -1,6 +1,6 @@
-<div x-show="f.tipo === 'tecnicos_top'" class="space-y-6">
+﻿<div x-show="f.tipo === 'tecnicos_top'" class="space-y-6">
 
-    <!-- Cuando SÍ hay datos -->
+    <!-- Cuando SI hay datos -->
     <template x-if="tabla.rows.length">
         <div class="space-y-4">
 
@@ -9,10 +9,10 @@
                 <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200">
                     <div>
                         <div class="text-[11px] font-semibold text-slate-500 tracking-wide uppercase">
-                            Vista previa – PDF
+                            Vista previa - PDF
                         </div>
                         <div class="text-sm font-semibold text-slate-800">
-                            Técnicos con más órdenes
+                            Tecnicos con mas ordenes
                         </div>
                     </div>
                 </div>
@@ -39,7 +39,7 @@
                 </div>
 
                 <div class="px-4 py-2 border-t border-slate-100 text-[11px] text-slate-500">
-                    El PDF se generará con estas mismas columnas y filas.
+                    El PDF se generara con estas mismas columnas y filas.
                 </div>
             </div>
 
@@ -48,10 +48,10 @@
                 <div class="flex items-center justify-between px-4 py-3 border-b border-slate-200/60">
                     <div>
                         <div class="text-[11px] font-semibold text-slate-500 tracking-wide uppercase">
-                            Vista previa – Excel
+                            Vista previa - Excel
                         </div>
                         <div class="text-xs text-slate-600">
-                            Archivo .xlsx con el mismo ranking de técnicos.
+                            Archivo .xlsx con el mismo ranking de tecnicos.
                         </div>
                     </div>
                 </div>
@@ -78,7 +78,7 @@
                 </div>
 
                 <div class="px-4 py-2 border-t border-slate-100 text-[11px] text-slate-500">
-                    El Excel utilizará estas mismas columnas en el mismo orden.
+                    El Excel utilizara estas mismas columnas en el mismo orden.
                 </div>
             </div>
 
@@ -88,7 +88,8 @@
     <!-- Cuando NO hay datos -->
     <template x-if="!tabla.rows.length">
         <p class="text-xs text-slate-500">
-            No se encontraron técnicos con órdenes en el período seleccionado.
+            No se encontraron tecnicos con ordenes en el periodo seleccionado.
         </p>
     </template>
 </div>
+

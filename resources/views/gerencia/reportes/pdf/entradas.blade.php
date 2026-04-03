@@ -51,7 +51,7 @@
 
         /* ===== CONTENEDOR UNIFORME (MISMO BORDE PARA TODO) ===== */
         .container{ width: 100%; }
-        .gutter{ padding: 0 8px; } /* <- el “margen visual” común */
+        .gutter{ padding: 0 8px; } /* <- el "margen visual" comÃºn */
 
         /* ===== Panel gris (gris vive en tabla, no en div) ===== */
         .panel-wrap{ margin-top: 12px; }
@@ -64,11 +64,11 @@
         .panel-table td{ border: none; vertical-align: top; }
         .panel-td-left{
             width: 78%;
-            padding: 8px 8px 10px 8px; /* ✅ mismo gutter */
+            padding: 8px 8px 10px 8px; /* âœ… mismo gutter */
         }
         .panel-td-right{
             width: 22%;
-            padding: 8px 8px 10px 8px; /* ✅ mismo gutter */
+            padding: 8px 8px 10px 8px; /* âœ… mismo gutter */
             text-align: right;
             white-space: nowrap;
             font-size: 10px;
@@ -82,23 +82,23 @@
         }
         .sub-doc{ font-size: 10px; margin-top: 2px; }
 
-        .desc{ margin-top: 8px; } /* más compacto */
+        .desc{ margin-top: 8px; } /* mas compacto */
 
         /* ===== Tabla ===== */
         .table-bordered{
             width: 100%;
             border-collapse: collapse;
             table-layout: fixed;
-            font-size: 9.8px;         /* un pelín más compacto */
+            font-size: 9.8px;         /* un pelÃ­n mas compacto */
             margin-top: 8px;
         }
 
         .table-bordered th,
         .table-bordered td{
             border: none;
-            padding: 5px 6px;         /* ✅ compacto */
+            padding: 5px 6px;         /* âœ… compacto */
             vertical-align: top;
-            line-height: 1.18;        /* ✅ compacto */
+            line-height: 1.18;        /* âœ… compacto */
         }
 
         .table-bordered thead th{
@@ -109,7 +109,7 @@
             font-size: 9.4px;
             white-space: normal;
             overflow: visible;
-            padding: 5px 6px;         /* ✅ compacto */
+            padding: 5px 6px;         /* âœ… compacto */
         }
 
         /* separadores suaves */
@@ -165,11 +165,11 @@
     // Helpers
     $norm = function($s){
         $s = mb_strtolower(trim((string)$s));
-        $s = str_replace(['á','é','í','ó','ú','ñ'], ['a','e','i','o','u','n'], $s);
+        $s = str_replace(['Ã¡','Ã©','Ã­','Ã³','Ãº','Ã±'], ['a','e','i','o','u','n'], $s);
         return $s;
     };
 
-    /* ===== ANCHOS (ID y Cantidad MÁS estrechos, Proveedor MÁS ancho) ===== */
+    /* ===== ANCHOS (ID y Cantidad MÃS estrechos, Proveedor MÃS ancho) ===== */
     $widthMap = [
         'id' => 2,
         'costo' => 11,
@@ -188,7 +188,7 @@
         $k = $norm($c);
         $map = [
             'tipo de control'  => 'Tipo de<br>control',
-            'numero de serie'  => 'Número de<br>serie',
+            'numero de serie'  => 'Numero de<br>serie',
             'fecha de entrada' => 'Fecha de<br>entrada',
             'hora de entrada'  => 'Hora de<br>entrada',
         ];
@@ -234,11 +234,11 @@
             </td>
             <td class="td-info">
                 <div class="info-empresa">
-                    <strong>E-SUPPORT QUERÉTARO</strong>
-                    <span>Jose Alberto Rivera Rodríguez</span>
+                    <strong>E-SUPPORT QUERETARO</strong>
+                    <span>Jose Alberto Rivera Rodriguez</span>
                     <span>RFC: RIRA781030RI8</span>
-                    <span>Av. Emeterio González No. 27 int. 2</span>
-                    <span>Hércules, Querétaro, Qro. C.P. 76069</span>
+                    <span>Av. Emeterio Gonzalez No. 27 int. 2</span>
+                    <span>Hercules, Queretaro, Qro. C.P. 76069</span>
                     <span>Cel: 442-169-7094</span>
                 </div>
             </td>
@@ -264,7 +264,7 @@
                     </div>
 
                     <div class="sub-doc muted">
-                        Fecha de generación: {{ now()->format('d/m/Y H:i') }}
+                        Fecha de generacion: {{ now()->format('d/m/Y H:i') }}
                     </div>
                 </td>
 
@@ -277,7 +277,7 @@
 
     <div class="gutter">
         <div class="desc small muted">
-            Incluye ID de movimiento, costo, tipo de control, cantidad, número de serie del producto, así como la fecha y hora de registro de cada entrada.
+            Incluye ID de movimiento, costo, tipo de control, cantidad, numero de serie del producto, asi como la fecha y hora de registro de cada entrada.
         </div>
 
         @if(!empty($cols) && !empty($rows))
@@ -349,8 +349,9 @@
 </div>
 
 <div class="footer">
-    Generado el {{ now()->format('d/m/Y H:i') }} — Sistema E-Support
+    Generado el {{ now()->format('d/m/Y H:i') }} - Sistema E-Support
 </div>
 
 </body>
 </html>
+

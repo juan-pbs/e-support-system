@@ -53,7 +53,7 @@
             width: 100%;
             border-collapse: collapse;
             table-layout: fixed;
-            background: #e3e3e3;   /* ✅ el gris vive en la tabla (no en div) */
+            background: #e3e3e3;   /* âœ… el gris vive en la tabla (no en div) */
         }
         .panel-table td{
             border: none;
@@ -65,7 +65,7 @@
         }
         .panel-td-right{
             width: 22%;
-            padding: 8px 8px 10px 8px; /* ✅ mismo gutter */
+            padding: 8px 8px 10px 8px; /* âœ… mismo gutter */
             text-align: right;
             white-space: nowrap;
             font-size: 10px;
@@ -184,7 +184,7 @@
     // Anchos sugeridos (si tus columnas se llaman igual)
     $w = [
         'Cliente'    => '38%',
-        'Órdenes'    => '12%',
+        'Ordenes'    => '12%',
         'Monto MXN'  => '16%',
         'Monto USD'  => '16%',
         'Total MXN'  => '18%',
@@ -213,11 +213,11 @@
             </td>
             <td class="td-info">
                 <div class="info-empresa">
-                    <strong>E-SUPPORT QUERÉTARO</strong>
-                    <span>Jose Alberto Rivera Rodríguez</span>
+                    <strong>E-SUPPORT QUERETARO</strong>
+                    <span>Jose Alberto Rivera Rodriguez</span>
                     <span>RFC: RIRA781030RI8</span>
-                    <span>Av. Emeterio González No. 27 int. 2</span>
-                    <span>Hércules, Querétaro, Qro. C.P. 76069</span>
+                    <span>Av. Emeterio Gonzalez No. 27 int. 2</span>
+                    <span>Hercules, Queretaro, Qro. C.P. 76069</span>
                     <span>Cel: 442-169-7094</span>
                 </div>
             </td>
@@ -233,7 +233,7 @@
                 <div class="titulo-doc">{{ $titulo ?? 'REPORTE DE CLIENTES' }}</div>
 
                 <div class="sub-doc muted">
-                    Clientes con compras o servicios en el período seleccionado. Muestra número de órdenes y montos MXN/USD con total convertido a MXN.
+                    Clientes con compras o servicios en el periodo seleccionado. Muestra numero de ordenes y montos MXN/USD con total convertido a MXN.
                 </div>
 
                 <div class="sub-doc muted">
@@ -241,7 +241,7 @@
                 </div>
 
                 <div class="sub-doc muted">
-                    Fecha de generación: {{ now()->format('d/m/Y H:i') }}
+                    Fecha de generacion: {{ now()->format('d/m/Y H:i') }}
                 </div>
             </td>
             <td class="panel-td-right muted">
@@ -263,7 +263,7 @@
             @foreach($cols as $c)
                 @php
                     $width = $w[$c] ?? null;
-                    $isNum = in_array($c, ['Órdenes','Monto MXN','Monto USD','Total MXN'], true);
+                    $isNum = in_array($c, ['Ordenes','Monto MXN','Monto USD','Total MXN'], true);
                 @endphp
                 <th @if($width) style="width:{{ $width }};" @endif class="{{ $isNum ? 'text-right' : '' }}">
                     {{ $c }}
@@ -276,7 +276,7 @@
             <tr>
                 @foreach($cols as $c)
                     @php
-                        $isNum = in_array($c, ['Órdenes','Monto MXN','Monto USD','Total MXN'], true);
+                        $isNum = in_array($c, ['Ordenes','Monto MXN','Monto USD','Total MXN'], true);
                         $val = $r[$c] ?? '';
                     @endphp
                     <td class="{{ $isNum ? 'num' : '' }}">{{ $val }}</td>
@@ -293,7 +293,7 @@
                 <table class="totals-grid">
                     <colgroup>
                         <col style="width:{{ $w['Cliente'] ?? '38%' }};">
-                        <col style="width:{{ $w['Órdenes'] ?? '12%' }};">
+                        <col style="width:{{ $w['Ordenes'] ?? '12%' }};">
                         <col style="width:{{ $w['Monto MXN'] ?? '16%' }};">
                         <col style="width:{{ $w['Monto USD'] ?? '16%' }};">
                         <col style="width:{{ $w['Total MXN'] ?? '18%' }};">
@@ -328,8 +328,9 @@
 @endif
 
 <div class="footer">
-    Generado el {{ now()->format('d/m/Y H:i') }} — Sistema E-Support
+    Generado el {{ now()->format('d/m/Y H:i') }} - Sistema E-Support
 </div>
 
 </body>
 </html>
+

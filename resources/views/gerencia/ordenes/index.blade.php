@@ -1,6 +1,6 @@
 @extends('layouts.sidebar-navigation')
 
-@section('title', 'Órdenes de Servicio')
+@section('title', 'Ordenes de Servicio')
 
 @section('content')
 <style>
@@ -10,23 +10,33 @@
 <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
 
     {{-- Header --}}
-    <div class="flex items-center gap-3 mb-4">
-        <x-boton-volver />
-        <h1 class="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 flex-1 text-center md:text-left">
-            Órdenes de Servicio
-        </h1>
-        <div class="w-8 md:hidden"></div>
-    </div>
+    <div class="mb-6 grid grid-cols-[auto,minmax(0,1fr),auto] items-center gap-3">
+        <div class="flex items-center justify-start">
+            <x-boton-volver />
+        </div>
+        <div class="min-w-0 px-2">
+            <h1 class="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 text-center">
+                Ordenes de Servicio
+            </h1>
+        </div>
+        <div class="flex flex-wrap items-center justify-end gap-3">
+            <a href="{{ route('ordenes.create') }}"
+               class="justify-center bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg inline-flex items-center gap-2 whitespace-nowrap shadow-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
+                </svg>
+                Nueva orden
+            </a>
 
-    {{-- Botón (full en móvil) --}}
-    <div class="mb-6">
-        <a href="{{ route('ordenes.create') }}"
-           class="w-full md:w-auto justify-center bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg inline-flex items-center gap-2 whitespace-nowrap">
-            <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
-            </svg>
-            Nueva orden
-        </a>
+            <button type="button"
+                    data-action="open-export"
+                    class="justify-center bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg inline-flex items-center gap-2 whitespace-nowrap shadow-sm">
+                <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2M7 10l5 5m0 0 5-5m-5 5V4" />
+                </svg>
+                Descargar OSs
+            </button>
+        </div>
     </div>
 
     {{-- Mensajes --}}
@@ -49,14 +59,16 @@
         ];
 
         $acUrlOrdenes = route('ordenes.autocomplete');
+        $exportDesdeDefault = now()->subDays(29)->format('Y-m-d');
+        $exportHastaDefault = now()->format('Y-m-d');
     @endphp
 
     {{-- Filtros --}}
     <form method="GET" action="{{ route('ordenes.index') }}" class="mb-6">
         <div class="bg-white w-full rounded-xl border border-gray-200 shadow p-4">
-            <div class="grid grid-cols-1 md:grid-cols-5 gap-3 items-end">
+            <div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3 items-end">
 
-                <div class="md:col-span-1">
+                <div class="xl:col-span-2">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Buscar</label>
                     <x-ordenes-autocomplete-bar
                         :autocompleteUrl="$acUrlOrdenes"
@@ -92,7 +104,16 @@
                 </div>
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700 mb-1">Técnico</label>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Facturacion</label>
+                    <select name="facturado" class="w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-blue-500">
+                        <option value="">Todas</option>
+                        <option value="1" @selected(request('facturado') === '1')>Facturado</option>
+                        <option value="0" @selected(request('facturado') === '0')>No facturado</option>
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Tecnico</label>
                     <select name="tecnico_id" class="w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-blue-500">
                         <option value="">Todos</option>
                         @foreach (($tecnicos ?? collect()) as $tec)
@@ -129,8 +150,21 @@
                 $pdfDownloadUrl = route('ordenes.pdf', ['id' => $oid, 'download' => 1]);
                 $editUrl = route('ordenes.edit', ['id' => $oid]);
                 $deleteUrl = route('ordenes.destroy', ['id' => $oid]);
+                $facturacionUpdateUrl = route('ordenes.facturacion.update', ['id' => $oid]);
+                $estadoValor = (string) ($orden->estado ?? '-');
+                $estadoBadgeClass = match ($estadoValor) {
+                    'Pendiente' => 'bg-yellow-100 text-yellow-800',
+                    'En proceso' => 'bg-blue-100 text-blue-800',
+                    'Completada', 'Completado', 'Finalizado', 'Finalizada' => 'bg-green-100 text-green-800',
+                    'Cancelada', 'Cancelado' => 'bg-red-100 text-red-800',
+                    default => 'bg-gray-100 text-gray-800',
+                };
+                $facturacionBadgeClass = (int) ($orden->facturado ?? 0) === 1
+                    ? 'bg-emerald-100 text-emerald-800'
+                    : 'bg-amber-100 text-amber-800';
 
                 $tipoLabel = $tipoOpciones[$orden->tipo_orden] ?? ($orden->tipo_orden ?? '—');
+                $facturacionLabel = $orden->facturacion_label ?? ((int) ($orden->facturado ?? 0) === 1 ? 'Facturado' : 'No facturado');
 
                 $tecnicosTxt = '—';
                 if($orden->tipo_orden === 'compra') $tecnicosTxt = 'No aplica';
@@ -152,19 +186,16 @@
                                 {{ $tipoLabel }}
                             </span>
 
-                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs
-                                @class([
-                                    'bg-yellow-100 text-yellow-800' => $orden->estado==='Pendiente',
-                                    'bg-blue-100 text-blue-800'     => $orden->estado==='En proceso',
-                                    'bg-green-100 text-green-800'   => $orden->estado==='Completada',
-                                    'bg-red-100 text-red-800'       => $orden->estado==='Cancelada',
-                                    'bg-gray-100 text-gray-800'     => !in_array($orden->estado, ['Pendiente','En proceso','Completada','Cancelada']),
-                                ])">
-                                {{ $orden->estado ?? '—' }}
+                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs {{ $estadoBadgeClass }}">
+                                {{ $estadoValor }}
                             </span>
 
                             <span class="px-2 py-1 rounded-md bg-gray-50 border border-gray-200 text-gray-700 text-xs">
                                 Prioridad: <span class="font-semibold">{{ $orden->prioridad ?? '—' }}</span>
+                            </span>
+
+                            <span class="px-2 py-1 rounded-md text-xs font-medium {{ $facturacionBadgeClass }}">
+                                {{ $facturacionLabel }}
                             </span>
                         </div>
                     </div>
@@ -179,6 +210,21 @@
                         <span class="text-gray-500">Creación</span>
                         <span class="font-medium text-gray-800">{{ optional($orden->created_at)->format('d/m/Y H:i') }}</span>
                     </div>
+                    <div class="flex items-center justify-between gap-3">
+                        <span class="text-gray-500">Facturacion</span>
+                        <span class="font-medium {{ (int) ($orden->facturado ?? 0) === 1 ? 'text-emerald-700' : 'text-amber-700' }}">{{ $facturacionLabel }}</span>
+                    </div>
+                    <form method="POST" action="{{ $facturacionUpdateUrl }}" class="flex items-center gap-2">
+                        @csrf
+                        @method('PATCH')
+                        <select name="facturado" class="flex-1 rounded-lg border-gray-300 text-sm focus:ring-2 focus:ring-blue-500">
+                            <option value="0" @selected((int) ($orden->facturado ?? 0) === 0)>No facturado</option>
+                            <option value="1" @selected((int) ($orden->facturado ?? 0) === 1)>Facturado</option>
+                        </select>
+                        <button type="submit" class="rounded-lg bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold px-3 py-2 whitespace-nowrap">
+                            Guardar
+                        </button>
+                    </form>
                 </div>
 
                 <div class="mt-4 grid grid-cols-3 gap-2">
@@ -247,6 +293,19 @@
                         $pdfDownloadUrl = route('ordenes.pdf', ['id' => $oid, 'download' => 1]);
                         $editUrl = route('ordenes.edit', ['id' => $oid]);
                         $deleteUrl = route('ordenes.destroy', ['id' => $oid]);
+                        $facturacionUpdateUrl = route('ordenes.facturacion.update', ['id' => $oid]);
+                        $facturacionLabel = $orden->facturacion_label ?? ((int) ($orden->facturado ?? 0) === 1 ? 'Facturado' : 'No facturado');
+                        $estadoValor = (string) ($orden->estado ?? '-');
+                        $estadoBadgeClass = match ($estadoValor) {
+                            'Pendiente' => 'bg-yellow-100 text-yellow-800',
+                            'En proceso' => 'bg-blue-100 text-blue-800',
+                            'Completada', 'Completado', 'Finalizado', 'Finalizada' => 'bg-green-100 text-green-800',
+                            'Cancelada', 'Cancelado' => 'bg-red-100 text-red-800',
+                            default => 'bg-gray-100 text-gray-800',
+                        };
+                        $facturacionBadgeClass = (int) ($orden->facturado ?? 0) === 1
+                            ? 'bg-emerald-100 text-emerald-800'
+                            : 'bg-amber-100 text-amber-800';
 
                         $tipoLabel = $tipoOpciones[$orden->tipo_orden] ?? ($orden->tipo_orden ?? '—');
                     @endphp
@@ -267,22 +326,20 @@
                         </td>
 
                         <td class="px-4 py-3">
-                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs
-                                @class([
-                                    'bg-yellow-100 text-yellow-800' => $orden->estado==='Pendiente',
-                                    'bg-blue-100 text-blue-800'     => $orden->estado==='En proceso',
-                                    'bg-green-100 text-green-800'   => $orden->estado==='Completada',
-                                    'bg-red-100 text-red-800'       => $orden->estado==='Cancelada',
-                                    'bg-gray-100 text-gray-800'     => !in_array($orden->estado, ['Pendiente','En proceso','Completada','Cancelada']),
-                                ])">
-                                {{ $orden->estado ?? '—' }}
-                            </span>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs {{ $estadoBadgeClass }}">
+                                    {{ $estadoValor }}
+                                </span>
+                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium {{ $facturacionBadgeClass }}">
+                                    {{ $facturacionLabel }}
+                                </span>
+                            </div>
                         </td>
 
                         <td class="px-4 py-3">{{ $orden->prioridad ?? '—' }}</td>
                         <td class="px-4 py-3">{{ optional($orden->created_at)->format('d/m/Y H:i') }}</td>
                         <td class="px-3 py-3 text-center">
-                            <button type="button" class="inline-flex items-center justify-center w-9 h-9 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white" title="Ver notas internas" onclick="showOrderNotesModalFromB64('{{ base64_encode(json_encode(['folio' => $folio, 'cliente' => ($orden->cliente->nombre ?? '—'), 'tipo' => $tipoLabel, 'estado' => ($orden->estado ?? '—'), 'prioridad' => ($orden->prioridad ?? '—'), 'tecnicos' => ($orden->tipo_orden === 'compra' ? 'No aplica' : (($orden->tecnicos && $orden->tecnicos->count()) ? $orden->tecnicos->pluck('name')->implode(', ') : ($orden->tecnico->name ?? 'Sin asignar'))), 'servicio' => ($orden->servicio ?? ''), 'resumen' => ($orden->descripcion_servicio ?? $orden->descripcion ?? ''), 'notas' => ($orden->condiciones_generales ?? '')], JSON_UNESCAPED_UNICODE)) }}')">
+                            <button type="button" class="inline-flex items-center justify-center w-9 h-9 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white" title="Ver notas internas" onclick="showOrderNotesModalFromB64('{{ base64_encode(json_encode(['folio' => $folio, 'cliente' => ($orden->cliente->nombre ?? '—'), 'tipo' => $tipoLabel, 'estado' => ($orden->estado ?? '—'), 'prioridad' => ($orden->prioridad ?? '—'), 'facturacion' => $facturacionLabel, 'facturado' => (int) ($orden->facturado ?? 0), 'facturacion_update_url' => $facturacionUpdateUrl, 'tecnicos' => ($orden->tipo_orden === 'compra' ? 'No aplica' : (($orden->tecnicos && $orden->tecnicos->count()) ? $orden->tecnicos->pluck('name')->implode(', ') : ($orden->tecnico->name ?? 'Sin asignar'))), 'servicio' => ($orden->servicio ?? ''), 'resumen' => ($orden->descripcion_servicio ?? $orden->descripcion ?? ''), 'notas' => ($orden->condiciones_generales ?? '')], JSON_UNESCAPED_UNICODE)) }}')">
                                 <span class="text-sm font-semibold">i</span>
                             </button>
                         </td>
@@ -350,6 +407,20 @@
         <div><span class="text-gray-500">Folio:</span> <span id="notesFolio" class="font-medium">—</span></div>
         <div><span class="text-gray-500">Cliente:</span> <span id="notesCliente" class="font-medium">—</span></div>
         <div><span class="text-gray-500">Tipo / Estado / Prioridad:</span> <span id="notesMeta" class="font-medium">—</span></div>
+        <div class="space-y-2">
+          <div><span class="text-gray-500">Facturacion:</span> <span id="notesFacturacion" class="font-medium">—</span></div>
+          <form id="notesFacturacionForm" method="POST" action="#" class="flex flex-col sm:flex-row sm:items-center gap-2">
+            @csrf
+            @method('PATCH')
+            <select id="notesFacturadoSelect" name="facturado" class="w-full sm:w-52 rounded-lg border-gray-300 text-sm focus:ring-2 focus:ring-blue-500">
+              <option value="0">No facturado</option>
+              <option value="1">Facturado</option>
+            </select>
+            <button id="notesFacturacionSubmit" type="submit" class="px-3 py-2 rounded-lg bg-slate-800 hover:bg-slate-900 text-white text-sm whitespace-nowrap">
+              Guardar facturacion
+            </button>
+          </form>
+        </div>
         <div><span class="text-gray-500">Técnico(s):</span> <span id="notesTecnicos" class="font-medium">—</span></div>
         <div><span class="text-gray-500">Servicio:</span> <p id="notesServicio" class="mt-1 bg-slate-50 border rounded p-2">—</p></div>
         <div><span class="text-gray-500">Resumen:</span> <p id="notesResumen" class="mt-1 bg-slate-50 border rounded p-2 whitespace-pre-line">—</p></div>
@@ -377,6 +448,55 @@
       <div class="h-[75vh]">
         <iframe id="pdfFrame" class="w-full h-full" src=""></iframe>
       </div>
+    </div>
+  </div>
+</div>
+
+{{-- MODAL EXPORTAR --}}
+<div id="exportModal" class="hidden fixed inset-0 z-40 bg-black/50">
+  <div class="absolute inset-0 flex items-center justify-center p-4">
+    <div class="w-full max-w-lg bg-white rounded-xl shadow-xl overflow-hidden">
+      <div class="px-5 py-4 border-b flex items-center justify-between">
+        <div>
+          <h3 class="text-lg font-semibold text-gray-800">Descargar OSs</h3>
+          <p class="text-sm text-gray-500">Selecciona el rango de fechas para generar el Excel.</p>
+        </div>
+        <button type="button" class="px-3 py-1.5 rounded-md bg-gray-800 text-white text-sm whitespace-nowrap" data-action="close-export">
+          Cerrar
+        </button>
+      </div>
+
+      <form method="GET" action="{{ route('ordenes.export') }}" class="px-5 py-4 space-y-4">
+        <div class="flex flex-wrap gap-2">
+          <button type="button" class="px-3 py-1.5 rounded-full border text-sm hover:bg-gray-50" data-range-days="7">Ultimos 7 dias</button>
+          <button type="button" class="px-3 py-1.5 rounded-full border text-sm hover:bg-gray-50" data-range-days="15">Ultimos 15 dias</button>
+          <button type="button" class="px-3 py-1.5 rounded-full border text-sm hover:bg-gray-50" data-range-days="30">Ultimos 30 dias</button>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div>
+            <label for="exportDesde" class="block text-sm font-medium text-gray-700 mb-1">Desde</label>
+            <input id="exportDesde" name="desde" type="date" value="{{ $exportDesdeDefault }}" class="w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-blue-500" required>
+          </div>
+          <div>
+            <label for="exportHasta" class="block text-sm font-medium text-gray-700 mb-1">Hasta</label>
+            <input id="exportHasta" name="hasta" type="date" value="{{ $exportHastaDefault }}" class="w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-blue-500" required>
+          </div>
+        </div>
+
+        <p class="text-xs text-gray-500">
+          El archivo incluye datos generales, tecnicos, importes, estatus de facturacion y totales de cada orden dentro del rango.
+        </p>
+
+        <div class="flex items-center justify-end gap-2 pt-2">
+          <button type="button" class="px-3 py-1.5 rounded-md border text-sm hover:bg-gray-50 whitespace-nowrap" data-action="close-export">
+            Cancelar
+          </button>
+          <button type="submit" class="px-3 py-1.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-sm whitespace-nowrap">
+            Descargar Excel
+          </button>
+        </div>
+      </form>
     </div>
   </div>
 </div>
@@ -432,10 +552,20 @@
     document.getElementById('notesFolio').textContent = data.folio || '—';
     document.getElementById('notesCliente').textContent = data.cliente || '—';
     document.getElementById('notesMeta').textContent = [data.tipo || '—', data.estado || '—', data.prioridad || '—'].join(' / ');
+    document.getElementById('notesFacturacion').textContent = data.facturacion || 'No facturado';
     document.getElementById('notesTecnicos').textContent = data.tecnicos || '—';
     document.getElementById('notesServicio').textContent = data.servicio || '—';
     document.getElementById('notesResumen').textContent = data.resumen || '—';
     document.getElementById('notesInternas').textContent = data.notas || 'Sin notas internas';
+    if (notesFacturacionForm && notesFacturadoSelect && notesFacturacionSubmit) {
+      const updateUrl = data.facturacion_update_url || '';
+      notesFacturadoSelect.value = String(Number(data.facturado || 0));
+      notesFacturacionForm.setAttribute('action', updateUrl || '#');
+      notesFacturadoSelect.disabled = !updateUrl;
+      notesFacturacionSubmit.disabled = !updateUrl;
+      notesFacturacionSubmit.classList.toggle('opacity-60', !updateUrl);
+      notesFacturacionSubmit.classList.toggle('cursor-not-allowed', !updateUrl);
+    }
     modal.classList.remove('hidden');
   };
   window.closeOrderNotesModal = function () {
@@ -445,10 +575,16 @@
   const pdfFrame = document.getElementById('pdfFrame');
   const pdfTitle = document.getElementById('pdfModalTitle');
   const pdfDownloadBtn = document.getElementById('pdfDownloadBtn');
+  const exportModal = document.getElementById('exportModal');
+  const exportDesde = document.getElementById('exportDesde');
+  const exportHasta = document.getElementById('exportHasta');
 
   const deleteModal = document.getElementById('deleteModal');
   const deleteForm  = document.getElementById('deleteForm');
   const delFolioEl  = document.getElementById('delFolio');
+  const notesFacturacionForm = document.getElementById('notesFacturacionForm');
+  const notesFacturadoSelect = document.getElementById('notesFacturadoSelect');
+  const notesFacturacionSubmit = document.getElementById('notesFacturacionSubmit');
 
   document.addEventListener('click', (e)=>{
     const btn = e.target.closest('[data-action="open-pdf"]');
@@ -474,6 +610,40 @@
   });
 
   document.addEventListener('click', (e)=>{
+    const btn = e.target.closest('[data-action="open-export"]');
+    if (!btn || !exportModal) return;
+    exportModal.classList.remove('hidden');
+  });
+
+  document.addEventListener('click', (e)=>{
+    const btn = e.target.closest('[data-action="close-export"]');
+    if (!btn || !exportModal) return;
+    exportModal.classList.add('hidden');
+  });
+
+  document.addEventListener('click', (e)=>{
+    const btn = e.target.closest('[data-range-days]');
+    if (!btn || !exportDesde || !exportHasta) return;
+
+    const days = Number(btn.getAttribute('data-range-days') || 0);
+    if (!days) return;
+
+    const end = new Date();
+    const start = new Date();
+    start.setDate(end.getDate() - (days - 1));
+
+    const formatDate = (date) => {
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+
+    exportDesde.value = formatDate(start);
+    exportHasta.value = formatDate(end);
+  });
+
+  document.addEventListener('click', (e)=>{
     const btn = e.target.closest('[data-action="open-delete"]');
     if (!btn) return;
 
@@ -492,7 +662,7 @@
     deleteModal.classList.add('hidden');
   });
 
-  [pdfModal, deleteModal, document.getElementById('notesModal')].forEach(modal=>{
+  [pdfModal, deleteModal, exportModal, document.getElementById('notesModal')].forEach(modal=>{
     modal?.addEventListener('click', (e)=>{
       if (e.target === modal) {
         modal.classList.add('hidden');

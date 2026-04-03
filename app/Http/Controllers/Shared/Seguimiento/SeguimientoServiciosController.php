@@ -194,9 +194,10 @@ class SeguimientoServiciosController extends Controller
 
             // 3) Si hay relación, recalculamos (y sincronizamos si está desfasado)
             if ($hasExtraTable && $o->relationLoaded('materialesExtras')) {
-                $calc = 0.0;
+                $extras = $o->materialesExtras;
+                $calc = $extras->isNotEmpty() ? 0.0 : $additionalMxn;
 
-                foreach ($o->materialesExtras as $e) {
+                foreach ($extras as $e) {
                     $cant = (float) ($e->cantidad ?? 0);
 
                     if ($e->precio_unitario === null) {
@@ -208,7 +209,7 @@ class SeguimientoServiciosController extends Controller
                     $calc += $cant * (float) $e->precio_unitario; // ✅ siempre MXN
                 }
 
-                $nombres = $o->materialesExtras->pluck('descripcion')->filter()->values();
+                $nombres = $extras->pluck('descripcion')->filter()->values();
                 if ($nombres->isNotEmpty()) {
                     $extrasResumen = $nombres->take(3)->implode(', ');
                     if ($nombres->count() > 3) $extrasResumen .= '…';
@@ -216,7 +217,8 @@ class SeguimientoServiciosController extends Controller
 
                 $calc = round($calc, 2);
 
-                // Mantener sincronizado
+                // Mantener sincronizado sin perder el total ya guardado
+                // cuando esta lectura no trae extras registrados.
                 if ($colTotalAdic) {
                     if (abs($calc - $additionalMxn) > 0.01) {
                         $additionalMxn = $calc;
@@ -261,6 +263,7 @@ class SeguimientoServiciosController extends Controller
             if ($clienteNombre === '') $clienteNombre = '—';
 
             $estadoSeguimiento = $o->status_seguimiento ?? $this->statusSeguimientoFallback($o);
+            $facturado = (bool) ($o->facturado ?? false);
 
             return [
                 'id'                  => $o->id_orden_servicio,
@@ -288,6 +291,8 @@ class SeguimientoServiciosController extends Controller
                 'exchangeRate'        => $tipoCambio,
                 'finalTotal'          => round($final, 2),
                 'finalTotalMxn'       => round($finalEnMxn, 2),
+                'facturado'           => $facturado,
+                'facturacion'         => $facturado ? 'Facturado' : 'No facturado',
             ];
         })->values();
 
@@ -313,7 +318,8 @@ class SeguimientoServiciosController extends Controller
             'total'          => $rows->count(),
             'enProceso'      => $rows->where('status', 'en-proceso')->count(),
             'finalizados'    => $rows->where('status', 'finalizado')->count(),
-            'totalFacturado' => round($rows->sum('finalTotalMxn'), 2),
+            'totalFacturado' => round($rows->where('facturado', true)->sum('finalTotalMxn'), 2),
+            'facturadas'     => $rows->where('facturado', true)->count(),
             'monedaResumen'  => 'MXN',
         ];
 

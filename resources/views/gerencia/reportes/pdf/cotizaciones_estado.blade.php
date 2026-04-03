@@ -14,20 +14,20 @@
             margin: 0;
             padding: 0;
             font-family: DejaVu Sans, sans-serif;
-            font-size: 10px;          /* ✅ más compacto */
+            font-size: 10px;          /* âœ… mas compacto */
             color: #111;
-            line-height: 1.22;        /* ✅ más compacto */
+            line-height: 1.22;        /* âœ… mas compacto */
         }
 
         .muted{ color:#555; }
-        .small{ font-size: 10px; }   /* ✅ más compacto */
+        .small{ font-size: 10px; }   /* âœ… mas compacto */
         .text-right{ text-align:right; }
         .center{ text-align:center; }
         .num{ text-align:right; white-space: nowrap; }
         .nowrap{ white-space: nowrap; }
 
         /* ===== Encabezado tipo E-SUPPORT ===== */
-        .header{ width: 100%; margin: 0 0 8px 0; } /* ✅ menos espacio */
+        .header{ width: 100%; margin: 0 0 8px 0; } /* âœ… menos espacio */
         .barra-superior{ width: 100%; height: 8px; margin: 0 0 4px 0; display:block; }
 
         .tabla-header{
@@ -42,9 +42,9 @@
         }
         .td-logo{ width: 52%; }
         .td-info{ width: 48%; text-align: right; }
-        .logo{ height: 50px; display:block; } /* ✅ un pelín más chico */
+        .logo{ height: 50px; display:block; } /* âœ… un pelÃ­n mas chico */
 
-        .info-empresa{ line-height: 1.18; } /* ✅ más compacto */
+        .info-empresa{ line-height: 1.18; } /* âœ… mas compacto */
         .info-empresa strong{ font-size: 12.5px; font-weight: 700; }
         .info-empresa span{ display:block; font-size:9.6px; }
 
@@ -59,18 +59,18 @@
         .panel-table td{ border: none; vertical-align: top; }
         .panel-td-left{
             width: 78%;
-            padding: 8px 10px 9px 10px; /* ✅ más compacto */
+            padding: 8px 10px 9px 10px; /* âœ… mas compacto */
         }
         .panel-td-right{
             width: 22%;
-            padding: 8px 10px 9px 10px; /* ✅ más compacto */
+            padding: 8px 10px 9px 10px; /* âœ… mas compacto */
             text-align: right;
             white-space: nowrap;
             font-size: 9.6px;
         }
 
         .titulo-doc{
-            font-size: 13px;      /* ✅ más compacto */
+            font-size: 13px;      /* âœ… mas compacto */
             font-weight: bold;
             color: #0072bc;
             margin: 0 0 3px 0;
@@ -79,7 +79,7 @@
 
         .desc{
             padding: 0 10px;
-            margin-top: 8px;      /* ✅ menos espacio */
+            margin-top: 8px;      /* âœ… menos espacio */
         }
 
         /* ===== Tabla (compacta) ===== */
@@ -87,15 +87,15 @@
             width: 100%;
             border-collapse: collapse;
             table-layout: fixed;
-            font-size: 9.6px;     /* ✅ más compacto */
-            margin-top: 8px;      /* ✅ menos espacio */
+            font-size: 9.6px;     /* âœ… mas compacto */
+            margin-top: 8px;      /* âœ… menos espacio */
         }
         .table-bordered th,
         .table-bordered td{
             border: none;
-            padding: 4px 6px;     /* ✅ más compacto */
+            padding: 4px 6px;     /* âœ… mas compacto */
             vertical-align: top;
-            line-height: 1.15;    /* ✅ más compacto */
+            line-height: 1.15;    /* âœ… mas compacto */
         }
 
         /* Encabezados: NO se parten en vertical */
@@ -110,8 +110,8 @@
             word-break: keep-all;
             overflow-wrap: normal;
             hyphens: none;
-            font-size: 9.2px;     /* ✅ más compacto */
-            padding: 4px 6px;     /* ✅ más compacto */
+            font-size: 9.2px;     /* âœ… mas compacto */
+            padding: 4px 6px;     /* âœ… mas compacto */
         }
         .table-bordered thead th.center{ text-align:center; }
         .table-bordered thead th.text-right{ text-align:right; }
@@ -124,7 +124,7 @@
         .footer{
             position: fixed;
             bottom: 18px; left: 35px; right: 35px;
-            font-size:9.6px;      /* ✅ más compacto */
+            font-size:9.6px;      /* âœ… mas compacto */
             color:#666;
             text-align: right;
         }
@@ -222,11 +222,11 @@
             </td>
             <td class="td-info">
                 <div class="info-empresa">
-                    <strong>E-SUPPORT QUERÉTARO</strong>
-                    <span>Jose Alberto Rivera Rodríguez</span>
+                    <strong>E-SUPPORT QUERETARO</strong>
+                    <span>Jose Alberto Rivera Rodriguez</span>
                     <span>RFC: RIRA781030RI8</span>
-                    <span>Av. Emeterio González No. 27 int. 2</span>
-                    <span>Hércules, Querétaro, Qro. C.P. 76069</span>
+                    <span>Av. Emeterio Gonzalez No. 27 int. 2</span>
+                    <span>Hercules, Queretaro, Qro. C.P. 76069</span>
                     <span>Cel: 442-169-7094</span>
                 </div>
             </td>
@@ -250,7 +250,7 @@
                 </div>
 
                 <div class="sub-doc muted">
-                    Fecha de generación: {{ now()->format('d/m/Y H:i') }}
+                    Fecha de generacion: {{ now()->format('d/m/Y H:i') }}
                 </div>
             </td>
 
@@ -262,7 +262,7 @@
 </div>
 
 <div class="desc small muted">
-    Este reporte permite analizar las cotizaciones generadas por cliente, ver cuántas veces se han procesado (PDF / envío) y cuántas veces se han editado, así como revisar su vigencia, moneda y total.
+    Este reporte permite analizar las cotizaciones generadas por cliente, ver cuantas veces se han procesado (PDF / envio) y cuantas veces se han editado, asi como revisar su vigencia, moneda y total.
 </div>
 
 <?php if (!empty($cols) && !empty($rows)) : ?>
@@ -304,8 +304,9 @@
 <?php endif; ?>
 
 <div class="footer">
-    Generado el {{ now()->format('d/m/Y H:i') }} — Sistema E-Support
+    Generado el {{ now()->format('d/m/Y H:i') }} - Sistema E-Support
 </div>
 
 </body>
 </html>
+

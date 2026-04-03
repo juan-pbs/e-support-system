@@ -1,24 +1,48 @@
-{{-- resources/views/vistas-gerente/reportes/preview/salidas.blade.php --}}
+﻿{{-- resources/views/vistas-gerente/reportes/preview/salidas.blade.php --}}
 
-<div x-show="f.tipo === 'salidas'" x-cloak class="space-y-6">
+<div x-show="f.tipo === 'salidas'" x-cloak class="space-y-6"
+     x-data="{
+        salidasPdfCols() {
+            return ['Salida', 'No. parte', 'Producto', 'Finanzas', 'Series'];
+        },
+        salidasExcelCols() {
+            return ['ID detalle', 'Fecha de salida', 'Hora de salida', 'Numero de parte', 'Nombre producto', 'Cantidad', 'Precio unitario', 'Total', 'Moneda', 'Numeros de serie'];
+        },
+        salidasNorm(value) {
+            const base = String(value ?? '').trim().toLowerCase();
+            return base
+                .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+                .replace(/Ã¡|ÃƒÂ¡|ÃƒÆ’Ã‚Â¡/g, 'a')
+                .replace(/Ã©|ÃƒÂ©|ÃƒÆ’Ã‚Â©/g, 'e')
+                .replace(/Ã­|ÃƒÂ­|ÃƒÆ’Ã‚Â­/g, 'i')
+                .replace(/Ã³|ÃƒÂ³|ÃƒÆ’Ã‚Â³/g, 'o')
+                .replace(/Ãº|ÃƒÂº|ÃƒÆ’Ã‚Âº/g, 'u')
+                .replace(/Ã±|ÃƒÂ±|ÃƒÆ’Ã‚Â±/g, 'n')
+                .replace(/\s+/g, ' ');
+        },
+        salidasValue(row, wanted) {
+            const target = this.salidasNorm(wanted);
+            for (const [key, value] of Object.entries(row || {})) {
+                if (this.salidasNorm(key) === target) {
+                    return value ?? '-';
+                }
+            }
+            return '-';
+        },
+        salidasPdfMeta(row) {
+            return `${this.salidasValue(row, 'Fecha de salida')} · ${this.salidasValue(row, 'Hora de salida')} · #${this.salidasValue(row, 'ID detalle')}`;
+        },
+        salidasPdfFinance(row) {
+            return [
+                `Cant: ${this.salidasValue(row, 'Cantidad')}`,
+                `Precio: ${this.salidasValue(row, 'Precio unitario')}`,
+                `Total: ${this.salidasValue(row, 'Total')} ${this.salidasValue(row, 'Moneda')}`
+            ];
+        }
+     }">
 
     <template x-if="tabla.rows.length">
         <div class="space-y-6">
-
-            @php
-                $allowedCols = [
-                    'ID detalle',
-                    'Fecha de salida',
-                    'Hora de salida',
-                    'Número de parte',
-                    'Nombre producto',
-                    'Cantidad',
-                    'Precio unitario',
-                    'Total',
-                    'Moneda',
-                    'Números de serie',
-                ];
-            @endphp
 
             {{-- Resumen superior --}}
             <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
@@ -27,7 +51,7 @@
                         Resumen del reporte de salidas de inventario (productos)
                     </h3>
                     <p class="text-xs text-slate-500">
-                        Previsualiza cómo se verá el PDF y el Excel antes de descargar.
+                        Previsualiza como se vera el PDF y el Excel antes de descargar.
                     </p>
                 </div>
 
@@ -43,7 +67,7 @@
                 </div>
             </div>
 
-            {{-- ✅ Totales preview --}}
+            {{-- âœ… Totales preview --}}
             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div class="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm">
                     <div class="text-[11px] uppercase tracking-[0.15em] text-slate-400">Total cantidad</div>
@@ -103,7 +127,7 @@
                         <div class="text-[11px] uppercase tracking-[0.15em] text-slate-400">Vista previa PDF</div>
                         <div class="mt-1 text-sm font-semibold text-slate-800 flex items-center gap-1.5">
                             <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-100 text-red-500 text-[10px] font-bold">P</span>
-                            Hoja tamaño carta
+                            Hoja tamano carta
                         </div>
                     </div>
                     <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-red-50 text-red-600 border border-red-100">
@@ -117,7 +141,7 @@
 
                             <div class="flex items-start justify-between gap-4">
                                 <div>
-                                    <div class="text-[11px] font-semibold text-blue-700 tracking-wide">E-SUPPORT QUERÉTARO</div>
+                                    <div class="text-[11px] font-semibold text-blue-700 tracking-wide">E-SUPPORT QUERETARO</div>
                                     <div class="mt-0.5 text-[11px] text-slate-500">Salidas de inventario (solo productos)</div>
                                 </div>
                                 <div class="text-right">
@@ -126,49 +150,51 @@
                                 </div>
                             </div>
 
-                            {{-- Tabla (solo cols permitidas + SIN duplicadas) --}}
+                            {{-- Tabla PDF compacta --}}
                             <div class="border-t border-dashed border-slate-200 pt-3">
                                 <div class="overflow-x-auto">
-                                    <table class="min-w-full text-[11px]">
-                                        <thead>
-                                        <tr>
-                                            <template
-                                                x-for="(col, ci) in (() => {
-                                                    const allowed = @json($allowedCols);
-                                                    const seen = new Set();
-                                                    return tabla.cols.filter(c => allowed.includes(c) && (seen.has(c) ? false : (seen.add(c), true)));
-                                                })()"
-                                                :key="'pdf-sal-h-'+ci">
-                                                <th class="px-2 py-1.5 border-b border-slate-200 bg-slate-50/60 text-left font-semibold text-slate-700 whitespace-nowrap">
-                                                    <span x-text="col"></span>
-                                                </th>
-                                            </template>
-                                        </tr>
-                                        </thead>
-                                        <tbody>
-                                        <template x-for="(row, ri) in tabla.rows.slice(0, 8)" :key="'pdf-sal-r-'+ri">
-                                            <tr class="odd:bg-white even:bg-slate-50/80">
-                                                <template
-                                                    x-for="(col, ci) in (() => {
-                                                        const allowed = @json($allowedCols);
-                                                        const seen = new Set();
-                                                        return tabla.cols.filter(c => allowed.includes(c) && (seen.has(c) ? false : (seen.add(c), true)));
-                                                    })()"
-                                                    :key="'pdf-sal-c-'+ri+'-'+ci">
-                                                    <td class="px-2 py-1.5 border-b border-dotted border-slate-100 whitespace-nowrap text-[11px] text-slate-600 truncate"
-                                                        x-text="row[col] ?? '-'">
-                                                    </td>
-                                                </template>
-                                            </tr>
+                                    <div class="min-w-[860px] grid gap-2 text-[11px]"
+                                         style="grid-template-columns: 1.35fr 1fr 2fr 1.35fr 0.9fr;">
+                                        <template x-for="(col, ci) in salidasPdfCols()" :key="'pdf-sal-h-'+ci">
+                                            <div class="font-semibold text-slate-700 pb-1 border-b border-slate-200 bg-slate-50/60 px-2 py-1 rounded text-[11px] whitespace-nowrap"
+                                                 x-text="col"></div>
                                         </template>
-                                        </tbody>
-                                    </table>
+
+                                        <template x-for="(row, ri) in tabla.rows.slice(0, 8)" :key="'pdf-sal-r-'+ri">
+                                            <template x-for="(col, ci) in salidasPdfCols()" :key="'pdf-sal-c-'+ri+'-'+ci">
+                                                <div class="py-1.5 px-2 border-b border-dotted border-slate-100 text-[11px] text-slate-600 min-h-[42px]">
+                                                    <template x-if="col === 'Salida'">
+                                                        <div>
+                                                            <div class="font-medium text-slate-700" x-text="salidasValue(row, 'Fecha de salida')"></div>
+                                                            <div class="text-[10px] text-slate-400" x-text="`${salidasValue(row, 'Hora de salida')} · #${salidasValue(row, 'ID detalle')}`"></div>
+                                                        </div>
+                                                    </template>
+                                                    <template x-if="col === 'No. parte'">
+                                                        <div class="truncate" x-text="salidasValue(row, 'Numero de parte')"></div>
+                                                    </template>
+                                                    <template x-if="col === 'Producto'">
+                                                        <div x-text="salidasValue(row, 'Nombre producto')"></div>
+                                                    </template>
+                                                    <template x-if="col === 'Finanzas'">
+                                                        <div class="space-y-0.5 text-[10px]">
+                                                            <div x-text="`Cant: ${salidasValue(row, 'Cantidad')}`"></div>
+                                                            <div x-text="`Precio: ${salidasValue(row, 'Precio unitario')}`"></div>
+                                                            <div class="font-medium text-slate-700" x-text="`Total: ${salidasValue(row, 'Total')} ${salidasValue(row, 'Moneda')}`"></div>
+                                                        </div>
+                                                    </template>
+                                                    <template x-if="col === 'Series'">
+                                                        <div x-text="salidasValue(row, 'Numeros de serie')"></div>
+                                                    </template>
+                                                </div>
+                                            </template>
+                                        </template>
+                                    </div>
                                 </div>
                             </div>
 
                             <div class="flex items-center justify-between pt-1">
                                 <div class="text-[10px] text-slate-400">Mostrando solo las primeras 8 filas.</div>
-                                <div class="text-[10px] text-slate-400 italic">El PDF contendrá todos los registros (sin columnas duplicadas).</div>
+                                <div class="text-[10px] text-slate-400 italic">El PDF contendra todos los registros (sin columnas duplicadas).</div>
                             </div>
                         </div>
                     </div>
@@ -193,45 +219,26 @@
                 <div class="p-4 sm:p-5 bg-slate-50">
                     <div class="bg-white rounded-xl border border-slate-200 overflow-hidden">
                         <div class="overflow-x-auto">
-                            <table class="min-w-full text-[11px] sm:text-xs">
-                                <thead class="bg-emerald-50 border-b border-emerald-100">
-                                <tr>
-                                    <template
-                                        x-for="(col, ci) in (() => {
-                                            const allowed = @json($allowedCols);
-                                            const seen = new Set();
-                                            return tabla.cols.filter(c => allowed.includes(c) && (seen.has(c) ? false : (seen.add(c), true)));
-                                        })()"
-                                        :key="'xl-sal-h-'+ci">
-                                        <th class="px-2.5 py-1.5 border-r border-emerald-100 text-left font-semibold text-emerald-800 text-[11px] whitespace-nowrap"
-                                            x-text="col">
-                                        </th>
-                                    </template>
-                                </tr>
-                                </thead>
-                                <tbody>
-                                <template x-for="(row, ri) in tabla.rows.slice(0, 10)" :key="'xl-sal-r-'+ri">
-                                    <tr class="odd:bg-white even:bg-slate-50/80">
-                                        <template
-                                            x-for="(col, ci) in (() => {
-                                                const allowed = @json($allowedCols);
-                                                const seen = new Set();
-                                                return tabla.cols.filter(c => allowed.includes(c) && (seen.has(c) ? false : (seen.add(c), true)));
-                                            })()"
-                                            :key="'xl-sal-c-'+ri+'-'+ci">
-                                            <td class="px-2.5 py-1.5 border-t border-slate-100 border-r last:border-r-0 whitespace-nowrap text-[11px] text-slate-700"
-                                                x-text="row[col] ?? '-'">
-                                            </td>
-                                        </template>
-                                    </tr>
+                            <div class="min-w-[1100px] grid gap-0 text-[11px]"
+                                 :style="`grid-template-columns: repeat(${salidasExcelCols().length}, minmax(0, 1fr));`">
+                                <template x-for="(col, ci) in salidasExcelCols()" :key="'xl-sal-h-'+ci">
+                                    <div class="px-2.5 py-1.5 border-b border-r border-emerald-100 bg-emerald-50 text-left font-semibold text-emerald-800 text-[11px] whitespace-nowrap"
+                                         x-text="col"></div>
                                 </template>
-                                </tbody>
-                            </table>
+
+                                <template x-for="(row, ri) in tabla.rows.slice(0, 10)" :key="'xl-sal-r-'+ri">
+                                    <template x-for="(col, ci) in salidasExcelCols()" :key="'xl-sal-c-'+ri+'-'+ci">
+                                        <div class="px-2.5 py-1.5 border-t border-r border-slate-100 text-[11px] text-slate-700"
+                                             :class="ri % 2 === 0 ? 'bg-white' : 'bg-slate-50/80'"
+                                             x-text="salidasValue(row, col)"></div>
+                                    </template>
+                                </template>
+                            </div>
                         </div>
 
                         <div class="px-4 py-2.5 border-t border-slate-100 bg-slate-50 text-[10px] text-slate-400 flex items-center justify-between">
-                            <span>Vista previa rápida basada en las primeras 10 filas.</span>
-                            <span class="hidden sm:inline">El Excel incluirá todas las filas y sin columnas duplicadas.</span>
+                            <span>Vista previa rapida basada en las primeras 10 filas.</span>
+                            <span class="hidden sm:inline">El Excel incluira todas las filas y sin columnas duplicadas.</span>
                         </div>
                     </div>
                 </div>
@@ -252,7 +259,7 @@
                     </svg>
                 </div>
                 <p class="text-sm font-medium text-slate-600">
-                    Aún no hay salidas de inventario para este rango de fechas.
+                    Aun no hay salidas de inventario para este rango de fechas.
                 </p>
                 <p class="text-xs text-slate-500 max-w-md">
                     Ajusta el rango de fechas en la columna izquierda y vuelve a generar el reporte.
@@ -262,3 +269,4 @@
     </template>
 
 </div>
+

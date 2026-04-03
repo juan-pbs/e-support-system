@@ -1,4 +1,4 @@
-{{-- resources/views/vistas-gerente/reportes/preview/clientes_top.blade.php --}}
+﻿{{-- resources/views/vistas-gerente/reportes/preview/clientes_top.blade.php --}}
 
 <div x-show="f.tipo === 'clientes_top'" x-cloak class="space-y-6">
 
@@ -68,7 +68,7 @@
                         </div>
                         <div class="mt-1 text-sm font-semibold text-slate-800 flex items-center gap-1.5">
                             <span class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-red-100 text-red-500 text-[10px] font-bold">P</span>
-                            Hoja tamaño carta
+                            Hoja tamano carta
                         </div>
                     </div>
                     <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-medium bg-red-50 text-red-600 border border-red-100">
@@ -82,7 +82,7 @@
 
                             <div class="flex items-start justify-between gap-4">
                                 <div>
-                                    <div class="text-[11px] font-semibold text-blue-700 tracking-wide">E-SUPPORT QUERÉTARO</div>
+                                    <div class="text-[11px] font-semibold text-blue-700 tracking-wide">E-SUPPORT QUERETARO</div>
                                     <div class="mt-0.5 text-[11px] text-slate-500">Reporte de clientes</div>
                                 </div>
                                 <div class="text-right">
@@ -93,8 +93,8 @@
 
                             <div class="border-t border-dashed border-slate-200 pt-3">
                                 <div class="overflow-x-auto">
-                                    <div class="min-w-[900px] grid"
-                                         :class="`grid-cols-${tabla.cols.length} gap-2 text-[11px]`">
+                                    <div class="min-w-[900px] grid gap-2 text-[11px]"
+                                         :style="`grid-template-columns: repeat(${Math.max(tabla.cols.length, 1)}, minmax(0, 1fr));`">
 
                                         <template x-for="(col, ci) in tabla.cols" :key="'cli-pdf-h-'+ci">
                                             <div class="font-semibold text-slate-700 pb-1 border-b border-slate-200 bg-slate-50/60 px-1 rounded text-[11px] whitespace-nowrap"
@@ -114,7 +114,7 @@
 
                             <div class="flex items-center justify-between pt-1">
                                 <div class="text-[10px] text-slate-400">Mostrando solo las primeras 8 filas.</div>
-                                <div class="text-[10px] text-slate-400 italic">El PDF contendrá todos los clientes.</div>
+                                <div class="text-[10px] text-slate-400 italic">El PDF contendra todos los clientes.</div>
                             </div>
 
                         </div>
@@ -165,8 +165,8 @@
                         </div>
 
                         <div class="px-4 py-2.5 border-t border-slate-100 bg-slate-50 text-[10px] text-slate-400 flex items-center justify-between">
-                            <span>Vista previa rápida basada en las primeras 10 filas.</span>
-                            <span class="hidden sm:inline">El Excel incluirá todos los clientes.</span>
+                            <span>Vista previa rapida basada en las primeras 10 filas.</span>
+                            <span class="hidden sm:inline">El Excel incluira todos los clientes.</span>
                         </div>
                     </div>
                 </div>
@@ -178,7 +178,7 @@
     <template x-if="!tabla.rows.length">
         <div class="bg-gradient-to-r from-slate-50 to-slate-100 p-8 rounded-2xl border border-dashed border-slate-300 text-center">
             <p class="text-sm font-medium text-slate-600">
-                Aún no hay datos de clientes para este rango de fechas.
+                Aun no hay datos de clientes para este rango de fechas.
             </p>
             <p class="text-xs text-slate-500 mt-1">
                 Ajusta el rango y vuelve a generar el reporte.
@@ -187,3 +187,4 @@
     </template>
 
 </div>
+

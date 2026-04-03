@@ -266,6 +266,7 @@ class ReporteController extends Controller
             'Costo servicio',
             'Costo operativo',
             'Total servicios',
+            'Impuestos',
             'Materiales no previstos',
             'Total orden',
             'Total pagado',

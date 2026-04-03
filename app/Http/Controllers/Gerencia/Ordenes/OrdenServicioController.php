@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Gerencia\Ordenes;
 
 use App\Http\Controllers\Controller;
+use App\Exports\Ordenes\OrdenesServicioExport;
 
 use App\Models\Cliente;
 use App\Models\Cotizacion;
@@ -18,6 +19,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
+use Maatwebsite\Excel\Facades\Excel;
 
 class OrdenServicioController extends Controller
 {
@@ -29,12 +31,17 @@ class OrdenServicioController extends Controller
         $ordenId = $request->input('orden_id');
         $estado  = $request->input('estado');
         $tipo    = $request->input('tipo_orden');
+        $facturado = $request->input('facturado');
         $tecnicoId = $request->input('tecnico_id');
 
         $ordenes = OrdenServicio::query()
             ->with(['cliente', 'tecnico', 'tecnicos'])
             ->when($estado, fn($w) => $w->where('estado', $estado))
             ->when($tipo, fn($w) => $w->where('tipo_orden', $tipo))
+            ->when(
+                Schema::hasColumn('orden_servicio', 'facturado') && in_array((string) $facturado, ['0', '1'], true),
+                fn($w) => $w->where('facturado', (int) $facturado)
+            )
             ->when($tecnicoId, fn($w) => $w->where(fn($tq) => $tq->whereHas('tecnicos', fn($tt) => $tt->where('users.id', (int) $tecnicoId))->orWhere('id_tecnico', (int) $tecnicoId)))
             ->when($ordenId, fn($w) => $w->whereKey($ordenId))
             ->when(!$ordenId && $q !== '', function ($w) use ($q) {
@@ -73,6 +80,63 @@ class OrdenServicioController extends Controller
         $tecnicos = User::where('puesto', 'tecnico')->orderBy('name')->get(['id', 'name']);
 
         return view('gerencia.ordenes.index', compact('ordenes', 'tecnicos'));
+    }
+
+    public function export(Request $request)
+    {
+        $data = $request->validate([
+            'desde' => ['required', 'date'],
+            'hasta' => ['required', 'date', 'after_or_equal:desde'],
+        ]);
+
+        $desde = Carbon::parse($data['desde'])->startOfDay();
+        $hasta = Carbon::parse($data['hasta'])->endOfDay();
+
+        $fechaCol = Schema::hasColumn('orden_servicio', 'fecha_orden')
+            ? 'fecha_orden'
+            : 'created_at';
+
+        $ordenes = OrdenServicio::query()
+            ->with(['cliente', 'tecnico', 'tecnicos', 'productos'])
+            ->when($fechaCol === 'fecha_orden', function ($query) use ($desde, $hasta) {
+                $query
+                    ->whereDate('fecha_orden', '>=', $desde->toDateString())
+                    ->whereDate('fecha_orden', '<=', $hasta->toDateString());
+            })
+            ->when($fechaCol !== 'fecha_orden', function ($query) use ($fechaCol, $desde, $hasta) {
+                $query->whereBetween($fechaCol, [$desde, $hasta]);
+            })
+            ->orderBy($fechaCol)
+            ->orderBy('id_orden_servicio')
+            ->get();
+
+        $filename = sprintf(
+            'ordenes_servicio_%s_a_%s.xlsx',
+            $desde->format('Y-m-d'),
+            $hasta->format('Y-m-d')
+        );
+
+        return Excel::download(
+            new OrdenesServicioExport($ordenes, $desde, $hasta),
+            $filename
+        );
+    }
+
+    public function updateFacturacion(Request $request, $id)
+    {
+        if (! Schema::hasColumn('orden_servicio', 'facturado')) {
+            return back()->with('error', 'La columna de facturacion no esta disponible en esta instalacion.');
+        }
+
+        $data = $request->validate([
+            'facturado' => ['required', 'boolean'],
+        ]);
+
+        $orden = OrdenServicio::findOrFail($id);
+        $orden->facturado = (bool) $data['facturado'];
+        $orden->save();
+
+        return back()->with('success', 'Estado de facturacion actualizado correctamente.');
     }
 
     public function create()

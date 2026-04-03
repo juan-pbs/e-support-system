@@ -344,6 +344,7 @@ class OrdenServicioService
             'tecnicos_ids'              => ['nullable', 'array'],
             'tecnicos_ids.*'            => ['integer', 'exists:users,id'],
             'tipo_pago'                 => ['nullable', 'string'],
+            'facturado'                 => ['nullable', 'boolean'],
             'precio'                    => ['nullable', 'numeric'],
             'costo_operativo'           => ['nullable', 'numeric'],
             'descripcion'               => ['nullable', 'string'],
@@ -354,7 +355,6 @@ class OrdenServicioService
             'fecha_programada'          => ['nullable', 'date'],
             'fecha_compromiso'          => ['nullable', 'date'],
             'fecha_orden'               => ['nullable', 'date'],
-            'fecha_finalizacion'        => ['nullable', 'date'],
             'anticipo_mxn'              => ['nullable', 'numeric', 'min:0'],
             'anticipo_porcentaje'       => ['nullable', 'numeric', 'min:0', 'max:100'],
             'anticipo_modo'             => ['nullable', 'in:monto,porcentaje'],
@@ -392,10 +392,6 @@ class OrdenServicioService
             $data['fecha_orden'] = Carbon::today()->toDateString();
         }
 
-        if (!empty($data['fecha_compromiso']) && empty($data['fecha_finalizacion'])) {
-            $data['fecha_finalizacion'] = Carbon::parse($data['fecha_compromiso'])->toDateString();
-        }
-
         if (empty($data['fecha_orden'])) {
             $data['fecha_orden'] = Carbon::today()->toDateString();
         }
@@ -422,6 +418,9 @@ class OrdenServicioService
         $set('estado', $data['estado'] ?? ($orden->estado ?? 'Pendiente'));
         $set('id_tecnico', $data['id_tecnico'] ?? ($data['tecnicos_ids'][0] ?? null));
         $set('tipo_pago', $data['tipo_pago'] ?? null);
+        if (array_key_exists('facturado', $data)) {
+            $set('facturado', (int) ($data['facturado'] ?? 0) === 1);
+        }
         $set('precio', (float) ($data['precio'] ?? 0));
         $set('costo_operativo', (float) ($data['costo_operativo'] ?? 0));
         $set('moneda', $data['moneda'] ?? ($orden->moneda ?? 'MXN'));
@@ -443,12 +442,7 @@ class OrdenServicioService
             ? Carbon::parse($data['fecha_orden'])->toDateString()
             : ($orden->fecha_orden ?? Carbon::today()->toDateString());
 
-        $fechaFin = !empty($data['fecha_finalizacion'])
-            ? Carbon::parse($data['fecha_finalizacion'])->toDateString()
-            : ($orden->fecha_finalizacion ?? null);
-
         $set('fecha_orden', $fechaOrden);
-        $set('fecha_finalizacion', $fechaFin);
 
         if (isset($data['anticipo_porcentaje']) && $data['anticipo_porcentaje'] !== '' && $data['anticipo_porcentaje'] !== null) {
             $set('anticipo_porcentaje', (float) $data['anticipo_porcentaje']);
