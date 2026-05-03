@@ -7,29 +7,29 @@
 <meta name="csrf-token" content="{{ csrf_token() }}">
 
 {{-- Contenedor general: full width para aprovechar mejor la pantalla en PC --}}
-<div class="w-full mx-auto p-4 md:p-6">
-  <div class="overflow-hidden bg-white/90 backdrop-blur rounded-2xl shadow border border-gray-100">
+<div class="w-full mx-auto p-3 sm:p-4 md:p-6">
+  <div class="overflow-hidden bg-white/90 backdrop-blur rounded-none sm:rounded-2xl shadow-none sm:shadow border-0 sm:border sm:border-gray-100">
 
     <!-- Header -->
-    <div class="p-6 border-b bg-gradient-to-r from-slate-50 to-white">
+    <div class="p-4 sm:p-6 border-b bg-gradient-to-r from-slate-50 to-white">
       {{-- ✅ responsive: en móvil apila --}}
       <div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div class="flex items-start md:items-center gap-3">
+        <div class="flex items-start md:items-center gap-3 min-w-0">
           <x-boton-volver />
 
-          <div class="shrink-0 inline-flex h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white">
+          <div class="hidden sm:inline-flex shrink-0 h-10 w-10 items-center justify-center rounded-xl bg-blue-600 text-white">
             <svg class="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8"
                     d="M9 12.75 11.25 15 15 9.75M9 6h6m-8.25 15h10.5A2.25 2.25 0 0 0 19.5 18.75V7.5A2.25 2.25 0 0 0 17.25 5.25H15A3 3 0 0 0 12 3a3 3 0 0 0-3 2.25H6.75A2.25 2.25 0 0 0 4.5 7.5v11.25A2.25 2.25 0 0 0 6.75 21z" />
             </svg>
           </div>
-          <div>
-            <h2 class="text-xl md:text-2xl font-bold text-gray-900">Seguimiento de servicios</h2>
-            <p class="text-gray-500 text-sm">Monitorea estado, prioridad y costos adicionales por quincena.</p>
+          <div class="min-w-0">
+            <h2 class="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 leading-tight">Seguimiento de servicios</h2>
+            <p class="text-gray-500 text-sm leading-snug break-words">Monitorea servicios, clientes y costos.</p>
           </div>
         </div>
 
-        <div class="flex items-center gap-2">
+        <div class="flex items-center gap-2 shrink-0">
           <button id="refreshBtn"
                   class="inline-flex items-center gap-2 rounded-lg border px-3 py-2 text-sm hover:bg-gray-50">
             <svg class="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor">
@@ -49,44 +49,53 @@
     @endif
 
     <!-- Resumen (arriba) -->
-    <div class="px-6 pt-4">
+    <div class="px-4 sm:px-6 pt-4">
       <div id="serviceSummary" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4"></div>
     </div>
 
-    <!-- Filtros + quincena -->
-    <div class="p-6 border-b space-y-4">
-      <!-- Selector de quincena -->
+    <!-- Filtros + fechas -->
+    <div class="p-4 sm:p-6 border-b space-y-4">
+      <!-- Selector de fechas -->
       <div class="flex flex-col md:flex-row md:items-center justify-between gap-3">
-        <div>
+        <div class="w-full">
           <p class="text-xs font-semibold text-gray-500 uppercase tracking-wide">Rango de fechas</p>
-          <div class="mt-2 flex flex-wrap items-center gap-2">
-            <div class="inline-flex rounded-lg border bg-white shadow-sm overflow-hidden">
-              <button id="prevQuincenaBtn" type="button"
-                      class="px-3 py-1.5 text-xs md:text-sm border-r hover:bg-gray-50 flex items-center gap-1">
-                <span class="text-lg leading-none">‹</span>
-                <span class="hidden sm:inline">Anterior</span>
-              </button>
-              <button id="todayQuincenaBtn" type="button"
-                      class="px-3 py-1.5 text-xs md:text-sm hover:bg-gray-50">
-                Quincena actual
-              </button>
-              <button id="nextQuincenaBtn" type="button"
-                      class="px-3 py-1.5 text-xs md:text-sm border-l hover:bg-gray-50 flex items-center gap-1">
-                <span class="hidden sm:inline">Siguiente</span>
-                <span class="text-lg leading-none">›</span>
+          <div class="mt-2 grid grid-cols-1 md:grid-cols-5 gap-3 md:items-end">
+            <div>
+              <label class="block mb-2 text-sm font-medium text-gray-700">Tipo</label>
+              <select id="dateModeFilter" class="w-full border-gray-300 rounded-lg shadow-sm">
+                <option value="all">Todas</option>
+                <option value="single">Una fecha</option>
+                <option value="range">Rango</option>
+              </select>
+            </div>
+            <div id="singleDateWrap" class="hidden">
+              <label class="block mb-2 text-sm font-medium text-gray-700">Fecha</label>
+              <input id="singleDateFilter" type="date" class="w-full border-gray-300 rounded-lg shadow-sm">
+            </div>
+            <div id="fromDateWrap" class="hidden">
+              <label class="block mb-2 text-sm font-medium text-gray-700">Desde</label>
+              <input id="fromDateFilter" type="date" class="w-full border-gray-300 rounded-lg shadow-sm">
+            </div>
+            <div id="toDateWrap" class="hidden">
+              <label class="block mb-2 text-sm font-medium text-gray-700">Hasta</label>
+              <input id="toDateFilter" type="date" class="w-full border-gray-300 rounded-lg shadow-sm">
+            </div>
+            <div>
+              <button id="clearDateFilterBtn" type="button"
+                      class="w-full md:w-auto px-3 py-2 rounded-lg border text-sm hover:bg-gray-50">
+                Limpiar fechas
               </button>
             </div>
-            <span id="quincenaLabel" class="text-sm md:text-base font-medium text-gray-700"></span>
           </div>
         </div>
         <p class="text-xs text-gray-500 max-w-sm">
-          La tabla y el resumen muestran únicamente las órdenes de servicio dentro de la quincena seleccionada.
+          Al entrar se muestran primero las ordenes modificadas mas recientemente.
         </p>
       </div>
 
-      <!-- Filtros: estado, prioridad, moneda, técnico + leyenda de prioridades -->
+      <!-- Filtros: estado, prioridad, moneda, tecnico, cliente + leyenda de prioridades -->
       <div class="flex flex-col gap-4">
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-3 md:items-end">
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-3 md:items-end">
           <!-- Estado -->
           <div>
             <label class="block mb-2 text-sm font-medium text-gray-700">Estado</label>
@@ -152,11 +161,29 @@
               class="w-full border-gray-300 rounded-lg shadow-sm"
             >
           </div>
+
+          <!-- Cliente -->
+          <div>
+            <label class="block mb-2 text-sm font-medium text-gray-700">Cliente</label>
+            <div class="relative">
+              <input
+                id="clientFilter"
+                type="text"
+                placeholder="Nombre, empresa o codigo..."
+                autocomplete="off"
+                class="w-full border-gray-300 rounded-lg shadow-sm"
+              >
+              <input id="clientFilterId" type="hidden" value="">
+              <ul id="clientFilterResults"
+                  class="absolute z-50 w-full bg-white border rounded-lg mt-1 hidden shadow text-sm max-h-56 overflow-y-auto">
+              </ul>
+            </div>
+          </div>
         </div>
 
         <!-- Leyenda prioridades -->
-        <div class="flex flex-wrap items-center gap-2 text-xs">
-          <span class="text-gray-500 mr-1">Leyenda de prioridad:</span>
+        <div class="flex flex-wrap items-center gap-2 text-xs min-w-0">
+          <span class="text-gray-500 w-full sm:w-auto">Leyenda de prioridad:</span>
           <span class="inline-flex items-center px-2 py-1 rounded-full bg-gray-100 text-gray-800">Baja</span>
           <span class="inline-flex items-center px-2 py-1 rounded-full bg-blue-100 text-blue-800">Media</span>
           <span class="inline-flex items-center px-2 py-1 rounded-full bg-amber-100 text-amber-800">Alta</span>
@@ -166,8 +193,8 @@
     </div>
 
     {{-- ✅ TABLA escritorio + TARJETAS móvil --}}
-    <div class="px-6 pb-6">
-      <div class="rounded-2xl border border-gray-100 overflow-hidden bg-white shadow-sm">
+    <div class="px-4 sm:px-6 pb-4 sm:pb-6">
+      <div class="rounded-xl sm:rounded-2xl border border-gray-100 overflow-hidden bg-white shadow-sm">
 
         <div id="serviceDataWrap">
           {{-- Móvil: tarjetas --}}
@@ -481,15 +508,16 @@
 </div>
 
 <!-- Modal visor PDF de acta -->
+<x-pdf-js-viewer />
 <div id="pdfModal" class="fixed inset-0 z-50 hidden">
   <div class="absolute inset-0 bg-black/50" onclick="closePdfModal()"></div>
-  <div class="relative w-full max-w-5xl mx-auto mt-10 bg-white rounded-2xl shadow-2xl flex flex-col h-[80vh]">
-    <div class="flex items-center justify-between px-4 py-3 border-b">
+  <div class="relative w-[calc(100vw-1rem)] sm:w-full max-w-5xl mx-auto mt-2 sm:mt-10 bg-white rounded-2xl shadow-2xl flex flex-col h-[92vh] sm:h-[80vh] overflow-hidden">
+    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3 border-b">
       <div class="min-w-0">
-        <h3 class="text-lg font-semibold text-gray-900">Vista previa de acta (PDF)</h3>
+        <h3 class="text-base sm:text-lg font-semibold text-gray-900 leading-tight">Vista previa de acta (PDF)</h3>
         <p class="hidden sm:block text-xs text-gray-500">Revisa el documento y descrágalo en PDF si es necesario.</p>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2 shrink-0">
         <a id="pdfDownloadLink"
            href="#"
            target="_blank"
@@ -505,12 +533,7 @@
       </div>
     </div>
 
-    <div class="flex-1 bg-gray-100">
-      <iframe id="pdfViewerFrame"
-              src=""
-              class="w-full h-full rounded-b-2xl border-0"
-              frameborder="0"></iframe>
-    </div>
+    <div id="pdfViewerCanvas" class="flex-1 bg-gray-100 overflow-auto p-3"></div>
   </div>
 </div>
 
@@ -546,6 +569,17 @@ const statusFilter     = document.getElementById("statusFilter");
 const priorityFilter   = document.getElementById("priorityFilter");
 const currencyFilter   = document.getElementById("currencyFilter");
 const technicianFilter = document.getElementById("technicianFilter");
+const clientFilter     = document.getElementById("clientFilter");
+const clientFilterId   = document.getElementById("clientFilterId");
+const clientFilterResults = document.getElementById("clientFilterResults");
+const dateModeFilter   = document.getElementById("dateModeFilter");
+const singleDateFilter = document.getElementById("singleDateFilter");
+const fromDateFilter   = document.getElementById("fromDateFilter");
+const toDateFilter     = document.getElementById("toDateFilter");
+const singleDateWrap   = document.getElementById("singleDateWrap");
+const fromDateWrap     = document.getElementById("fromDateWrap");
+const toDateWrap       = document.getElementById("toDateWrap");
+const clearDateFilterBtn = document.getElementById("clearDateFilterBtn");
 const refreshBtn       = document.getElementById("refreshBtn");
 const loadingState     = document.getElementById("loadingState");
 const emptyState       = document.getElementById("emptyState");
@@ -577,6 +611,40 @@ let currentQuincenaMonth = null; // 1-12
 let currentQuincenaHalf  = 1;    // 1 = 1–15, 2 = 16–fin
 let currentQuincenaStart = null;
 let currentQuincenaEnd   = null;
+
+function syncDateFilterControls() {
+  const mode = dateModeFilter?.value || 'all';
+
+  if (singleDateWrap) singleDateWrap.classList.toggle('hidden', mode !== 'single');
+  if (fromDateWrap) fromDateWrap.classList.toggle('hidden', mode !== 'range');
+  if (toDateWrap) toDateWrap.classList.toggle('hidden', mode !== 'range');
+
+  currentQuincenaStart = null;
+  currentQuincenaEnd = null;
+
+  if (mode === 'single' && singleDateFilter?.value) {
+    const selected = new Date(`${singleDateFilter.value}T00:00:00`);
+    currentQuincenaStart = selected;
+    currentQuincenaEnd = selected;
+  }
+
+  if (mode === 'range') {
+    if (fromDateFilter?.value) {
+      currentQuincenaStart = new Date(`${fromDateFilter.value}T00:00:00`);
+    }
+    if (toDateFilter?.value) {
+      currentQuincenaEnd = new Date(`${toDateFilter.value}T00:00:00`);
+    }
+  }
+}
+
+function clearDateFilters() {
+  if (dateModeFilter) dateModeFilter.value = 'all';
+  if (singleDateFilter) singleDateFilter.value = '';
+  if (fromDateFilter) fromDateFilter.value = '';
+  if (toDateFilter) toDateFilter.value = '';
+  syncDateFilterControls();
+}
 
 function daysInMonth(year, month) {
   return new Date(year, month, 0).getDate();
@@ -760,6 +828,7 @@ function closeFinanceModal() {
 }
 
 async function fetchSeguimiento() {
+  syncDateFilterControls();
 
   const estado = statusFilter.value || 'all';
 
@@ -778,8 +847,20 @@ async function fetchSeguimiento() {
     params.set('tecnico', technicianFilter.value.trim());
   }
 
+  if (clientFilter && clientFilter.value.trim() !== '') {
+    params.set('cliente', clientFilter.value.trim());
+  }
+
+  if (clientFilterId && clientFilterId.value) {
+    params.set('cliente_id', clientFilterId.value);
+  }
+
   if (currentQuincenaStart && currentQuincenaEnd) {
     params.set('desde', toISODateLocal(currentQuincenaStart));
+    params.set('hasta', toISODateLocal(currentQuincenaEnd));
+  } else if (currentQuincenaStart) {
+    params.set('desde', toISODateLocal(currentQuincenaStart));
+  } else if (currentQuincenaEnd) {
     params.set('hasta', toISODateLocal(currentQuincenaEnd));
   }
 
@@ -952,21 +1033,21 @@ function renderCards(rows) {
 
 
     cardsWrap.innerHTML += `
-      <div class="border border-gray-200 rounded-2xl p-4 shadow-sm bg-white">
+      <div class="border border-gray-200 rounded-2xl p-4 shadow-sm bg-white overflow-hidden">
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
             <div class="text-xs text-gray-500">ID Orden</div>
-            <div class="text-base font-semibold text-blue-700 truncate">${escapeHtml(item.orderId || '—')}</div>
+            <div class="text-base font-semibold text-blue-700 break-words">${escapeHtml(item.orderId || '—')}</div>
 
-            <div class="mt-2 text-sm text-gray-800">
+            <div class="mt-2 text-sm text-gray-800 min-w-0 break-words">
               <span class="text-xs text-gray-500">Técnico:</span>
               <span class="font-medium">${escapeHtml(item.technician || '—')}</span>
             </div>
-            <div class="mt-1 text-sm text-gray-800">
+            <div class="mt-1 text-sm text-gray-800 min-w-0 break-words">
               <span class="text-xs text-gray-500">Cliente:</span>
               <span class="font-medium">${escapeHtml(clientName)}</span>
             </div>
-            <div class="mt-1 text-sm text-gray-800">
+            <div class="mt-1 text-sm text-gray-800 min-w-0 break-words">
               <span class="text-xs text-gray-500">Facturacion:</span>
               <span class="font-medium ${facturacion === 'Facturado' ? 'text-emerald-700' : 'text-amber-700'}">${escapeHtml(facturacion)}</span>
             </div>
@@ -978,7 +1059,7 @@ function renderCards(rows) {
           </div>
         </div>
 
-        <div class="mt-3 grid grid-cols-2 gap-2">
+        <div class="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
           <div class="rounded-xl border bg-gray-50 p-3">
             <div class="text-[11px] text-gray-500">Moneda</div>
             <div class="text-sm font-semibold text-gray-900">${currency}</div>
@@ -992,7 +1073,7 @@ function renderCards(rows) {
         </div>
 
         <div class="mt-2 rounded-xl border bg-gray-50 p-3">
-          <div class="flex items-center justify-between gap-2">
+          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1 sm:gap-2">
             <div class="text-[11px] text-gray-500">Total adicional</div>
             <div class="text-sm font-semibold text-gray-900 tabular-nums">
               ${formatCurrency(additionalTotal, currency)}
@@ -1003,15 +1084,15 @@ function renderCards(rows) {
 
         <div class="mt-3">
           <div class="text-[11px] text-gray-500">Material no previsto</div>
-          <div class="text-sm text-gray-800 truncate" title="${escapeHtmlAttr(matRaw)}">${mat}${pendingBadge}</div>
+          <div class="text-sm text-gray-800 break-words" title="${escapeHtmlAttr(matRaw)}">${mat}${pendingBadge}</div>
         </div>
 
-        <div class="mt-4 grid grid-cols-2 gap-2">
+        <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
           ${renderAsignarBtnCard(item)}
           ${renderActaBtnCard(item)}
         </div>
 
-        <div class="mt-2 grid grid-cols-2 gap-2">
+        <div class="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
           <button type="button"
             class="w-full px-3 py-2 rounded-lg border text-sm font-medium hover:bg-gray-50"
             onclick='${progressOnclick}'>
@@ -1195,17 +1276,91 @@ function debounce(fn, ms=300) {
   let t; return (...args) => { clearTimeout(t); t = setTimeout(()=>fn(...args), ms); };
 }
 
+let clientAutocompleteReq = 0;
+
+function hideClientSuggestions() {
+  if (!clientFilterResults) return;
+  clientFilterResults.innerHTML = '';
+  clientFilterResults.classList.add('hidden');
+}
+
+function renderClientSuggestions(items) {
+  if (!clientFilterResults) return;
+
+  clientFilterResults.innerHTML = '';
+
+  if (!Array.isArray(items) || !items.length) {
+    clientFilterResults.classList.add('hidden');
+    return;
+  }
+
+  items.forEach(item => {
+    const li = document.createElement('li');
+    li.textContent = item.label || item.text || '';
+    li.className = 'px-4 py-2 cursor-pointer hover:bg-blue-100';
+    li.addEventListener('click', () => {
+      if (clientFilter) clientFilter.value = li.textContent;
+      if (clientFilterId) clientFilterId.value = item.id || '';
+      hideClientSuggestions();
+      updateView();
+    });
+    clientFilterResults.appendChild(li);
+  });
+
+  clientFilterResults.classList.remove('hidden');
+}
+
+async function loadClientSuggestions(term) {
+  const reqId = ++clientAutocompleteReq;
+
+  if (!term || term.length < 2) {
+    hideClientSuggestions();
+    return;
+  }
+
+  try {
+    const url = `{{ route('clientes.autocomplete') }}?term=${encodeURIComponent(term)}`;
+    const res = await fetch(url, { headers: GET_HEADERS, credentials: 'same-origin' });
+    if (!res.ok) throw new Error('No se pudieron cargar clientes');
+    const items = await res.json();
+    if (reqId !== clientAutocompleteReq) return;
+    renderClientSuggestions(items);
+  } catch (e) {
+    hideClientSuggestions();
+  }
+}
+
 statusFilter    && statusFilter.addEventListener("change", debounce(updateView, 50));
 priorityFilter  && priorityFilter.addEventListener("change", debounce(updateView, 50));
 currencyFilter  && currencyFilter.addEventListener("change", debounce(updateView, 50));
 technicianFilter&& technicianFilter.addEventListener("input", debounce(updateView, 300));
+clientFilter    && clientFilter.addEventListener("input", debounce(() => {
+  if (clientFilterId) clientFilterId.value = '';
+  const term = clientFilter.value.trim();
+  loadClientSuggestions(term);
+  updateView();
+}, 300));
+clientFilter    && clientFilter.addEventListener("focus", () => {
+  loadClientSuggestions(clientFilter.value.trim());
+});
+document.addEventListener('click', (e) => {
+  if (!clientFilter || !clientFilterResults) return;
+  if (!clientFilter.contains(e.target) && !clientFilterResults.contains(e.target)) {
+    hideClientSuggestions();
+  }
+});
+dateModeFilter  && dateModeFilter.addEventListener("change", () => { syncDateFilterControls(); updateView(); });
+singleDateFilter&& singleDateFilter.addEventListener("change", updateView);
+fromDateFilter  && fromDateFilter.addEventListener("change", updateView);
+toDateFilter    && toDateFilter.addEventListener("change", updateView);
+clearDateFilterBtn?.addEventListener('click', () => { clearDateFilters(); updateView(); });
 
 prevQuincenaBtn?.addEventListener('click', () => { moveQuincena(-1); updateView(); });
 nextQuincenaBtn?.addEventListener('click', () => { moveQuincena(1);  updateView(); });
 todayQuincenaBtn?.addEventListener('click', () => { initQuincenaFromToday(); updateView(); });
 
 document.addEventListener('DOMContentLoaded', () => {
-  initQuincenaFromToday();
+  syncDateFilterControls();
   updateView();
 });
 
@@ -1802,12 +1957,11 @@ if (imageViewerImg) {
 
 /* ===== Visor PDF ===== */
 const pdfModal         = document.getElementById('pdfModal');
-const pdfFrame         = document.getElementById('pdfViewerFrame');
+const pdfCanvasViewer  = document.getElementById('pdfViewerCanvas');
 const pdfDownloadLink  = document.getElementById('pdfDownloadLink');
 
 function openPdfModal(url) {
-  if (!pdfModal || !pdfFrame) return;
-  pdfFrame.src = url;
+  if (!pdfModal || !pdfCanvasViewer) return;
 
   if (pdfDownloadLink) {
     pdfDownloadLink.href = url;
@@ -1815,12 +1969,13 @@ function openPdfModal(url) {
   }
 
   pdfModal.classList.remove('hidden');
+  window.eSupportPdfViewer?.renderUrl(url, pdfCanvasViewer);
 }
 
 function closePdfModal() {
-  if (!pdfModal || !pdfFrame) return;
+  if (!pdfModal || !pdfCanvasViewer) return;
   pdfModal.classList.add('hidden');
-  pdfFrame.src = '';
+  window.eSupportPdfViewer?.clear(pdfCanvasViewer);
 
   if (pdfDownloadLink) {
     pdfDownloadLink.href = '#';

@@ -5,26 +5,24 @@
 @section('content')
 @php
     $yo = auth()->user();
+    $rolActual = strtolower((string) ($yo->puesto ?? ''));
 @endphp
 
 <style>
     [x-cloak]{display:none !important}
 </style>
 
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4"
+<div class="max-w-7xl mx-auto px-0 sm:px-6 lg:px-8 py-4"
      x-data="eliminarEmpleadoSecurity()"
      x-init="init()">
 
-    {{-- Header --}}
-    <div class="flex items-center gap-3 mb-6">
+    <div class="flex flex-col items-start sm:flex-row sm:items-center gap-3 mb-6">
         <x-boton-volver />
-        <h1 class="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 flex-1 text-center md:text-left">
+        <h1 class="text-2xl sm:text-2xl md:text-3xl font-bold text-gray-800 flex-1 text-left leading-tight break-words">
             Administrar Empleados
         </h1>
-        <div class="w-8 md:hidden"></div>
     </div>
 
-    {{-- Alerts --}}
     @if (session('success'))
         <div id="success-message" class="mb-4 bg-green-100 text-green-800 px-4 py-3 rounded-lg border border-green-300 shadow-sm">
             {{ session('success') }}
@@ -36,14 +34,13 @@
         </div>
     @endif
 
-    {{-- Buscador + botón --}}
     <div class="bg-white shadow-xl border border-gray-200 rounded-xl p-4 mb-6">
         <div class="flex flex-col lg:flex-row lg:items-center gap-3">
             <div class="flex-1">
                 <x-barra-busqueda-live
                     :action="route('empleados.index')"
                     autocompleteUrl="{{ route('empleados.autocomplete') }}"
-                    placeholder="Buscar por nombre o correo…"
+                    placeholder="Buscar por nombre o correo..."
                     inputId="buscar-empleado"
                     resultId="resultados-empleado"
                     name="busqueda"
@@ -58,19 +55,23 @@
             </div>
         </div>
 
-        @if($yo && $yo->puesto === 'admin')
+        @if($rolActual === 'admin')
             <p class="text-xs text-gray-500 mt-3">
-                Nota: como <strong>ADMIN</strong>, no verás usuarios con rol <strong>Gerente</strong> ni a tu propio usuario.
+                Nota: como <strong>ADMIN</strong>, solo veras usuarios con rol <strong>Tecnico</strong>.
+            </p>
+        @elseif($rolActual === 'gerente')
+            <p class="text-xs text-gray-500 mt-3">
+                Nota: como <strong>GERENTE</strong>, no veras usuarios con rol <strong>Sistema</strong>.
             </p>
         @endif
     </div>
 
-    {{-- ====== MÓVIL/TABLET: TARJETAS (hasta <lg) ====== --}}
     <div class="space-y-3 lg:hidden">
         @forelse ($empleados as $emp)
             @php
-                $rol = strtolower($emp->puesto ?? '');
+                $rol = strtolower((string) ($emp->puesto ?? ''));
                 $clase = match($rol) {
+                    'sistema' => 'bg-amber-100 text-amber-800',
                     'gerente' => 'bg-indigo-100 text-indigo-800',
                     'admin'   => 'bg-purple-100 text-purple-800',
                     'tecnico' => 'bg-green-100 text-green-800',
@@ -87,14 +88,14 @@
                     </div>
 
                     <span class="shrink-0 px-2 py-1 text-xs font-medium rounded {{ $clase }}">
-                        {{ ucfirst($rol ?: '—') }}
+                        {{ ucfirst($rol ?: '-') }}
                     </span>
                 </div>
 
                 <div class="mt-3 rounded-lg bg-gray-50 border border-gray-200 p-3">
                     <div class="flex items-center justify-between text-sm">
                         <span class="text-gray-500">Contacto</span>
-                        <span class="font-medium text-gray-800">{{ $emp->contacto ?? '—' }}</span>
+                        <span class="font-medium text-gray-800">{{ $emp->contacto ?? '-' }}</span>
                     </div>
                 </div>
 
@@ -122,7 +123,6 @@
         @endforelse
     </div>
 
-    {{-- ====== ESCRITORIO: TABLA (lg y arriba) ====== --}}
     <div class="hidden lg:block bg-white shadow-xl border border-gray-200 rounded-xl overflow-hidden">
         <div class="overflow-x-auto">
             <table class="min-w-full divide-y divide-gray-200 text-sm">
@@ -139,25 +139,27 @@
 
                 <tbody class="bg-white divide-y divide-gray-200">
                     @forelse ($empleados as $emp)
+                        @php
+                            $rol = strtolower((string) ($emp->puesto ?? ''));
+                            $clase = match($rol) {
+                                'sistema' => 'bg-amber-100 text-amber-800',
+                                'gerente' => 'bg-indigo-100 text-indigo-800',
+                                'admin'   => 'bg-purple-100 text-purple-800',
+                                'tecnico' => 'bg-green-100 text-green-800',
+                                default   => 'bg-gray-100 text-gray-800',
+                            };
+                        @endphp
+
                         <tr class="hover:bg-gray-50">
                             <td class="px-6 py-3">{{ $emp->id }}</td>
                             <td class="px-6 py-3 font-medium text-gray-900">{{ $emp->name }}</td>
                             <td class="px-6 py-3">{{ $emp->email }}</td>
                             <td class="px-6 py-3">
-                                @php
-                                    $rol = strtolower($emp->puesto ?? '');
-                                    $clase = match($rol) {
-                                        'gerente' => 'bg-indigo-100 text-indigo-800',
-                                        'admin'   => 'bg-purple-100 text-purple-800',
-                                        'tecnico' => 'bg-green-100 text-green-800',
-                                        default   => 'bg-gray-100 text-gray-800',
-                                    };
-                                @endphp
                                 <span class="px-2 py-1 text-xs font-medium rounded {{ $clase }}">
-                                    {{ ucfirst($rol ?: '—') }}
+                                    {{ ucfirst($rol ?: '-') }}
                                 </span>
                             </td>
-                            <td class="px-6 py-3">{{ $emp->contacto ?? '—' }}</td>
+                            <td class="px-6 py-3">{{ $emp->contacto ?? '-' }}</td>
                             <td class="px-6 py-3 text-right">
                                 <div class="inline-flex gap-2">
                                     <a href="{{ route('empleados.edit', $emp->id) }}"
@@ -187,17 +189,15 @@
         </div>
     </div>
 
-    {{-- Paginación --}}
     <div class="mt-4">
         {{ $empleados->links() }}
     </div>
 
-    {{-- Modal eliminar --}}
     <div x-cloak x-show="open" class="fixed inset-0 bg-black/50 z-50 flex items-end sm:items-center justify-center p-4" style="display:none">
         <div class="bg-white w-full max-w-md rounded-xl shadow-xl p-5 sm:p-6" @click.away="cerrar()">
-            <h3 class="text-lg font-semibold mb-2 text-red-600">Confirmar eliminación</h3>
+            <h3 class="text-lg font-semibold mb-2 text-red-600">Confirmar eliminacion</h3>
             <p class="text-sm text-gray-700 mb-4">
-                Vas a eliminar al usuario <span class="font-semibold" x-text="nombre"></span>. Esta acción no se puede deshacer.
+                Vas a eliminar al usuario <span class="font-semibold" x-text="nombre"></span>. Esta accion no se puede deshacer.
             </p>
 
             <form x-ref="form" :action="action" method="POST" class="space-y-3">
@@ -205,7 +205,7 @@
                 @method('DELETE')
 
                 <div>
-                    <label class="block text-sm font-medium text-gray-700">Tu contraseña</label>
+                    <label class="block text-sm font-medium text-gray-700">Tu contrasena</label>
                     <input type="password" name="auth_password" x-ref="authpwd"
                            class="w-full border rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-red-200"
                            required minlength="6"

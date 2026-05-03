@@ -9,17 +9,16 @@
     [x-cloak]{display:none !important}
 </style>
 
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4"
+<div class="max-w-7xl mx-auto px-0 sm:px-6 lg:px-8 py-4"
      x-data="clientesGerente()"
      x-init="init()">
 
     {{-- Header --}}
-    <div class="flex items-center gap-3 mb-6">
+    <div class="flex flex-col items-start sm:flex-row sm:items-center gap-3 mb-6">
         <x-boton-volver />
-        <h1 class="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 flex-1 text-center md:text-left">
+        <h1 class="text-2xl sm:text-2xl md:text-3xl font-bold text-gray-800 flex-1 text-left leading-tight break-words">
             Administración de clientes
         </h1>
-        <div class="w-8 md:hidden"></div>
     </div>
 
     {{-- Alerts --}}
@@ -46,7 +45,7 @@
     @endif
 
     {{-- Buscador + botón --}}
-    <div class="bg-white shadow-xl border border-gray-200 rounded-xl p-4 mb-6">
+    <div class="bg-white shadow-xl border border-gray-200 rounded-xl p-4 mb-6 overflow-hidden">
         <div class="flex flex-col lg:flex-row lg:items-center gap-3">
             <div class="flex-1">
                 <x-barra-busqueda-live
@@ -89,9 +88,9 @@
                 }
             @endphp
 
-            <div class="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
+            <div class="bg-white border border-gray-200 rounded-xl shadow-sm p-4 overflow-hidden">
                 <div class="flex items-start justify-between gap-3">
-                    <div class="min-w-0">
+                    <div class="min-w-0 flex-1">
                         <p class="text-xs text-gray-500">
                             Código:
                             <span class="inline-flex items-center px-2 py-1 rounded-md bg-gray-100 text-gray-800 font-semibold">
@@ -99,7 +98,7 @@
                             </span>
                         </p>
 
-                        <p class="text-base font-semibold text-gray-900 truncate">
+                        <p class="text-base font-semibold text-gray-900 break-words">
                             {{ $cliente->nombre }}
                         </p>
 
@@ -111,7 +110,7 @@
                             {{ $cliente->correo_electronico ?? '—' }}
                         </p>
 
-                        <p class="text-sm text-gray-600 truncate">
+                        <p class="text-sm text-gray-600 break-words">
                             {{ $cliente->nombre_empresa ?? '—' }}
                         </p>
                     </div>
@@ -122,25 +121,25 @@
                 </div>
 
                 <div class="mt-3 rounded-lg bg-gray-50 border border-gray-200 p-3 text-sm space-y-1">
-                    <div class="flex items-center justify-between">
+                    <div class="grid grid-cols-1 sm:flex sm:items-center sm:justify-between gap-0.5">
                         <span class="text-gray-500">Límite</span>
-                        <span class="font-medium text-gray-800">${{ number_format($max, 2) }}</span>
+                        <span class="font-medium text-gray-800 break-words">${{ number_format($max, 2) }}</span>
                     </div>
-                    <div class="flex items-center justify-between">
+                    <div class="grid grid-cols-1 sm:flex sm:items-center sm:justify-between gap-0.5">
                         <span class="text-gray-500">Usado</span>
-                        <span class="font-medium text-gray-800">${{ number_format($usado, 2) }}</span>
+                        <span class="font-medium text-gray-800 break-words">${{ number_format($usado, 2) }}</span>
                     </div>
-                    <div class="flex items-center justify-between">
+                    <div class="grid grid-cols-1 sm:flex sm:items-center sm:justify-between gap-0.5">
                         <span class="text-gray-500">Días restantes</span>
-                        <span class="font-medium text-gray-800">{{ $dias }}</span>
+                        <span class="font-medium text-gray-800 break-words">{{ $dias }}</span>
                     </div>
-                    <div class="flex items-center justify-between">
+                    <div class="grid grid-cols-1 sm:flex sm:items-center sm:justify-between gap-0.5">
                         <span class="text-gray-500">Fecha límite</span>
-                        <span class="font-medium text-gray-800">{{ $fechaLim }}</span>
+                        <span class="font-medium text-gray-800 break-words">{{ $fechaLim }}</span>
                     </div>
                 </div>
 
-                <div class="mt-4 grid grid-cols-2 gap-2">
+                <div class="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
                     <a href="{{ route('clientes.edit', $cliente->clave_cliente) }}"
                        class="bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg inline-flex items-center justify-center gap-2">
                         <i class="fas fa-edit"></i>

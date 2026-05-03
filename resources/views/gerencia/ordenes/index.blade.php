@@ -7,21 +7,21 @@
     [x-cloak]{display:none !important}
 </style>
 
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+<div class="max-w-7xl mx-auto px-0 sm:px-6 lg:px-8 py-4">
 
     {{-- Header --}}
-    <div class="mb-6 grid grid-cols-[auto,minmax(0,1fr),auto] items-center gap-3">
+    <div class="mb-6 flex flex-col gap-3 sm:grid sm:grid-cols-[auto,minmax(0,1fr),auto] sm:items-center">
         <div class="flex items-center justify-start">
             <x-boton-volver />
         </div>
-        <div class="min-w-0 px-2">
-            <h1 class="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 text-center">
+        <div class="min-w-0 sm:px-2">
+            <h1 class="text-2xl sm:text-2xl md:text-3xl font-bold text-gray-800 text-left sm:text-center leading-tight">
                 Ordenes de Servicio
             </h1>
         </div>
-        <div class="flex flex-wrap items-center justify-end gap-3">
+        <div class="grid grid-cols-1 sm:flex sm:flex-wrap sm:items-center sm:justify-end gap-2 sm:gap-3">
             <a href="{{ route('ordenes.create') }}"
-               class="justify-center bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg inline-flex items-center gap-2 whitespace-nowrap shadow-sm">
+               class="justify-center bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg inline-flex items-center gap-2 shadow-sm">
                 <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4" />
                 </svg>
@@ -30,7 +30,7 @@
 
             <button type="button"
                     data-action="open-export"
-                    class="justify-center bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg inline-flex items-center gap-2 whitespace-nowrap shadow-sm">
+                    class="justify-center bg-slate-800 hover:bg-slate-900 text-white px-4 py-2 rounded-lg inline-flex items-center gap-2 shadow-sm">
                 <svg xmlns="http://www.w3.org/2000/svg" class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2M7 10l5 5m0 0 5-5m-5 5V4" />
                 </svg>
@@ -61,6 +61,19 @@
         $acUrlOrdenes = route('ordenes.autocomplete');
         $exportDesdeDefault = now()->subDays(29)->format('Y-m-d');
         $exportHastaDefault = now()->format('Y-m-d');
+        $facturadoFilterValue = isset($facturadoFilter) && $facturadoFilter !== null
+            ? (string) $facturadoFilter
+            : (string) request('facturado', '');
+        $facturacionCounts = $facturacionCounts ?? ['facturado' => null, 'no_facturado' => null];
+        $facturadoOptionLabel = 'Facturado' . (is_numeric($facturacionCounts['facturado']) ? ' (' . $facturacionCounts['facturado'] . ')' : '');
+        $noFacturadoOptionLabel = 'No facturado' . (is_numeric($facturacionCounts['no_facturado']) ? ' (' . $facturacionCounts['no_facturado'] . ')' : '');
+        $emptyOrdersMessage = 'No hay órdenes que coincidan con tu búsqueda.';
+
+        if ($facturadoFilterValue === '1') {
+            $emptyOrdersMessage = 'No hay órdenes marcadas como facturadas con los filtros actuales.';
+        } elseif ($facturadoFilterValue === '0') {
+            $emptyOrdersMessage = 'No hay órdenes marcadas como no facturadas con los filtros actuales.';
+        }
     @endphp
 
     {{-- Filtros --}}
@@ -107,9 +120,14 @@
                     <label class="block text-sm font-medium text-gray-700 mb-1">Facturacion</label>
                     <select name="facturado" class="w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-blue-500">
                         <option value="">Todas</option>
-                        <option value="1" @selected(request('facturado') === '1')>Facturado</option>
-                        <option value="0" @selected(request('facturado') === '0')>No facturado</option>
+                        <option value="1" @selected($facturadoFilterValue === '1')>{{ $facturadoOptionLabel }}</option>
+                        <option value="0" @selected($facturadoFilterValue === '0')>{{ $noFacturadoOptionLabel }}</option>
                     </select>
+                    @if (is_numeric($facturacionCounts['facturado']) && is_numeric($facturacionCounts['no_facturado']))
+                        <p class="mt-1 text-xs text-gray-500">
+                            Facturadas: {{ $facturacionCounts['facturado'] }} | No facturadas: {{ $facturacionCounts['no_facturado'] }}
+                        </p>
+                    @endif
                 </div>
 
                 <div>
@@ -135,6 +153,16 @@
             </div>
         </div>
     </form>
+
+    @if ($facturadoFilterValue === '1' && ($facturacionCounts['facturado'] ?? null) === 0)
+        <div class="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            No se encontraron OS facturadas con los filtros actuales. En este momento no hay registros marcados como facturados en el resultado filtrado.
+        </div>
+    @elseif ($facturadoFilterValue === '0' && ($facturacionCounts['no_facturado'] ?? null) === 0)
+        <div class="mb-6 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            No se encontraron OS no facturadas con los filtros actuales.
+        </div>
+    @endif
 
     {{-- ====== MÓVIL/TABLET: TARJETAS (hasta <lg) ====== --}}
     <div class="space-y-3 lg:hidden">
@@ -172,14 +200,14 @@
                 else $tecnicosTxt = $orden->tecnico->name ?? 'Sin asignar';
             @endphp
 
-            <div class="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
+            <div class="bg-white border border-gray-200 rounded-xl shadow-sm p-4 overflow-hidden">
                 <div class="flex items-start justify-between gap-3">
                     <div class="min-w-0">
                         <p class="text-xs text-gray-500">Folio</p>
                         <p class="text-base font-semibold text-gray-900 truncate">{{ $folio }}</p>
 
                         <p class="mt-2 text-xs text-gray-500">Cliente</p>
-                        <p class="text-sm text-gray-800 truncate">{{ $orden->cliente->nombre ?? '—' }}</p>
+                        <p class="text-sm text-gray-800 break-words">{{ $orden->cliente->nombre ?? '—' }}</p>
 
                         <div class="mt-2 flex flex-wrap gap-2">
                             <span class="px-2 py-1 rounded-md bg-gray-100 text-gray-800 text-xs font-medium">
@@ -202,32 +230,32 @@
                 </div>
 
                 <div class="mt-3 rounded-lg bg-gray-50 border border-gray-200 p-3 text-sm space-y-2">
-                    <div class="flex items-center justify-between gap-3">
+                    <div class="grid grid-cols-1 gap-1 sm:flex sm:items-center sm:justify-between sm:gap-3">
                         <span class="text-gray-500">Técnico(s)</span>
-                        <span class="font-medium text-gray-800 text-right break-words">{{ $tecnicosTxt }}</span>
+                        <span class="font-medium text-gray-800 sm:text-right break-words">{{ $tecnicosTxt }}</span>
                     </div>
-                    <div class="flex items-center justify-between gap-3">
+                    <div class="grid grid-cols-1 gap-1 sm:flex sm:items-center sm:justify-between sm:gap-3">
                         <span class="text-gray-500">Creación</span>
-                        <span class="font-medium text-gray-800">{{ optional($orden->created_at)->format('d/m/Y H:i') }}</span>
+                        <span class="font-medium text-gray-800 break-words">{{ optional($orden->created_at)->format('d/m/Y H:i') }}</span>
                     </div>
-                    <div class="flex items-center justify-between gap-3">
+                    <div class="grid grid-cols-1 gap-1 sm:flex sm:items-center sm:justify-between sm:gap-3">
                         <span class="text-gray-500">Facturacion</span>
                         <span class="font-medium {{ (int) ($orden->facturado ?? 0) === 1 ? 'text-emerald-700' : 'text-amber-700' }}">{{ $facturacionLabel }}</span>
                     </div>
-                    <form method="POST" action="{{ $facturacionUpdateUrl }}" class="flex items-center gap-2">
+                    <form method="POST" action="{{ $facturacionUpdateUrl }}" class="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr),auto] gap-2">
                         @csrf
                         @method('PATCH')
                         <select name="facturado" class="flex-1 rounded-lg border-gray-300 text-sm focus:ring-2 focus:ring-blue-500">
                             <option value="0" @selected((int) ($orden->facturado ?? 0) === 0)>No facturado</option>
                             <option value="1" @selected((int) ($orden->facturado ?? 0) === 1)>Facturado</option>
                         </select>
-                        <button type="submit" class="rounded-lg bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold px-3 py-2 whitespace-nowrap">
+                        <button type="submit" class="rounded-lg bg-slate-800 hover:bg-slate-900 text-white text-xs font-semibold px-3 py-2">
                             Guardar
                         </button>
                     </form>
                 </div>
 
-                <div class="mt-4 grid grid-cols-3 gap-2">
+                <div class="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-2">
                     <a href="{{ $editUrl }}"
                        class="bg-amber-600 hover:bg-amber-700 text-white px-3 py-2 rounded-lg inline-flex items-center justify-center gap-2">
                         <span class="font-semibold">Editar</span>
@@ -256,7 +284,7 @@
             </div>
         @empty
             <div class="bg-white border border-gray-200 rounded-xl p-6 text-center text-gray-500">
-                No hay órdenes que coincidan con tu búsqueda.
+                {{ $emptyOrdersMessage }}
             </div>
         @endforelse
     </div>
@@ -378,7 +406,7 @@
                 @empty
                     <tr>
                         <td class="px-4 py-6 text-center text-gray-500" colspan="11">
-                            No hay órdenes que coincidan con tu búsqueda.
+                            {{ $emptyOrdersMessage }}
                         </td>
                     </tr>
                 @endforelse
@@ -430,11 +458,12 @@
   </div>
 </div>
 {{-- MODAL PDF --}}
+<x-pdf-js-viewer />
 <div id="pdfModal" class="hidden fixed inset-0 z-40 bg-black/50">
-  <div class="absolute inset-0 flex items-center justify-center p-4">
-    <div class="w-full max-w-5xl bg-white rounded-xl shadow-xl overflow-hidden">
-      <div class="flex items-center justify-between px-4 py-3 border-b">
-        <h3 id="pdfModalTitle" class="font-semibold text-gray-800">PDF</h3>
+  <div class="absolute inset-0 flex items-center justify-center p-2 sm:p-4">
+    <div class="w-full max-w-5xl h-[94vh] sm:h-auto bg-white rounded-xl shadow-xl overflow-hidden flex flex-col">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3 border-b">
+        <h3 id="pdfModalTitle" class="font-semibold text-gray-800 leading-tight break-words">PDF</h3>
         <div class="flex items-center gap-2">
           <a id="pdfDownloadBtn" href="#" target="_blank"
              class="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border text-sm hover:bg-gray-50 whitespace-nowrap">
@@ -445,9 +474,7 @@
           </button>
         </div>
       </div>
-      <div class="h-[75vh]">
-        <iframe id="pdfFrame" class="w-full h-full" src=""></iframe>
-      </div>
+      <div id="pdfCanvasViewer" class="flex-1 h-[75vh] bg-gray-100 overflow-auto p-3"></div>
     </div>
   </div>
 </div>
@@ -572,7 +599,7 @@
     document.getElementById('notesModal')?.classList.add('hidden');
   };
   const pdfModal = document.getElementById('pdfModal');
-  const pdfFrame = document.getElementById('pdfFrame');
+  const pdfCanvasViewer = document.getElementById('pdfCanvasViewer');
   const pdfTitle = document.getElementById('pdfModalTitle');
   const pdfDownloadBtn = document.getElementById('pdfDownloadBtn');
   const exportModal = document.getElementById('exportModal');
@@ -596,17 +623,17 @@
     const customTitle = btn.getAttribute('data-title');
 
     pdfTitle.textContent = customTitle || `PDF — ${folio}`;
-    pdfFrame.src = viewUrl;
     pdfDownloadBtn.href = downloadUrl || viewUrl;
 
     pdfModal.classList.remove('hidden');
+    window.eSupportPdfViewer?.renderUrl(viewUrl, pdfCanvasViewer);
   });
 
   document.addEventListener('click', (e)=>{
     const btn = e.target.closest('[data-action="close-pdf"]');
     if (!btn) return;
     pdfModal.classList.add('hidden');
-    pdfFrame.src = '';
+    window.eSupportPdfViewer?.clear(pdfCanvasViewer);
   });
 
   document.addEventListener('click', (e)=>{
@@ -666,7 +693,7 @@
     modal?.addEventListener('click', (e)=>{
       if (e.target === modal) {
         modal.classList.add('hidden');
-        if (modal === pdfModal) pdfFrame.src = '';
+        if (modal === pdfModal) window.eSupportPdfViewer?.clear(pdfCanvasViewer);
       }
     });
   });

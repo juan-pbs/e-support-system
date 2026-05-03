@@ -1,6 +1,11 @@
 @php
     use Illuminate\Support\Facades\Auth;
     $currentRoute = Route::currentRouteName();
+    $user = Auth::user();
+    $rolActual = method_exists($user, 'normalizedRole')
+        ? $user->normalizedRole()
+        : strtolower(trim((string) ($user->puesto ?? '')));
+    $esSistema = $rolActual === 'sistema';
 @endphp
 
 <!DOCTYPE html>
@@ -31,6 +36,33 @@
         #sidebar { display: flex; flex-direction: column; }
         .sidebar-header { flex-shrink: 0; }
         .menu-container { flex: 1; overflow-y: auto; }
+        html, body { max-width: 100%; overflow-x: hidden; }
+        .app-content-shell, .app-content-shell * { min-width: 0; }
+        .app-content-shell img,
+        .app-content-shell video,
+        .app-content-shell iframe { max-width: 100%; }
+        .app-content-shell input,
+        .app-content-shell select,
+        .app-content-shell textarea,
+        .app-content-shell button { max-width: 100%; }
+        .app-content-shell table { max-width: 100%; }
+        .app-content-shell .overflow-x-auto { -webkit-overflow-scrolling: touch; }
+        @media (max-width: 640px) {
+            body { background: #fff; }
+            .app-page-main { overflow: hidden; background: #fff; }
+            .app-content-shell {
+                border: 0 !important;
+                border-radius: 0 !important;
+                box-shadow: none !important;
+                padding: 0.75rem !important;
+                background: #fff !important;
+            }
+            .app-content-shell input,
+            .app-content-shell select,
+            .app-content-shell textarea {
+                font-size: 16px;
+            }
+        }
     </style>
 </head>
 <body class="bg-gray-50">
@@ -63,6 +95,53 @@
                             <span class="text-sm font-medium">Inicio</span>
                         </div>
                     </a>
+
+                    @if($esSistema)
+                        <div class="menu-item-with-submenu">
+                            <div class="flex items-center gap-3 px-4 py-3 transition-colors cursor-pointer menu-item-hover text-white rounded-lg"
+                                 data-submenu="Supervision">
+                                <div class="flex items-center justify-center w-8 h-8">
+                                    <i data-lucide="shield-check" class="lucide-icon"></i>
+                                </div>
+                                <span class="text-sm font-medium flex-grow">Supervision</span>
+                                <i data-lucide="chevron-right" class="lucide-icon submenu-chevron" data-for="Supervision"></i>
+                            </div>
+                            <div class="submenu" id="submenu-Supervision">
+                                <div class="space-y-1 mt-1">
+                                    <a href="{{ route('admin.inicio') }}" class="block submenu-item">
+                                        <div class="flex items-center gap-3 px-4 py-3 transition-colors menu-item-hover text-white">
+                                            <i data-lucide="layout-dashboard" class="lucide-icon"></i>
+                                            <span class="text-sm font-medium">Panel admin</span>
+                                        </div>
+                                    </a>
+                                    <a href="{{ route('tecnico.inicio') }}" class="block submenu-item">
+                                        <div class="flex items-center gap-3 px-4 py-3 transition-colors menu-item-hover text-white">
+                                            <i data-lucide="hard-hat" class="lucide-icon"></i>
+                                            <span class="text-sm font-medium">Panel tecnico</span>
+                                        </div>
+                                    </a>
+                                    <a href="{{ route('tecnico.servicios') }}" class="block submenu-item">
+                                        <div class="flex items-center gap-3 px-4 py-3 transition-colors menu-item-hover text-white">
+                                            <i data-lucide="wrench" class="lucide-icon"></i>
+                                            <span class="text-sm font-medium">Servicios tecnicos</span>
+                                        </div>
+                                    </a>
+                                    <a href="{{ route('sistema.usuarios-conectados') }}" class="block submenu-item">
+                                        <div class="flex items-center gap-3 px-4 py-3 transition-colors menu-item-hover text-white">
+                                            <i data-lucide="activity" class="lucide-icon"></i>
+                                            <span class="text-sm font-medium">Usuarios conectados</span>
+                                        </div>
+                                    </a>
+                                    <a href="{{ route('sistema.mantenimiento') }}" class="block submenu-item">
+                                        <div class="flex items-center gap-3 px-4 py-3 transition-colors menu-item-hover text-white">
+                                            <i data-lucide="construction" class="lucide-icon"></i>
+                                            <span class="text-sm font-medium">Mantenimiento</span>
+                                        </div>
+                                    </a>
+                                </div>
+                            </div>
+                        </div>
+                    @endif
 
                     <!-- Inventario (redirige a Ver Productos) -->
                     <a href="{{ route('catalogo.index') }}" class="block">
@@ -229,12 +308,12 @@
                         </button>
                         <h1 class="text-sm sm:text-lg font-semibold truncate">Bienvenido {{ Auth::user()->name }}</h1>
                     </div>
-                    <div class="flex items-center gap-2 sm:gap-4">
+                    <div class="flex items-center gap-2 sm:gap-4 shrink-0">
                         <span class="text-xs sm:text-sm hidden md:block">{{ Auth::user()->puesto }}</span>
                         <x-dropdown align="right" width="48">
                             <x-slot name="trigger">
-                                <button class="inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-white bg-blue-800 hover:text-gray-100 focus:outline-none transition ease-in-out duration-150">
-                                    <div>{{ Auth::user()->puesto }}</div>
+                                <button class="inline-flex items-center max-w-[92px] sm:max-w-none px-2 sm:px-3 py-2 border border-transparent text-xs sm:text-sm leading-4 font-medium rounded-md text-white bg-blue-800 hover:text-gray-100 focus:outline-none transition ease-in-out duration-150">
+                                    <div class="truncate">{{ Auth::user()->puesto }}</div>
                                     <div class="ms-1">
                                         <svg class="fill-current h-4 w-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20">
                                             <path fill-rule="evenodd" d="M5.293 7.293a1 1 0 011.414 0L10 10.586l3.293-3.293a1 1 0 111.414 1.414l-4 4a1 1 0 01-1.414 0l-4-4a1 1 0 010-1.414z" clip-rule="evenodd" />
@@ -258,8 +337,8 @@
                 </div>
             </header>
 
-            <main class="w-full h-full">
-                <div class="w-full h-full bg-white rounded-lg shadow-sm border border-gray-200 p-6 overflow-auto">
+            <main class="app-page-main w-full h-full min-w-0">
+                <div class="app-content-shell w-full h-full bg-white rounded-lg shadow-sm border border-gray-200 p-6 overflow-auto">
                     @yield('content')
                 </div>
             </main>

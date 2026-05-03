@@ -86,6 +86,50 @@ class ServicioTecnicoController extends Controller
         return $id ? ('OS-' . $id) : '—';
     }
 
+    protected function esUsuarioSistema($user = null): bool
+    {
+        $user ??= Auth::user();
+
+        if (! $user) {
+            return false;
+        }
+
+        if (method_exists($user, 'isSystem')) {
+            return $user->isSystem();
+        }
+
+        $rol = $user->puesto ?? $user->role ?? $user->rol ?? $user->tipo ?? null;
+
+        return is_string($rol) && mb_strtolower(trim($rol)) === 'sistema';
+    }
+
+    protected function filtrarOrdenesPorAccesoTecnico($query, $user = null)
+    {
+        $user ??= Auth::user();
+
+        if (! $user) {
+            return $query->whereRaw('1 = 0');
+        }
+
+        if ($this->esUsuarioSistema($user)) {
+            return $query;
+        }
+
+        return $query->where(function ($q) use ($user) {
+            $q->where('id_tecnico', $user->id)
+                ->orWhereHas('tecnicos', function ($t) use ($user) {
+                    $t->where('users.id', $user->id);
+                });
+        });
+    }
+
+    protected function mensajeSinOrdenes($user = null): string
+    {
+        return $this->esUsuarioSistema($user)
+            ? 'Por el momento no hay ordenes de servicio registradas.'
+            : 'Por el momento no tienes Ã³rdenes de servicio asignadas.';
+    }
+
     public function dashboard()
     {
         $user  = Auth::user();
@@ -100,14 +144,10 @@ class ServicioTecnicoController extends Controller
             ? 'fecha_orden'
             : ($hasCreatedAt ? 'created_at' : null);
 
-        $base = OrdenServicio::query()
-            ->with(['cliente'])
-            ->where(function ($q) use ($user) {
-                $q->where('id_tecnico', $user->id)
-                  ->orWhereHas('tecnicos', function ($t) use ($user) {
-                      $t->where('users.id', $user->id);
-                  });
-            });
+        $base = $this->filtrarOrdenesPorAccesoTecnico(
+            OrdenServicio::query()->with(['cliente']),
+            $user
+        );
 
         $hoy       = Carbon::today();
         $inicioMes = $hoy->copy()->startOfMonth();
@@ -170,14 +210,10 @@ class ServicioTecnicoController extends Controller
         $termNum = preg_replace('/\D+/', '', $term);
         $termNum = $termNum !== '' ? $termNum : null;
 
-        $query = OrdenServicio::query()
-            ->with('cliente')
-            ->where(function ($q) use ($user) {
-                $q->where('id_tecnico', $user->id)
-                  ->orWhereHas('tecnicos', function ($t) use ($user) {
-                      $t->where('users.id', $user->id);
-                  });
-            })
+        $query = $this->filtrarOrdenesPorAccesoTecnico(
+            OrdenServicio::query()->with('cliente'),
+            $user
+        )
             ->where(function ($q) use ($term, $termNum, $pk) {
                 $q->where($pk, 'like', "%{$term}%");
 
@@ -232,14 +268,10 @@ class ServicioTecnicoController extends Controller
         $estado  = trim((string) $request->input('estado', ''));
         $desde   = trim((string) $request->input('desde', ''));
 
-        $base = OrdenServicio::query()
-            ->with('cliente')
-            ->where(function ($q) use ($user) {
-                $q->where('id_tecnico', $user->id)
-                  ->orWhereHas('tecnicos', function ($t) use ($user) {
-                      $t->where('users.id', $user->id);
-                  });
-            });
+        $base = $this->filtrarOrdenesPorAccesoTecnico(
+            OrdenServicio::query()->with('cliente'),
+            $user
+        );
 
         if ($ordenId !== '') {
             $base->where($pk, $ordenId);
@@ -370,14 +402,10 @@ class ServicioTecnicoController extends Controller
         $user = Auth::user();
         $pk   = $this->pkOrdenServicio();
 
-        $base = OrdenServicio::query()
-            ->with(['cliente', 'tecnicos'])
-            ->where(function ($q) use ($user) {
-                $q->where('id_tecnico', $user->id)
-                  ->orWhereHas('tecnicos', function ($t) use ($user) {
-                      $t->where('users.id', $user->id);
-                  });
-            });
+        $base = $this->filtrarOrdenesPorAccesoTecnico(
+            OrdenServicio::query()->with(['cliente', 'tecnicos']),
+            $user
+        );
 
         if ($id !== null) {
             $orden = (clone $base)->where($pk, $id)->firstOrFail();
@@ -500,14 +528,10 @@ class ServicioTecnicoController extends Controller
         $user = Auth::user();
         $pk   = $this->pkOrdenServicio();
 
-        $base = OrdenServicio::query()
-            ->with(['cliente', 'tecnicos', 'seguimientos', 'imagenes', 'materialesExtras'])
-            ->where(function ($q) use ($user) {
-                $q->where('id_tecnico', $user->id)
-                  ->orWhereHas('tecnicos', function ($t) use ($user) {
-                      $t->where('users.id', $user->id);
-                  });
-            });
+        $base = $this->filtrarOrdenesPorAccesoTecnico(
+            OrdenServicio::query()->with(['cliente', 'tecnicos', 'seguimientos', 'imagenes', 'materialesExtras']),
+            $user
+        );
 
         $orden = (clone $base)->where($pk, $id)->firstOrFail();
 
@@ -540,13 +564,7 @@ class ServicioTecnicoController extends Controller
             return redirect()->route('tecnico.ordenes.acta.vista', ['id' => $id]);
         }
 
-        $orden = OrdenServicio::query()
-            ->where(function ($q) use ($user) {
-                $q->where('id_tecnico', $user->id)
-                  ->orWhereHas('tecnicos', function ($t) use ($user) {
-                      $t->where('users.id', $user->id);
-                  });
-            })
+        $orden = $this->filtrarOrdenesPorAccesoTecnico(OrdenServicio::query(), $user)
             ->orderByDesc($pk)
             ->first();
 
@@ -570,13 +588,7 @@ class ServicioTecnicoController extends Controller
             'observaciones_internas' => ['nullable', 'string', 'max:2000'],
         ]);
 
-        $orden = OrdenServicio::query()
-            ->where(function ($q) use ($user) {
-                $q->where('id_tecnico', $user->id)
-                  ->orWhereHas('tecnicos', function ($t) use ($user) {
-                      $t->where('users.id', $user->id);
-                  });
-            })
+        $orden = $this->filtrarOrdenesPorAccesoTecnico(OrdenServicio::query(), $user)
             ->where($pk, $id)
             ->firstOrFail();
 
@@ -608,13 +620,7 @@ class ServicioTecnicoController extends Controller
         $user = Auth::user();
         $pk   = $this->pkOrdenServicio();
 
-        return OrdenServicio::query()
-            ->where(function ($q) use ($user) {
-                $q->where('id_tecnico', $user->id)
-                  ->orWhereHas('tecnicos', function ($t) use ($user) {
-                      $t->where('users.id', $user->id);
-                  });
-            })
+        return $this->filtrarOrdenesPorAccesoTecnico(OrdenServicio::query(), $user)
             ->where($pk, $id)
             ->firstOrFail();
     }

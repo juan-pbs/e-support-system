@@ -18,14 +18,14 @@
 
 <div class="bg-gradient-to-r from-blue-50 via-sky-50 to-slate-50 border border-sky-100 rounded-2xl px-4 py-3 sm:px-6 sm:py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
     <!-- IZQUIERDA: Boton + Titulo -->
-    <div class="flex items-start sm:items-center gap-3">
+    <div class="flex flex-col items-start gap-3 sm:flex-row sm:items-center min-w-0">
         <x-boton-volver />
 
-        <div>
+        <div class="min-w-0">
             <h1 class="text-sm sm:text-base font-bold text-slate-800">
                 Centro de reportes
             </h1>
-            <p class="text-xs sm:text-sm text-slate-500">
+            <p class="text-xs sm:text-sm text-slate-500 break-words whitespace-normal max-w-full">
                 Elige un tipo de reporte y un rango de fechas. La vista previa se actualiza al instante.
             </p>
         </div>
@@ -37,7 +37,7 @@
             <span class="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
             Datos en tiempo real
         </span>
-        <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-50 text-slate-500 border border-slate-200">
+        <span class="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-slate-50 text-slate-500 border border-slate-200">
             Reportes: Ventas, inventario, clientes, cotizaciones
         </span>
     </div>

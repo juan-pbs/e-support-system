@@ -896,17 +896,18 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
     </div>
 
     {{-- Modal PREVIEW PDF --}}
+    <x-pdf-js-viewer />
     <div id="pdfPreviewModal" class="fixed inset-0 z-50 hidden">
         <div class="absolute inset-0 bg-black/60" onclick="closePdfModal()"></div>
-        <div class="relative mx-auto my-6 bg-white rounded-xl shadow-xl max-w-5xl w-[95vw] h-[85vh] flex flex-col">
-            <div class="px-4 py-3 border-b flex items-center justify-between">
-                <h3 class="font-semibold text-gray-800">Previsualización de la orden (PDF)</h3>
+        <div class="relative mx-auto my-2 sm:my-6 bg-white rounded-xl shadow-xl max-w-5xl w-[calc(100vw-1rem)] sm:w-[95vw] h-[94vh] sm:h-[85vh] flex flex-col overflow-hidden">
+            <div class="px-4 py-3 border-b flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <h3 class="font-semibold text-gray-800 leading-tight">Previsualización de la orden (PDF)</h3>
                 <button class="text-gray-500 hover:text-gray-700" onclick="closePdfModal()">✕</button>
             </div>
-            <div class="flex-1">
-                <iframe id="pdfPreviewFrame" class="w-full h-full" src="about:blank"></iframe>
+            <div class="flex-1 bg-gray-100 overflow-auto p-3">
+                <div id="pdfPreviewCanvas" class="min-h-full"></div>
             </div>
-            <div class="px-4 py-3 border-t flex items-center justify-end gap-2">
+            <div class="px-4 py-3 border-t flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2">
                 <button type="button" class="px-4 py-2 rounded-md border text-gray-700 hover:bg-gray-50" onclick="closePdfModal()">Cerrar</button>
                 <button type="button" id="btnGuardar" class="px-4 py-2 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white"
                         :disabled="tipoPago==='credito_cliente' && (credito.loading || !credito.exists || creditoInsuf || credito.expired)">
@@ -924,8 +925,8 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
     <div id="stockShortageModal" class="fixed inset-0 z-50 hidden">
         <div class="absolute inset-0 bg-black/60" onclick="closeStockShortageModal()"></div>
         <div class="relative mx-auto my-6 bg-white rounded-xl shadow-xl max-w-2xl w-[95vw]">
-            <div class="px-4 py-3 border-b flex items-center justify-between">
-                <h3 class="font-semibold text-gray-800">Productos sin stock suficiente</h3>
+            <div class="px-4 py-3 border-b flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                <h3 class="font-semibold text-gray-800 leading-tight">Productos sin stock suficiente</h3>
                 <button class="text-gray-500 hover:text-gray-700" onclick="closeStockShortageModal()">✕</button>
             </div>
             <div class="p-4">
@@ -2052,19 +2053,19 @@ const clientesCatalog = {
   }
 
   const pdfPreviewModal    = document.getElementById('pdfPreviewModal');
-  const pdfPreviewFrame    = document.getElementById('pdfPreviewFrame');
+  const pdfPreviewFrame    = document.getElementById('pdfPreviewCanvas');
   const stockShortageModal = document.getElementById('stockShortageModal');
   const shortageListEl     = document.getElementById('shortageList');
 
-  function openPdfModalFromBase64(b64) {
+  async function openPdfModalFromBase64(b64) {
     if (!b64) return;
-    pdfPreviewFrame.src = 'data:application/pdf;base64,' + b64;
     pdfPreviewModal.classList.remove('hidden');
+    await window.eSupportPdfViewer?.renderBase64(b64, pdfPreviewFrame);
   }
 
   function closePdfModal() {
     pdfPreviewModal.classList.add('hidden');
-    pdfPreviewFrame.src = 'about:blank';
+    window.eSupportPdfViewer?.clear(pdfPreviewFrame);
   }
 
   function openStockShortageModal(items) {

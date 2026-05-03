@@ -15,6 +15,8 @@ use App\Http\Controllers\Gerencia\Ordenes\OrdenServicioController;
 use App\Http\Controllers\Gerencia\Ordenes\OrdenServicioPdfController;
 use App\Http\Controllers\Gerencia\Proveedores\ProveedorController;
 use App\Http\Controllers\Gerencia\Reportes\ReporteController;
+use App\Http\Controllers\Sistema\MantenimientoController;
+use App\Http\Controllers\Sistema\UsuariosConectadosController;
 use App\Http\Controllers\Shared\Actas\ActaConformidadController;
 use App\Http\Controllers\Shared\Seguimiento\SeguimientoServiciosController;
 use App\Models\Inventario;
@@ -25,6 +27,13 @@ use Illuminate\Support\Facades\Route;
 Route::middleware(['auth', 'gerente'])->group(function () {
     Route::get('/gerente', [GerenteController::class, 'index'])
         ->name('gerente.inicio');
+
+    Route::get('/sistema/usuarios-conectados', [UsuariosConectadosController::class, 'index'])
+        ->name('sistema.usuarios-conectados');
+    Route::get('/sistema/mantenimiento', [MantenimientoController::class, 'index'])
+        ->name('sistema.mantenimiento');
+    Route::put('/sistema/mantenimiento', [MantenimientoController::class, 'update'])
+        ->name('sistema.mantenimiento.update');
 
     Route::get('/empleados', [EmpleadoController::class, 'index'])->name('empleados.index');
     Route::post('/empleados', [EmpleadoController::class, 'store'])->name('empleados.store');

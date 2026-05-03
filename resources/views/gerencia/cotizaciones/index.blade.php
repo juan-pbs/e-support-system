@@ -11,7 +11,7 @@
 
 <style>[x-cloak]{display:none !important}</style>
 
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+<div class="max-w-7xl mx-auto px-0 sm:px-6 lg:px-8 py-4">
 
     {{-- Header responsive --}}
     <div class="flex flex-col gap-3 md:flex-row md:items-center md:justify-between mb-6">
@@ -71,7 +71,7 @@
                     <ul id="resultados-lista" class="max-h-72 overflow-auto"></ul>
                 </div>
 
-                <p class="text-[11px] text-gray-500 mt-1">
+                <p class="hidden sm:block text-[11px] text-gray-500 mt-1 break-words">
                     Si eliges una sugerencia (SET-###), filtra exacto. Si escribes texto, busca por cliente/correo/descripcion.
                 </p>
             </div>
@@ -125,9 +125,9 @@
                     </div>
                 </div>
 
-                <div class="mt-3 text-sm text-gray-700 break-words">
+                <div class="mt-3 text-sm text-gray-700 break-words overflow-hidden">
                     <span class="text-xs text-gray-500">Descripción:</span>
-                    <div class="mt-1">
+                    <div class="mt-1 break-words">
                         {{ $c->descripcion ?: '—' }}
                     </div>
                 </div>
@@ -337,13 +337,14 @@
 </div>
 
 {{-- Modal para ver PDF --}}
+<x-pdf-js-viewer />
 <div id="pdfModal" class="fixed inset-0 z-50 hidden">
     <div id="pdfModalBackdrop" class="absolute inset-0 bg-black/50"></div>
 
-    <div class="relative mx-auto w-full max-w-5xl h-[92vh] mt-4 md:mt-8 px-3">
+    <div class="relative mx-auto w-full max-w-5xl h-[94vh] sm:h-[92vh] mt-2 md:mt-8 px-2 sm:px-3">
         <div class="bg-white rounded-xl shadow-lg h-full flex flex-col overflow-hidden">
-            <div class="flex items-center justify-between px-4 py-3 border-b">
-                <h3 id="pdfModalTitle" class="font-semibold text-gray-800 text-sm md:text-base">Ver PDF</h3>
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3 border-b">
+                <h3 id="pdfModalTitle" class="font-semibold text-gray-800 text-sm md:text-base leading-tight break-words">Ver PDF</h3>
                 <div class="flex items-center gap-2">
                     <button id="pdfModalDownload"
                             class="hidden md:inline-flex px-3 py-1.5 text-xs rounded bg-gray-100 hover:bg-gray-200"
@@ -353,9 +354,7 @@
                             title="Cerrar">Cerrar</button>
                 </div>
             </div>
-            <div class="flex-1">
-                <iframe id="pdfFrame" class="w-full h-full border-0" title="Visor PDF"></iframe>
-            </div>
+            <div id="pdfCanvasViewer" class="flex-1 bg-gray-100 overflow-auto p-3"></div>
         </div>
     </div>
 </div>
@@ -368,7 +367,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // ===== PDF MODAL =====
     const modal      = document.getElementById('pdfModal');
     const backdrop   = document.getElementById('pdfModalBackdrop');
-    const frame      = document.getElementById('pdfFrame');
+    const viewer     = document.getElementById('pdfCanvasViewer');
     const titleEl    = document.getElementById('pdfModalTitle');
     const btnClose   = document.getElementById('pdfModalClose');
     const btnDownload= document.getElementById('pdfModalDownload');
@@ -377,16 +376,17 @@ document.addEventListener('DOMContentLoaded', () => {
     function openPdfModal(url, title = 'Ver PDF') {
         currentPdfUrl = url;
         const sep = url.includes('?') ? '&' : '?';
-        frame.src = url + sep + 'ts=' + Date.now();
+        const viewUrl = url + sep + 'ts=' + Date.now();
         titleEl.textContent = title;
         modal.classList.remove('hidden');
         btnDownload.classList.remove('hidden');
         document.body.classList.add('overflow-hidden');
+        window.eSupportPdfViewer?.renderUrl(viewUrl, viewer);
     }
 
     function closePdfModal() {
         modal.classList.add('hidden');
-        frame.src = 'about:blank';
+        window.eSupportPdfViewer?.clear(viewer);
         currentPdfUrl = null;
         btnDownload.classList.add('hidden');
         document.body.classList.remove('overflow-hidden');

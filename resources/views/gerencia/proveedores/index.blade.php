@@ -7,17 +7,16 @@
     [x-cloak]{display:none !important}
 </style>
 
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4"
+<div class="max-w-7xl mx-auto px-0 sm:px-6 lg:px-8 py-4"
      x-data="proveedoresUI()"
      x-init="init()">
 
     {{-- Header --}}
-    <div class="flex items-center gap-3 mb-6">
+    <div class="flex flex-col items-start sm:flex-row sm:items-center gap-3 mb-6">
         <x-boton-volver />
-        <h1 class="text-xl sm:text-2xl md:text-3xl font-bold text-gray-800 flex-1 text-center md:text-left">
+        <h1 class="text-2xl sm:text-2xl md:text-3xl font-bold text-gray-800 flex-1 text-left leading-tight break-words">
             Proveedores (Emisores)
         </h1>
-        <div class="w-8 md:hidden"></div>
     </div>
 
     {{-- Alerts --}}

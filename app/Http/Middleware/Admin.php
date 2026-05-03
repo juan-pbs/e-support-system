@@ -22,8 +22,14 @@ class Admin
                 : redirect()->route('login');
         }
 
-        $rol = strtolower(trim((string) (FacadesAuth::user()->puesto ?? '')));
-        if ($rol === 'admin') {
+        $user = FacadesAuth::user();
+
+        if (method_exists($user, 'hasAnyRole') && $user->hasAnyRole(['admin', 'sistema'])) {
+            return $next($request);
+        }
+
+        $rol = strtolower(trim((string) ($user->puesto ?? '')));
+        if (in_array($rol, ['admin', 'sistema'], true)) {
             return $next($request);
         }
 

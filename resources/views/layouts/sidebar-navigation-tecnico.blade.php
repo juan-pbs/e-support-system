@@ -3,15 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    {{-- Título dinámico según la vista --}}
-    <title>@yield('title', 'Panel Técnico') - Módulo Técnico</title>
+    <title>@yield('title', 'Panel Tecnico') - Modulo Tecnico</title>
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
     <link rel="icon" href="/images/ico.png" type="image/x-icon" />
-    <link rel="stylesheet"
-          href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <style>
         .scrollbar-hide::-webkit-scrollbar { display: none; }
@@ -37,23 +35,49 @@
         }
 
         .lucide-icon { width: 1.25rem; height: 1.25rem; stroke-width: 1.5; }
-
-        .submenu { max-height: 0; overflow: hidden; transition: max-height 0.3s ease-out; }
-        .submenu.open { max-height: 500px; }
-        .submenu-item { padding-left: 3rem; }
-        .rotate-90 { transform: rotate(90deg); transition: transform 0.3s ease; }
+        html, body { max-width: 100%; overflow-x: hidden; }
+        .app-content-shell, .app-content-shell * { min-width: 0; }
+        .app-content-shell img,
+        .app-content-shell video,
+        .app-content-shell iframe { max-width: 100%; }
+        .app-content-shell input,
+        .app-content-shell select,
+        .app-content-shell textarea,
+        .app-content-shell button { max-width: 100%; }
+        .app-content-shell table { max-width: 100%; }
+        .app-content-shell .overflow-x-auto { -webkit-overflow-scrolling: touch; }
+        @media (max-width: 640px) {
+            body { background: #fff; }
+            .app-page-main { overflow: hidden; background: #fff; }
+            .app-content-shell {
+                border: 0 !important;
+                border-radius: 0 !important;
+                box-shadow: none !important;
+                padding: 0.75rem !important;
+                background: #fff !important;
+            }
+            .app-content-shell input,
+            .app-content-shell select,
+            .app-content-shell textarea {
+                font-size: 16px;
+            }
+        }
     </style>
 </head>
 <body class="bg-gray-50">
 @php
     use Illuminate\Support\Facades\Auth;
-    use Illuminate\Support\Facades\Route;
+
+    $user = Auth::user();
+    $rolActual = method_exists($user, 'normalizedRole')
+        ? $user->normalizedRole()
+        : strtolower(trim((string) ($user->puesto ?? '')));
+    $esSistema = $rolActual === 'sistema';
 @endphp
 
 <div class="flex h-screen">
     <div id="sidebar-overlay" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden"></div>
 
-    <!-- Sidebar -->
     <div id="sidebar"
          class="sidebar-gradient fixed inset-y-0 left-0 z-50 w-72 sm:w-80 text-white shadow-xl
                 transform -translate-x-full transition-transform duration-300 ease-in-out flex flex-col">
@@ -74,7 +98,6 @@
 
         <div class="overflow-y-auto scrollbar-hide p-2 flex-1">
             <nav class="space-y-2">
-                {{-- Inicio --}}
                 <a href="{{ route('tecnico.inicio') }}" class="block">
                     <div class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors
                         {{ request()->routeIs('tecnico.inicio') ? 'bg-white text-gray-900' : 'menu-item-hover' }}">
@@ -83,7 +106,22 @@
                     </div>
                 </a>
 
-                {{-- Servicios técnicos (lista general) --}}
+                @if($esSistema)
+                    <a href="{{ route('gerente.inicio') }}" class="block">
+                        <div class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors menu-item-hover">
+                            <i data-lucide="shield-check" class="lucide-icon"></i>
+                            <span class="text-sm font-medium">Panel sistema</span>
+                        </div>
+                    </a>
+
+                    <a href="{{ route('admin.inicio') }}" class="block">
+                        <div class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors menu-item-hover">
+                            <i data-lucide="layout-dashboard" class="lucide-icon"></i>
+                            <span class="text-sm font-medium">Panel admin</span>
+                        </div>
+                    </a>
+                @endif
+
                 <a href="{{ route('tecnico.servicios') }}" class="block">
                     <div class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors
                         {{ request()->routeIs('tecnico.servicios') ? 'bg-white text-gray-900' : 'menu-item-hover' }}">
@@ -91,15 +129,10 @@
                         <span class="text-sm font-medium">Servicios</span>
                     </div>
                 </a>
-
-
-
-
             </nav>
         </div>
     </div>
 
-    <!-- Contenido principal -->
     <div class="flex-1 flex flex-col min-h-0">
         <header class="header-gradient text-white p-3 sm:p-4 flex-shrink-0">
             <div class="flex items-center justify-between">
@@ -109,10 +142,9 @@
                         <i data-lucide="menu" class="w-5 h-5"></i>
                     </button>
 
-                    {{-- Título de la vista + saludo --}}
                     <div class="flex flex-col min-w-0">
                         <h1 class="text-sm sm:text-lg font-semibold truncate">
-                            @yield('title', 'Panel Técnico')
+                            @yield('title', 'Panel Tecnico')
                         </h1>
                         <p class="text-xs sm:text-sm opacity-80 truncate">
                             Bienvenido {{ Auth::user()->name }}
@@ -120,18 +152,18 @@
                     </div>
                 </div>
 
-                <div class="flex items-center gap-2 sm:gap-4">
+                <div class="flex items-center gap-2 sm:gap-4 shrink-0">
                     <span class="text-xs sm:text-sm hidden md:block">
                         {{ Auth::user()->puesto }}
                     </span>
 
                     <div x-data="{ open: false }" class="relative">
                         <button @click="open = !open"
-                                class="inline-flex items-center px-3 py-2 border border-transparent
-                                       text-sm leading-4 font-medium rounded-md text-white
+                                class="inline-flex items-center max-w-[92px] sm:max-w-none px-2 sm:px-3 py-2 border border-transparent
+                                       text-xs sm:text-sm leading-4 font-medium rounded-md text-white
                                        bg-blue-800 hover:text-gray-100">
-                            {{ Auth::user()->puesto }}
-                            <svg class="ml-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg"
+                            <span class="truncate">{{ Auth::user()->puesto }}</span>
+                            <svg class="ml-1 sm:ml-2 h-4 w-4 shrink-0" xmlns="http://www.w3.org/2000/svg"
                                  fill="none" viewBox="0 0 24 24" stroke="currentColor">
                                 <path stroke-linecap="round" stroke-linejoin="round"
                                       stroke-width="2" d="M19 9l-7 7-7-7" />
@@ -151,7 +183,7 @@
                                 <button
                                     class="w-full text-left px-4 py-2 text-gray-800 hover:bg-gray-100"
                                     onclick="event.preventDefault(); this.closest('form').submit();">
-                                    Cerrar sesión
+                                    Cerrar sesion
                                 </button>
                             </form>
                         </div>
@@ -160,8 +192,8 @@
             </div>
         </header>
 
-        <main class="w-full h-full">
-            <div class="w-full h-full bg-white rounded-lg shadow-sm border border-gray-200 p-6 overflow-auto">
+        <main class="app-page-main w-full h-full min-w-0">
+            <div class="app-content-shell w-full h-full bg-white rounded-lg shadow-sm border border-gray-200 p-6 overflow-auto">
                 @yield('content')
             </div>
         </main>
@@ -180,7 +212,6 @@
         function toggleSidebar() {
             sidebar.classList.toggle('-translate-x-full');
             overlay.classList.toggle('hidden');
-            // refrescar iconos por si el DOM cambió
             setTimeout(() => lucide.createIcons(), 300);
         }
 

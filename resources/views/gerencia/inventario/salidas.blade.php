@@ -12,11 +12,54 @@
         : (Route::has('inventario.autocomplete')
             ? route('inventario.autocomplete')
             : url('/inventario/autocomplete'));
+
+    $clientesSearchList = collect($clientesLista ?? [])->map(function ($cliente) {
+        return [
+            'clave_cliente' => (string) $cliente->clave_cliente,
+            'label' => trim(($cliente->nombre ?? '') . (($cliente->nombre_empresa ?? '') ? ' - ' . $cliente->nombre_empresa : '')),
+            'empresa' => (string) ($cliente->nombre_empresa ?? ''),
+        ];
+    })->values();
+
+    $productosSearchList = collect($productosLista ?? [])->map(function ($producto) {
+        $numeroParte = (string) ($producto->numero_parte ?? '');
+
+        return [
+            'codigo_producto' => (string) $producto->codigo_producto,
+            'label' => trim(($producto->nombre ?? '') . ($numeroParte !== '' ? ' (NP: ' . $numeroParte . ')' : '')),
+            'numero_parte' => $numeroParte,
+            'series_disponibles' => (int) ($producto->series_disponibles ?? 0),
+            'search' => Str::lower(trim(($producto->nombre ?? '') . ' ' . $numeroParte)),
+        ];
+    })->values();
+
+    $clienteOldId = (string) old('id_cliente', '');
+    $clienteOld = $clienteOldId !== '' ? $clientesSearchList->firstWhere('clave_cliente', $clienteOldId) : null;
+    $productoOldId = (string) old('codigo_producto', '');
+    $productoOld = $productoOldId !== '' ? $productosSearchList->firstWhere('codigo_producto', $productoOldId) : null;
+    $reopenCreateModal = old('id_cliente') !== null
+        || old('codigo_producto') !== null
+        || old('cantidad') !== null
+        || old('precio_unitario') !== null
+        || old('tasa_cambio') !== null;
 @endphp
 
 <style>[x-cloak]{display:none !important}</style>
 
-<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4" x-data="salidasUI()">
+<div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4"
+     x-data="salidasUI({
+        clientes: @js($clientesSearchList),
+        productos: @js($productosSearchList),
+        clienteId: @js($clienteOldId),
+        clienteLabel: @js(data_get($clienteOld, 'label', '')),
+        productoId: @js($productoOldId),
+        productoLabel: @js(data_get($productoOld, 'label', '')),
+        moneda: @js(old('moneda', 'MXN')),
+        producto: @js(old('codigo_producto', '')),
+        openCreate: @js($reopenCreateModal),
+        series: @js(array_values(old('series', []))),
+     })"
+     x-init="init()">
 
     {{-- Alerts --}}
     @if (session('error'))
@@ -44,7 +87,7 @@
             </h1>
         </div>
 
-        <button @click="showCreateModal = true"
+        <button @click="showCreateModal = true; $nextTick(() => { filterClientes(); filterProductos(); })"
                 class="w-full md:w-auto bg-indigo-600 hover:bg-indigo-700 text-white px-3 py-2 rounded-lg flex items-center justify-center gap-2">
             <i data-lucide="minus-square"></i> Registrar salida
         </button>
@@ -425,7 +468,53 @@
                 {{-- Cliente --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Cliente</label>
-                    <select name="id_cliente" required
+
+                    <div class="relative mb-2">
+                        <input type="text"
+                               x-model="clienteSearch"
+                               placeholder="Buscar cliente por nombre o empresa..."
+                               autocomplete="off"
+                               @focus="showClienteList = true; filterClientes()"
+                               @input="showClienteList = true; filterClientes()"
+                               @keydown.escape="showClienteList = false"
+                               class="w-full border rounded-lg px-3 py-2 pr-10 focus:ring-2 focus:ring-indigo-500">
+
+                        <input type="hidden" name="id_cliente" x-model="idCliente">
+
+                        <div x-show="showClienteList"
+                             x-cloak
+                             @click.outside="showClienteList = false"
+                             class="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+                            <template x-for="cliente in clientesFiltrados" :key="cliente.clave_cliente">
+                                <button type="button"
+                                        class="w-full text-left px-3 py-2 hover:bg-gray-50"
+                                        @click="selectCliente(cliente)">
+                                    <div class="text-sm font-medium text-gray-900" x-text="cliente.label"></div>
+                                    <div class="text-xs text-gray-500"
+                                         x-text="cliente.empresa ? ('Empresa: ' + cliente.empresa) : 'Empresa: -'"></div>
+                                </button>
+                            </template>
+
+                            <div x-show="clientesFiltrados.length === 0"
+                                 class="px-3 py-3 text-sm text-gray-500">
+                                Sin resultados.
+                            </div>
+                        </div>
+
+                        <button type="button"
+                                x-show="clienteSearch"
+                                x-cloak
+                                @click="clearCliente()"
+                                class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                            &times;
+                        </button>
+                    </div>
+
+                    <p class="text-xs text-gray-500 mb-2">
+                        Selecciona un cliente del listado para registrar la salida.
+                    </p>
+                    <select name="id_cliente_legacy" disabled
+                            x-show="false"
                             class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500">
                         <option value="" disabled selected>— Selecciona un cliente —</option>
                         @foreach($clientesLista as $cli)
@@ -434,6 +523,13 @@
                             </option>
                         @endforeach
                     </select>
+
+                    <p class="text-xs text-gray-500 mt-1">
+                        No aparece?
+                        <a href="{{ route('clientes.nuevo', ['redirect' => url()->full()]) }}" class="text-blue-600 underline">
+                            Registralo aqui
+                        </a>.
+                    </p>
                 </div>
 
                 {{-- Moneda / Tasa --}}
@@ -451,6 +547,7 @@
                         <label class="block text-sm font-medium text-gray-700 mb-1">Tasa de cambio (opcional)</label>
                         <input type="number" step="0.0001" min="0" name="tasa_cambio"
                                placeholder="Ej. 17.10"
+                               value="{{ old('tasa_cambio') }}"
                                class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500">
                     </div>
                 </div>
@@ -458,8 +555,52 @@
                 {{-- Producto --}}
                 <div>
                     <label class="block text-sm font-medium text-gray-700 mb-1">Producto</label>
-                    <select name="codigo_producto" required
-                            x-model="productoSeleccionado" @change="cargarSeries()"
+                    <div class="relative mb-2">
+                        <input type="text"
+                               x-model="productoSearch"
+                               placeholder="Buscar producto por nombre o numero de parte..."
+                               autocomplete="off"
+                               @focus="showProductoList = true; filterProductos()"
+                               @input="onProductoInput()"
+                               @keydown.escape="showProductoList = false"
+                               class="w-full border rounded-lg px-3 py-2 pr-10 focus:ring-2 focus:ring-indigo-500">
+
+                        <input type="hidden" name="codigo_producto" x-model="productoSeleccionado">
+
+                        <div x-show="showProductoList"
+                             x-cloak
+                             @click.outside="showProductoList = false"
+                             class="absolute z-50 mt-1 w-full bg-white border border-gray-200 rounded-lg shadow-lg max-h-64 overflow-y-auto">
+                            <template x-for="producto in productosFiltrados" :key="producto.codigo_producto">
+                                <button type="button"
+                                        class="w-full text-left px-3 py-2 hover:bg-gray-50"
+                                        @click="selectProducto(producto)">
+                                    <div class="text-sm font-medium text-gray-900" x-text="producto.label"></div>
+                                    <div class="text-xs text-gray-500"
+                                         x-text="producto.series_disponibles > 0 ? ('NS: ' + producto.series_disponibles + ' disponibles') : 'Sin series disponibles'"></div>
+                                </button>
+                            </template>
+
+                            <div x-show="productosFiltrados.length === 0"
+                                 class="px-3 py-3 text-sm text-gray-500">
+                                Sin resultados.
+                            </div>
+                        </div>
+
+                        <button type="button"
+                                x-show="productoSearch"
+                                x-cloak
+                                @click="clearProducto()"
+                                class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600">
+                            &times;
+                        </button>
+                    </div>
+
+                    <p class="text-xs text-gray-500 mb-2">
+                        Busca como en cotizaciones y selecciona un producto del listado.
+                    </p>
+                    <select name="codigo_producto_legacy" disabled
+                            x-show="false"
                             class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500">
                         <option value="" disabled selected>— Selecciona un producto —</option>
                         @foreach($productosLista as $prod)
@@ -478,6 +619,7 @@
                         <label class="block text-sm font-medium text-gray-700 mb-1">Cantidad</label>
                         <input id="cantidadSalida" type="number" step="0.01" min="0.01" name="cantidad"
                                placeholder="Ej. 1"
+                               value="{{ old('cantidad') }}"
                                class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500" />
                         <p class="text-xs text-gray-500 mt-1">Si seleccionas series, la cantidad se fijará automáticamente.</p>
                     </div>
@@ -485,6 +627,7 @@
                     <div>
                         <label class="block text-sm font-medium text-gray-700 mb-1">Precio unitario (opcional)</label>
                         <input type="number" step="0.01" min="0" name="precio_unitario"
+                               value="{{ old('precio_unitario') }}"
                                class="w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500" />
                     </div>
                 </div>
@@ -550,16 +693,38 @@
 
 @push('scripts')
 <script>
-function salidasUI() {
+function salidasUI(config = {}) {
   return {
     showModal: false,
-    showCreateModal: false,
+    showCreateModal: !!config.openCreate,
     selected: {},
-    productoSeleccionado: '',
+    productoSeleccionado: config.productoId || config.producto || '',
+    productosAll: Array.isArray(config.productos) ? config.productos : [],
+    productosFiltrados: [],
+    productoSearch: config.productoLabel || '',
+    showProductoList: false,
     seriesDisponibles: [],
     seriesSeleccionadas: [],
+    seriesIniciales: Array.isArray(config.series) ? config.series : [],
     cargandoSeries: false,
-    monedaSeleccionada: 'MXN',
+    monedaSeleccionada: config.moneda || 'MXN',
+    clientesAll: Array.isArray(config.clientes) ? config.clientes : [],
+    clientesFiltrados: [],
+    clienteSearch: config.clienteLabel || '',
+    idCliente: config.clienteId || '',
+    showClienteList: false,
+
+    init() {
+      this.syncClienteSearchFromId();
+      this.syncProductoSearchFromId();
+      if (this.showCreateModal) {
+        this.filterClientes();
+        this.filterProductos();
+        if (this.productoSeleccionado) {
+          this.cargarSeries();
+        }
+      }
+    },
 
     open(item) { this.selected = item; this.showModal = true; },
 
@@ -573,9 +738,119 @@ function salidasUI() {
       }
     },
 
+    filterClientes() {
+      const q = (this.clienteSearch || '').toLowerCase().trim();
+
+      if (!q) {
+        this.clientesFiltrados = this.clientesAll.slice(0, 30);
+        return;
+      }
+
+      this.clientesFiltrados = this.clientesAll
+        .filter(cliente => (cliente.label || '').toLowerCase().includes(q))
+        .slice(0, 30);
+    },
+
+    selectCliente(cliente) {
+      if (!cliente) return;
+      this.idCliente = String(cliente.clave_cliente || '');
+      this.clienteSearch = cliente.label || '';
+      this.showClienteList = false;
+    },
+
+    clearCliente() {
+      this.idCliente = '';
+      this.clienteSearch = '';
+      this.showClienteList = false;
+      this.filterClientes();
+    },
+
+    syncClienteSearchFromId() {
+      if (!this.idCliente) return;
+
+      const found = this.clientesAll.find(cliente => String(cliente.clave_cliente) === String(this.idCliente));
+      if (found && !this.clienteSearch) {
+        this.clienteSearch = found.label || '';
+      }
+    },
+
+    filterProductos() {
+      const q = (this.productoSearch || '').toLowerCase().trim();
+
+      if (!q) {
+        this.productosFiltrados = this.productosAll.slice(0, 30);
+        return;
+      }
+
+      this.productosFiltrados = this.productosAll
+        .filter(producto => (producto.search || producto.label || '').toLowerCase().includes(q))
+        .slice(0, 30);
+    },
+
+    onProductoInput() {
+      this.productoSeleccionado = '';
+      this.seriesIniciales = [];
+      this.seriesDisponibles = [];
+      this.seriesSeleccionadas = [];
+      this.showProductoList = true;
+
+      const qty = document.getElementById('cantidadSalida');
+      if (qty) {
+        qty.readOnly = false;
+      }
+
+      this.$nextTick(() => {
+        document.querySelectorAll("input[name='series[]']").forEach(cb => cb.checked = false);
+      });
+
+      this.filterProductos();
+    },
+
+    selectProducto(producto) {
+      if (!producto) return;
+      this.seriesIniciales = [];
+      this.productoSeleccionado = String(producto.codigo_producto || '');
+      this.productoSearch = producto.label || '';
+      this.showProductoList = false;
+      this.cargarSeries();
+    },
+
+    clearProducto() {
+      this.productoSeleccionado = '';
+      this.productoSearch = '';
+      this.showProductoList = false;
+      this.seriesDisponibles = [];
+      this.seriesSeleccionadas = [];
+      this.seriesIniciales = [];
+
+      const qty = document.getElementById('cantidadSalida');
+      if (qty) {
+        qty.readOnly = false;
+      }
+
+      this.$nextTick(() => {
+        document.querySelectorAll("input[name='series[]']").forEach(cb => cb.checked = false);
+      });
+
+      this.filterProductos();
+    },
+
+    syncProductoSearchFromId() {
+      if (!this.productoSeleccionado) return;
+
+      const found = this.productosAll.find(producto => String(producto.codigo_producto) === String(this.productoSeleccionado));
+      if (found && !this.productoSearch) {
+        this.productoSearch = found.label || '';
+      }
+    },
+
     async cargarSeries() {
       this.seriesDisponibles = [];
       this.seriesSeleccionadas = [];
+      const qty = document.getElementById('cantidadSalida');
+      if (qty) {
+        qty.readOnly = false;
+      }
       if (!this.productoSeleccionado) return;
 
       this.cargandoSeries = true;
@@ -586,6 +861,19 @@ function salidasUI() {
         });
         const data = await res.json();
         this.seriesDisponibles = Array.isArray(data.series) ? data.series : [];
+        this.seriesSeleccionadas = this.seriesDisponibles.filter(ns => this.seriesIniciales.includes(ns));
+
+        this.$nextTick(() => {
+          document.querySelectorAll("input[name='series[]']").forEach(cb => {
+            cb.checked = this.seriesSeleccionadas.includes(cb.value);
+          });
+        });
+
+        if (qty && this.seriesSeleccionadas.length > 0) {
+          qty.value = this.seriesSeleccionadas.length;
+          qty.readOnly = true;
+        }
+        this.seriesIniciales = [];
       } catch (e) {
         this.seriesDisponibles = [];
       } finally {
@@ -599,6 +887,7 @@ function salidasUI() {
       } else {
         this.seriesSeleccionadas = this.seriesSeleccionadas.filter(s => s !== ns);
       }
+
       const qty = document.getElementById('cantidadSalida');
       if (!qty) return;
 
@@ -615,8 +904,12 @@ function salidasUI() {
       this.$nextTick(() => {
         document.querySelectorAll("input[name='series[]']").forEach(cb => cb.checked = true);
       });
+
       const qty = document.getElementById('cantidadSalida');
-      if (qty) { qty.value = this.seriesSeleccionadas.length; qty.readOnly = true; }
+      if (qty) {
+        qty.value = this.seriesSeleccionadas.length;
+        qty.readOnly = true;
+      }
     },
 
     limpiarSelecciones() {
@@ -624,8 +917,11 @@ function salidasUI() {
       this.$nextTick(() => {
         document.querySelectorAll("input[name='series[]']").forEach(cb => cb.checked = false);
       });
+
       const qty = document.getElementById('cantidadSalida');
-      if (qty) { qty.readOnly = false; }
+      if (qty) {
+        qty.readOnly = false;
+      }
     },
   }
 }

@@ -291,7 +291,7 @@
       </div>
     @else
       <div class="flex items-center justify-between text-sm text-gray-600">
-        <div class="flex items-center gap-2">
+        <div class="flex flex-col sm:flex-row sm:items-center gap-2 shrink-0">
           <span class="inline-flex h-2 w-2 rounded-full bg-emerald-500"></span>
           <span>Esta acta está firmada y bloqueada para edición.</span>
         </div>
@@ -308,26 +308,27 @@
 </div>
 
 {{-- MODAL PREVIEW PDF (solo si no está firmada) --}}
+<x-pdf-js-viewer />
 @if(!$isFirmada)
   <div id="previewModal" class="hidden fixed inset-0 z-40 bg-black/50">
-    <div class="absolute inset-0 flex items-center justify-center p-4">
-      <div class="w-full max-w-5xl bg-white rounded-xl shadow-xl overflow-hidden">
-        <div class="flex items-center justify-between px-4 py-3 border-b">
-          <h3 class="font-semibold text-gray-800">Previsualización — Acta de conformidad</h3>
-          <div class="flex items-center gap-2">
-            <button type="button" id="btnConfirm" class="px-3 py-1.5 rounded-md bg-green-600 hover:bg-green-700 text-white text-sm">
+    <div class="absolute inset-0 flex items-center justify-center p-2 sm:p-4">
+      <div class="w-full max-w-5xl h-[94vh] sm:h-auto bg-white rounded-xl shadow-xl overflow-hidden flex flex-col">
+        <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3 border-b">
+          <h3 class="font-semibold text-gray-800 leading-tight">Previsualización — Acta de conformidad</h3>
+          <div class="flex flex-col sm:flex-row sm:items-center gap-2 shrink-0">
+            <button type="button" id="btnConfirm" class="px-3 py-2 sm:py-1.5 rounded-md bg-green-600 hover:bg-green-700 text-white text-sm">
               Confirmar y generar PDF definitivo
             </button>
-            <button type="button" id="btnClose" class="px-3 py-1.5 rounded-md bg-gray-800 text-white text-sm">
+            <button type="button" id="btnClose" class="px-3 py-2 sm:py-1.5 rounded-md bg-gray-800 text-white text-sm">
               Cerrar
             </button>
           </div>
         </div>
-        <div class="h-[75vh] relative">
+        <div class="h-[75vh] relative bg-gray-100 overflow-auto">
           <div id="previewLoading" class="hidden absolute inset-0 grid place-content-center text-sm text-gray-600 bg-white/60">
             Generando previsualización…
           </div>
-          <iframe id="previewFrame" class="w-full h-full" src=""></iframe>
+          <div id="previewPdfCanvas" class="min-h-full p-3"></div>
         </div>
       </div>
     </div>
@@ -336,9 +337,9 @@
 
 {{-- MODAL PARA VER PDF DEFINITIVO (mismo estilo que en reportes) --}}
 <div id="finalPdfModal" class="fixed inset-0 z-40 hidden bg-black/50">
-  <div class="absolute inset-0 flex items-center justify-center p-4">
-    <div class="w-full max-w-5xl bg-white rounded-xl shadow-xl overflow-hidden">
-      <div class="flex items-center justify-between px-4 py-3 border-b">
+  <div class="absolute inset-0 flex items-center justify-center p-2 sm:p-4">
+    <div class="w-full max-w-5xl h-[94vh] sm:h-auto bg-white rounded-xl shadow-xl overflow-hidden flex flex-col">
+      <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3 border-b">
         <div>
           <h3 class="font-semibold text-gray-800 text-sm md:text-base">
             Acta de conformidad — PDF definitivo
@@ -347,7 +348,7 @@
             Vista del documento final. Puedes descargarlo desde el botón de la derecha.
           </p>
         </div>
-        <div class="flex items-center gap-2">
+        <div class="flex flex-col sm:flex-row sm:items-center gap-2 shrink-0">
           <a id="finalPdfDownload"
              href="#"
              target="_blank"
@@ -366,10 +367,7 @@
         </div>
       </div>
       <div class="h-[75vh] bg-gray-100">
-        <iframe id="finalPdfFrame"
-                src=""
-                class="w-full h-full border-0 rounded-b-xl"
-                frameborder="0"></iframe>
+        <div id="finalPdfCanvas" class="h-full overflow-auto p-3"></div>
       </div>
     </div>
   </div>
@@ -393,7 +391,7 @@
 
   // ---- Modal de PREVIEW PDF
   const modal    = document.getElementById('previewModal');
-  const frame    = document.getElementById('previewFrame');
+  const frame    = document.getElementById('previewPdfCanvas');
   const loading  = document.getElementById('previewLoading');
   const btnClose = document.getElementById('btnClose');
   const btnConf  = document.getElementById('btnConfirm');
@@ -406,7 +404,7 @@
   }
 
   function openModal(){ modal.classList.remove('hidden'); }
-  function closeModal(){ modal.classList.add('hidden'); frame.src=''; }
+  function closeModal(){ modal.classList.add('hidden'); window.eSupportPdfViewer?.clear(frame); }
 
   btnClose?.addEventListener('click', closeModal);
   modal?.addEventListener('click', (e)=>{ if(e.target === modal) closeModal(); });
@@ -495,7 +493,7 @@
       if(!j.ok || !j.pdf_base64){
         throw new Error(j.message || 'No se pudo generar la previsualización');
       }
-      frame.src = 'data:application/pdf;base64,' + j.pdf_base64;
+      await window.eSupportPdfViewer?.renderBase64(j.pdf_base64, frame);
       openModal();
 
 
@@ -569,23 +567,23 @@
 <script>
 (function () {
   const modal   = document.getElementById('finalPdfModal');
-  const frame   = document.getElementById('finalPdfFrame');
+  const frame   = document.getElementById('finalPdfCanvas');
   const btnClose = document.getElementById('btnCloseFinalPdf');
   const downloadLink = document.getElementById('finalPdfDownload');
 
   window.openFinalPdfModal = function (url) {
     if (!modal || !frame) return;
-    frame.src = url;
     if (downloadLink) {
       downloadLink.href = url;
     }
     modal.classList.remove('hidden');
+    window.eSupportPdfViewer?.renderUrl(url, frame);
   };
 
   function closeFinalPdf() {
     if (!modal || !frame) return;
     modal.classList.add('hidden');
-    frame.src = '';
+    window.eSupportPdfViewer?.clear(frame);
   }
 
   btnClose?.addEventListener('click', closeFinalPdf);

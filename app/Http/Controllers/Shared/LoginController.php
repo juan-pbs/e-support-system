@@ -21,6 +21,7 @@ class LoginController extends Controller
             'gerente' => redirect('/gerente'),
             'tecnico' => redirect('/tecnico'),
             'admin' => redirect('/admin'),
+            'sistema' => redirect('/gerente'),
             default => $this->logout(),
         };
     }

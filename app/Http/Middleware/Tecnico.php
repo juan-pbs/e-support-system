@@ -26,7 +26,7 @@ class Tecnico
         $rol = $user->puesto ?? $user->role ?? $user->rol ?? $user->tipo ?? null;
         $rol = is_string($rol) ? strtolower(trim($rol)) : '';
 
-        if ($rol === 'tecnico') {
+        if (in_array($rol, ['tecnico', 'sistema'], true)) {
             return $next($request);
         }
 

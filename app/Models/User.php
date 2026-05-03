@@ -49,6 +49,34 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+
+    public function normalizedRole(): string
+    {
+        $role = $this->puesto ?? $this->role ?? $this->rol ?? $this->tipo ?? null;
+
+        return is_string($role) ? mb_strtolower(trim($role)) : '';
+    }
+
+    public function hasRole(string $role): bool
+    {
+        return $this->normalizedRole() === mb_strtolower(trim($role));
+    }
+
+    public function hasAnyRole(array $roles): bool
+    {
+        $normalizedRoles = array_map(
+            static fn ($role) => is_string($role) ? mb_strtolower(trim($role)) : '',
+            $roles
+        );
+
+        return in_array($this->normalizedRole(), $normalizedRoles, true);
+    }
+
+    public function isSystem(): bool
+    {
+        return $this->hasRole('sistema');
+    }
+
     public function ordenesAsignadas()
 {
     return $this->belongsToMany(OrdenServicio::class, 'orden_servicio_tecnico', 'user_id', 'id_orden_servicio')

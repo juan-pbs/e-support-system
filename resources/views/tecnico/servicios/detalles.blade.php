@@ -479,9 +479,7 @@
                     $listaExtras = $orden->materialesExtras;
                 }
 
-                $totalExtrasDisplay = $extrasTotalDisplay ?? 0;
                 $totalCantExtras    = $extrasCantidadTotal ?? 0;
-                $pendientesPrecio   = $extrasPendientesPrecio ?? 0;
             @endphp
 
             @if($listaExtras->isEmpty())
@@ -495,12 +493,6 @@
                             <tr>
                                 <th class="px-3 py-2 text-left font-semibold border-b border-slate-200">Concepto</th>
                                 <th class="px-3 py-2 text-right font-semibold border-b border-slate-200">Cant.</th>
-                                <th class="px-3 py-2 text-right font-semibold border-b border-slate-200">
-                                    P. unit. ({{ $orderCurrency }})
-                                </th>
-                                <th class="px-3 py-2 text-right font-semibold border-b border-slate-200">
-                                    Importe ({{ $orderCurrency }})
-                                </th>
                                 @if(!$isActaFirmada)
                                     <th class="px-3 py-2 text-center font-semibold border-b border-slate-200">
                                         Acciones
@@ -509,51 +501,21 @@
                             </tr>
                         </thead>
 
-                        <tbody class="divide-y divide-slate-100">
-                            @foreach($listaExtras as $extra)
-                                @php
-                                    $extraId     = $extra->id_material_extra ?? $extra->id ?? $extra->getKey();
-                                    $cantDisplay = $extra->mnp_cantidad ?? ($extra->cantidad ?? 0);
+                        @foreach($listaExtras as $extra)
+                            @php
+                                $extraId     = $extra->id_material_extra ?? $extra->id ?? $extra->getKey();
+                                $cantDisplay = $extra->mnp_cantidad ?? ($extra->cantidad ?? 0);
 
-                                    $puDisplay  = $extra->mnp_pu_display ?? (is_null($extra->precio_unitario) ? null : (float)$extra->precio_unitario);
-                                    $subDisplay = $extra->mnp_sub_display ?? (is_null($puDisplay) ? null : ($cantDisplay * $puDisplay));
+                            @endphp
 
-                                    $pendiente  = $extra->mnp_pendiente_precio ?? is_null($puDisplay);
-                                @endphp
-
-                                <tr x-data="{ editOpen:false }">
+                            <tbody x-data="{ editOpen:false }" class="divide-y divide-slate-100">
+                                <tr>
                                     <td class="px-3 py-2 text-[13px] text-gray-800 align-top">
                                         {{ $extra->descripcion ?? '—' }}
                                     </td>
 
                                     <td class="px-3 py-2 text-[13px] text-right text-gray-700 align-top">
                                         {{ number_format($cantDisplay, 2) }}
-                                    </td>
-
-                                    <td class="px-3 py-2 text-[13px] text-right text-gray-700 align-top">
-                                        @if($pendiente)
-                                            <span class="inline-flex px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 text-[11px] font-semibold">
-                                                Pendiente
-                                            </span>
-                                        @else
-                                            @if($orderCurrency === 'MXN')
-                                                ${{ number_format($puDisplay, 2) }}
-                                            @else
-                                                {{ number_format($puDisplay, 2) }} {{ $orderCurrency }}
-                                            @endif
-                                        @endif
-                                    </td>
-
-                                    <td class="px-3 py-2 text-[13px] text-right text-gray-900 font-medium align-top">
-                                        @if($pendiente)
-                                            <span class="text-slate-500 text-[12px]">—</span>
-                                        @else
-                                            @if($orderCurrency === 'MXN')
-                                                ${{ number_format($subDisplay, 2) }}
-                                            @else
-                                                {{ number_format($subDisplay, 2) }} {{ $orderCurrency }}
-                                            @endif
-                                        @endif
                                     </td>
 
                                     @if(!$isActaFirmada)
@@ -583,7 +545,7 @@
                                 {{-- EDITAR (técnico: solo descripcion + cantidad) --}}
                                 @if(!$isActaFirmada)
                                     <tr x-show="editOpen" x-cloak class="bg-slate-50">
-                                        <td colspan="5" class="px-3 py-3">
+                                        <td colspan="3" class="px-3 py-3">
                                             <form method="POST"
                                                   action="{{ route('tecnico.ordenes.extras.update', [$oid, $extraId]) }}"
                                                   class="grid grid-cols-1 gap-3 text-xs">
@@ -617,11 +579,7 @@
 
                                                     <div class="rounded-lg border border-slate-200 bg-white p-3 text-[11px] text-slate-600">
                                                         <span class="font-semibold text-slate-800">Precio:</span> lo asigna el gerente.<br>
-                                                        @if($pendiente)
-                                                            Estado actual: <span class="font-semibold text-amber-700">Pendiente</span>
-                                                        @else
-                                                            Ya tiene precio asignado por gerencia.
-                                                        @endif
+                                                        El tecnico solo visualiza la cantidad en esta seccion.
                                                     </div>
                                                 </div>
 
@@ -640,47 +598,24 @@
                                         </td>
                                     </tr>
                                 @endif
-                            @endforeach
-                        </tbody>
+                            </tbody>
+                        @endforeach
 
                         <tfoot>
                             <tr class="bg-slate-50">
-                                <td colspan="{{ $isActaFirmada ? 3 : 4 }}" class="px-3 py-2 text-right text-[12px] font-semibold text-gray-700">
+                                <td class="px-3 py-2 text-right text-[12px] font-semibold text-gray-700">
                                     Total cantidad (materiales)
                                 </td>
                                 <td class="px-3 py-2 text-right text-[13px] font-bold text-gray-900">
                                     {{ number_format($totalCantExtras, 2) }}
                                 </td>
-                            </tr>
-
-                            <tr class="bg-slate-50">
-                                <td colspan="{{ $isActaFirmada ? 3 : 4 }}" class="px-3 py-2 text-right text-[12px] font-semibold text-gray-700">
-                                    Total con precio asignado
-                                    @if($pendientesPrecio > 0)
-                                        <span class="ml-2 text-[11px] font-semibold text-amber-700">
-                                            ({{ $pendientesPrecio }} pendiente{{ $pendientesPrecio == 1 ? '' : 's' }})
-                                        </span>
-                                    @endif
-                                </td>
-                                <td class="px-3 py-2 text-right text-[13px] font-bold text-gray-900">
-                                    @if($orderCurrency === 'MXN')
-                                        ${{ number_format($totalExtrasDisplay, 2) }}
-                                    @else
-                                        {{ number_format($totalExtrasDisplay, 2) }} {{ $orderCurrency }}
-                                    @endif
-                                </td>
+                                @if(!$isActaFirmada)
+                                    <td class="px-3 py-2"></td>
+                                @endif
                             </tr>
                         </tfoot>
                     </table>
                 </div>
-
-                @if($mnpUsesConversion)
-                    <p class="mt-2 text-[11px] text-gray-500">
-                        Material no previsto capturado en {{ $extrasBaseCurrency }}.
-                        Mostrando equivalente en {{ $orderCurrency }}
-                        usando la tasa de cambio de la orden ({{ $orderExchangeRate }}).
-                    </p>
-                @endif
             @endif
         </div>
     </div>

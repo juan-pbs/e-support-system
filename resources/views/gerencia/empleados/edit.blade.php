@@ -4,11 +4,12 @@
 
 @section('content')
 @php
-    $actual      = auth()->user();
-    $esGerente   = $actual && $actual->puesto === 'gerente'; // gerente ve todos
-    $esAdmin     = $actual && $actual->puesto === 'admin';   // admin restringido
-    $isSelf      = $actual && $actual->id === $empleado->id;
-    $targetRole  = strtolower($empleado->puesto ?? '');
+    $actual = auth()->user();
+    $rolActual = strtolower((string) ($actual->puesto ?? ''));
+    $esSistema = $actual && $rolActual === 'sistema';
+    $esGerente = $actual && $rolActual === 'gerente';
+    $isSelf = $actual && $actual->id === $empleado->id;
+    $targetRole = strtolower((string) ($empleado->puesto ?? ''));
 @endphp
 
 <div class="relative mb-10">
@@ -53,31 +54,27 @@
 
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-2">Puesto</label>
-                @php $p = old('puesto', $empleado->puesto); @endphp
+                @php $puestoSeleccionado = old('puesto', $empleado->puesto); @endphp
 
-                {{-- GERENTE: ve todos los roles --}}
-                @if($esGerente)
-                    <select name="puesto" class="w-full border rounded-lg px-4 py-3" required
-                            x-ref="puesto" @change="onRoleChange($event)">
-                        <option value="gerente" {{ $p=='gerente'?'selected':'' }}>Gerente</option>
-                        <option value="admin"   {{ $p=='admin'?'selected':'' }}>Administrador</option>
-                        <option value="tecnico" {{ $p=='tecnico'?'selected':'' }}>Técnico</option>
+                @if($esSistema)
+                    <select name="puesto" class="w-full border rounded-lg px-4 py-3" required x-ref="puesto" @change="onRoleChange($event)">
+                        <option value="sistema" {{ $puestoSeleccionado == 'sistema' ? 'selected' : '' }}>Sistema</option>
+                        <option value="gerente" {{ $puestoSeleccionado == 'gerente' ? 'selected' : '' }}>Gerente</option>
+                        <option value="admin" {{ $puestoSeleccionado == 'admin' ? 'selected' : '' }}>Administrador</option>
+                        <option value="tecnico" {{ $puestoSeleccionado == 'tecnico' ? 'selected' : '' }}>Tecnico</option>
+                    </select>
+                @elseif($esGerente)
+                    <select name="puesto" class="w-full border rounded-lg px-4 py-3" required x-ref="puesto" @change="onRoleChange($event)">
+                        <option value="gerente" {{ $puestoSeleccionado == 'gerente' ? 'selected' : '' }}>Gerente</option>
+                        <option value="admin" {{ $puestoSeleccionado == 'admin' ? 'selected' : '' }}>Administrador</option>
+                        <option value="tecnico" {{ $puestoSeleccionado == 'tecnico' ? 'selected' : '' }}>Tecnico</option>
                     </select>
                 @else
-                    {{-- ADMIN: si el objetivo NO es técnico, bloquear cambio (solo lectura y preservar valor).
-                               Si es técnico, solo permitir técnico. --}}
+                    <select name="puesto" class="w-full border rounded-lg px-4 py-3" required x-ref="puesto" @change="onRoleChange($event)">
+                        <option value="tecnico" selected>Tecnico</option>
+                    </select>
                     @if($targetRole !== 'tecnico')
-                        <input type="hidden" name="puesto" value="{{ $p }}">
-                        <div class="px-3 py-2 rounded-lg
-                            @if($targetRole==='gerente') bg-indigo-50 text-indigo-800 @elseif($targetRole==='admin') bg-purple-50 text-purple-800 @else bg-gray-50 text-gray-800 @endif
-                        ">
-                            {{ ucfirst($p) }} (solo modificable por un Gerente)
-                        </div>
-                    @else
-                        <select name="puesto" class="w-full border rounded-lg px-4 py-3" required
-                                x-ref="puesto" @change="onRoleChange($event)">
-                            <option value="tecnico" selected>Técnico</option>
-                        </select>
+                        <p class="text-xs text-red-600 mt-2">Este usuario no deberia ser editable desde una cuenta ADMIN.</p>
                     @endif
                 @endif
 
@@ -86,13 +83,13 @@
 
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-2">Contacto (opcional)</label>
-                <input type="tel" name="contacto" value="{{ old('contacto', $empleado->contacto) }}" pattern="[0-9]{7,20}" title="Solo números (7 a 20 dígitos)" oninput="this.value=this.value.replace(/[^0-9]/g,'')" class="w-full border rounded-lg px-4 py-3">
+                <input type="tel" name="contacto" value="{{ old('contacto', $empleado->contacto) }}" pattern="[0-9]{7,20}" title="Solo numeros (7 a 20 digitos)" oninput="this.value=this.value.replace(/[^0-9]/g,'')" class="w-full border rounded-lg px-4 py-3">
                 @error('contacto') <p class="text-red-600 text-sm mt-1">{{ $message }}</p> @enderror
             </div>
 
             <div class="sm:col-span-2">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Nueva contraseña (opcional)</label>
-                <input type="password" name="password" minlength="6" class="w-full border rounded-lg px-4 py-3" placeholder="Déjalo vacío para no cambiar" x-ref="newpwd"
+                <label class="block text-sm font-medium text-gray-700 mb-2">Nueva contrasena (opcional)</label>
+                <input type="password" name="password" minlength="6" class="w-full border rounded-lg px-4 py-3" placeholder="Dejalo vacio para no cambiar" x-ref="newpwd"
                        @input="onPwdChange($event)" autocomplete="new-password">
                 @error('password') <p class="text-red-600 text-sm mt-1">{{ $message }}</p> @enderror
             </div>
@@ -103,14 +100,13 @@
             <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">Actualizar empleado</button>
         </div>
 
-        <!-- Modal de confirmación -->
         <div x-show="open" style="display:none" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
             <div class="bg-white w-full max-w-md rounded-xl shadow-xl p-6" @click.away="cerrar()">
-                <h3 class="text-lg font-semibold mb-2">Confirmación de seguridad</h3>
+                <h3 class="text-lg font-semibold mb-2">Confirmacion de seguridad</h3>
                 <p class="text-sm text-gray-600 mb-4" x-text="motivo"></p>
 
                 <div class="space-y-2">
-                    <label class="block text-sm font-medium text-gray-700">Tu contraseña</label>
+                    <label class="block text-sm font-medium text-gray-700">Tu contrasena</label>
                     <input type="password" name="auth_password" x-ref="authpwd"
                            class="w-full border rounded-lg px-4 py-3"
                            required minlength="6"
@@ -131,7 +127,7 @@
 @push('scripts')
 <script>
 function editarEmpleadoSecurity(rolOriginal, isSelf){
-    const rank = { tecnico:1, admin:2, gerente:3 };
+    const rank = { tecnico:1, admin:2, gerente:3, sistema:4 };
     return {
         open:false,
         motivo:'',
@@ -141,7 +137,7 @@ function editarEmpleadoSecurity(rolOriginal, isSelf){
         init(){},
         onRoleChange(e){
             const nuevo = (e.target.value || '').toLowerCase();
-            const baja = rank[nuevo] < (rank[rolOriginal?.toLowerCase()] || 0);
+            const baja = rank[nuevo] < (rank[(rolOriginal || '').toLowerCase()] || 0);
             this.bajaSelf = !!(isSelf && baja);
         },
         onPwdChange(e){
@@ -152,8 +148,8 @@ function editarEmpleadoSecurity(rolOriginal, isSelf){
             this.needAuth = this.bajaSelf || this.changePwdOther;
             if (this.needAuth){
                 this.motivo = this.bajaSelf
-                    ? 'Estás bajando tu propio rol. Confirma con tu contraseña.'
-                    : 'Vas a cambiar la contraseña de otro usuario. Confirma con tu contraseña.';
+                    ? 'Estas bajando tu propio rol. Confirma con tu contrasena.'
+                    : 'Vas a cambiar la contrasena de otro usuario. Confirma con tu contrasena.';
                 this.open = true;
                 this.$nextTick(()=> this.$refs.authpwd?.focus());
             } else {

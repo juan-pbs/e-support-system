@@ -532,7 +532,7 @@
     <div id="editProductModal" class="fixed inset-0 flex items-center justify-center z-50 hidden">
         <div class="absolute inset-0 bg-black bg-opacity-50"></div>
         <div class="relative bg-white rounded-lg p-6 max-w-sm w-full mx-4">
-            <div class="flex justify-between items-center mb-4">
+            <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-4">
                 <h3 class="text-lg font-semibold">Editar producto</h3>
                 <button onclick="closeEditModal()" class="text-gray-400 hover:text-gray-600">
                     <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -566,16 +566,17 @@
     </div>
 
     {{-- Modal preview PDF --}}
-    <div id="pdfPreviewModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center hidden">
-        <div class="bg-white p-4 rounded-lg max-w-4xl w-full h-[90vh] flex items-center justify-center flex-col overflow-hidden">
-            <div class="flex justify-between items-center mb-4 w-full max-w-4xl">
-                <h2 class="text-xl font-semibold">Previsualizar Cotización</h2>
+    <x-pdf-js-viewer />
+    <div id="pdfPreviewModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center hidden p-2 sm:p-4">
+        <div class="bg-white p-4 rounded-lg max-w-4xl w-full h-[94vh] sm:h-[90vh] flex items-center justify-center flex-col overflow-hidden">
+            <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-4 w-full max-w-4xl">
+                <h2 class="text-lg sm:text-xl font-semibold leading-tight">Previsualizar Cotización</h2>
                 <button onclick="cerrarModalPDF()" class="text-gray-600 hover:text-black text-xl">&times;</button>
             </div>
 
-            <iframe id="iframePDF" class="flex-1 border w-full overflow-auto"></iframe>
+            <div id="pdfPreviewCanvas" class="flex-1 border w-full overflow-auto bg-gray-100 p-3"></div>
 
-            <div class="flex justify-end mt-4 w-full max-w-4xl">
+            <div class="flex flex-col sm:flex-row sm:justify-end mt-4 w-full max-w-4xl gap-2">
                 <button onclick="guardarCotizacionFinal()"
                         class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded">
                     Guardar
@@ -1277,8 +1278,8 @@
             if (res.ok && contentType.includes('application/pdf')) {
                 const blob = await res.blob();
                 const url = URL.createObjectURL(blob);
-                document.getElementById('iframePDF').src = url;
                 document.getElementById('pdfPreviewModal').classList.remove('hidden');
+                await window.eSupportPdfViewer?.renderUrl(url, 'pdfPreviewCanvas');
                 return;
             }
 
@@ -1297,6 +1298,7 @@
 
     function cerrarModalPDF(){
         document.getElementById('pdfPreviewModal').classList.add('hidden');
+        window.eSupportPdfViewer?.clear('pdfPreviewCanvas');
     }
 
     // ÚNICA función de guardado (con validación de productos)

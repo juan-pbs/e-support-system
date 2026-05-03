@@ -8,7 +8,7 @@ use Illuminate\Http\Request;
 class Gerente
 {
     /**
-     * Permite acceso a usuarios con rol 'gerente' o 'admin'.
+     * Permite acceso a usuarios con rol 'gerente', 'admin' o 'sistema'.
      */
     public function handle(Request $request, Closure $next)
     {
@@ -20,7 +20,7 @@ class Gerente
         }
 
         if (method_exists($user, 'hasAnyRole')) {
-            if ($user->hasAnyRole(['admin', 'gerente'])) {
+            if ($user->hasAnyRole(['admin', 'gerente', 'sistema'])) {
                 return $next($request);
             }
 
@@ -33,7 +33,7 @@ class Gerente
         $rol = $user->puesto ?? $user->role ?? $user->rol ?? $user->tipo ?? null;
         $rol = is_string($rol) ? strtolower(trim($rol)) : '';
 
-        if (in_array($rol, ['gerente', 'admin'], true)) {
+        if (in_array($rol, ['gerente', 'admin', 'sistema'], true)) {
             return $next($request);
         }
 

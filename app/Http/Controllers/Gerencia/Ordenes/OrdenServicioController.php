@@ -31,17 +31,13 @@ class OrdenServicioController extends Controller
         $ordenId = $request->input('orden_id');
         $estado  = $request->input('estado');
         $tipo    = $request->input('tipo_orden');
-        $facturado = $request->input('facturado');
+        $facturadoFilter = $this->normalizeFacturadoFilter($request->input('facturado'));
         $tecnicoId = $request->input('tecnico_id');
 
-        $ordenes = OrdenServicio::query()
+        $ordenesQuery = OrdenServicio::query()
             ->with(['cliente', 'tecnico', 'tecnicos'])
             ->when($estado, fn($w) => $w->where('estado', $estado))
             ->when($tipo, fn($w) => $w->where('tipo_orden', $tipo))
-            ->when(
-                Schema::hasColumn('orden_servicio', 'facturado') && in_array((string) $facturado, ['0', '1'], true),
-                fn($w) => $w->where('facturado', (int) $facturado)
-            )
             ->when($tecnicoId, fn($w) => $w->where(fn($tq) => $tq->whereHas('tecnicos', fn($tt) => $tt->where('users.id', (int) $tecnicoId))->orWhere('id_tecnico', (int) $tecnicoId)))
             ->when($ordenId, fn($w) => $w->whereKey($ordenId))
             ->when(!$ordenId && $q !== '', function ($w) use ($q) {
@@ -73,13 +69,37 @@ class OrdenServicioController extends Controller
                         $sub->orWhere('descripcion_servicio', 'like', $like);
                     }
                 });
-            })
+            });
+
+        $facturacionCounts = null;
+        if (Schema::hasColumn('orden_servicio', 'facturado')) {
+            $facturacionCounts = [
+                'facturado' => (clone $ordenesQuery)->where('facturado', 1)->count(),
+                'no_facturado' => (clone $ordenesQuery)->where('facturado', 0)->count(),
+            ];
+
+            if ($facturadoFilter !== null) {
+                $ordenesQuery->where('facturado', $facturadoFilter);
+            }
+        }
+
+        $ordenes = $ordenesQuery
             ->orderByDesc('created_at')
-            ->paginate(15);
+            ->paginate(15)
+            ->withQueryString();
 
         $tecnicos = User::where('puesto', 'tecnico')->orderBy('name')->get(['id', 'name']);
 
-        return view('gerencia.ordenes.index', compact('ordenes', 'tecnicos'));
+        return view('gerencia.ordenes.index', compact('ordenes', 'tecnicos', 'facturacionCounts', 'facturadoFilter'));
+    }
+
+    private function normalizeFacturadoFilter(mixed $value): ?int
+    {
+        return match (strtolower(trim((string) $value))) {
+            '1', 'true' => 1,
+            '0', 'false' => 0,
+            default => null,
+        };
     }
 
     public function export(Request $request)

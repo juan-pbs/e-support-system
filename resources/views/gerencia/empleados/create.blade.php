@@ -5,8 +5,9 @@
 @section('content')
 @php
     $actual = auth()->user();
-    $esGerente = $actual && $actual->puesto === 'gerente'; // gerente ve todos los roles
-    $esAdmin   = $actual && $actual->puesto === 'admin';   // admin solo puede crear técnicos
+    $rolActual = strtolower((string) ($actual->puesto ?? ''));
+    $esSistema = $actual && $rolActual === 'sistema';
+    $esGerente = $actual && $rolActual === 'gerente';
 @endphp
 
 <div class="relative mb-10">
@@ -52,17 +53,24 @@
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-2">Puesto</label>
 
-                @if($esGerente)
+                @if($esSistema)
                     <select name="puesto" class="w-full border rounded-lg px-4 py-3" required>
-                        <option value="" disabled {{ old('puesto') ? '' : 'selected' }}>Selecciona un rol…</option>
-                        <option value="gerente" {{ old('puesto')=='gerente'?'selected':'' }}>Gerente</option>
-                        <option value="admin"   {{ old('puesto')=='admin'?'selected':'' }}>Administrador</option>
-                        <option value="tecnico" {{ old('puesto')=='tecnico'?'selected':'' }}>Técnico</option>
+                        <option value="" disabled {{ old('puesto') ? '' : 'selected' }}>Selecciona un rol...</option>
+                        <option value="sistema" {{ old('puesto') == 'sistema' ? 'selected' : '' }}>Sistema</option>
+                        <option value="gerente" {{ old('puesto') == 'gerente' ? 'selected' : '' }}>Gerente</option>
+                        <option value="admin" {{ old('puesto') == 'admin' ? 'selected' : '' }}>Administrador</option>
+                        <option value="tecnico" {{ old('puesto') == 'tecnico' ? 'selected' : '' }}>Tecnico</option>
+                    </select>
+                @elseif($esGerente)
+                    <select name="puesto" class="w-full border rounded-lg px-4 py-3" required>
+                        <option value="" disabled {{ old('puesto') ? '' : 'selected' }}>Selecciona un rol...</option>
+                        <option value="gerente" {{ old('puesto') == 'gerente' ? 'selected' : '' }}>Gerente</option>
+                        <option value="admin" {{ old('puesto') == 'admin' ? 'selected' : '' }}>Administrador</option>
+                        <option value="tecnico" {{ old('puesto') == 'tecnico' ? 'selected' : '' }}>Tecnico</option>
                     </select>
                 @else
-                    {{-- Admin: solo técnico --}}
                     <select name="puesto" class="w-full border rounded-lg px-4 py-3" required>
-                        <option value="tecnico" selected>Técnico</option>
+                        <option value="tecnico" selected>Tecnico</option>
                     </select>
                 @endif
 
@@ -71,12 +79,12 @@
 
             <div>
                 <label class="block text-sm font-medium text-gray-700 mb-2">Contacto (opcional)</label>
-                <input type="tel" name="contacto" value="{{ old('contacto') }}" pattern="[0-9]{7,20}" title="Solo números (7 a 20 dígitos)" oninput="this.value=this.value.replace(/[^0-9]/g,'')" class="w-full border rounded-lg px-4 py-3">
+                <input type="tel" name="contacto" value="{{ old('contacto') }}" pattern="[0-9]{7,20}" title="Solo numeros (7 a 20 digitos)" oninput="this.value=this.value.replace(/[^0-9]/g,'')" class="w-full border rounded-lg px-4 py-3">
                 @error('contacto') <p class="text-red-600 text-sm mt-1">{{ $message }}</p> @enderror
             </div>
 
             <div class="sm:col-span-2">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Contraseña</label>
+                <label class="block text-sm font-medium text-gray-700 mb-2">Contrasena</label>
                 <input type="password" name="password" required minlength="6" class="w-full border rounded-lg px-4 py-3" autocomplete="new-password">
                 @error('password') <p class="text-red-600 text-sm mt-1">{{ $message }}</p> @enderror
             </div>
@@ -87,14 +95,13 @@
             <button type="submit" class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg">Registrar empleado</button>
         </div>
 
-        <!-- Modal de confirmación -->
         <div x-show="open" style="display:none" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center">
             <div class="bg-white w-full max-w-md rounded-xl shadow-xl p-6" @click.away="cerrar()">
-                <h3 class="text-lg font-semibold mb-2">Confirmación de seguridad</h3>
+                <h3 class="text-lg font-semibold mb-2">Confirmacion de seguridad</h3>
                 <p class="text-sm text-gray-600 mb-4" x-text="motivo"></p>
 
                 <div class="space-y-2">
-                    <label class="block text-sm font-medium text-gray-700">Tu contraseña</label>
+                    <label class="block text-sm font-medium text-gray-700">Tu contrasena</label>
                     <input type="password" name="auth_password" x-ref="authpwd"
                            class="w-full border rounded-lg px-4 py-3"
                            required minlength="6"

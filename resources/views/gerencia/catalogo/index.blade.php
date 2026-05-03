@@ -11,12 +11,9 @@
         cerrarDetalle(){ this.openDetail=false; },
      }">
 
-    <div class="relative mb-10 text-center mx-a">
-        <h1 class="text-2xl md:text-3xl font-bold text-gray-800">Catálogo de productos</h1>
-
-        <div class="flex items-center justify-between mb-6">
-            <x-boton-volver />
-        </div>
+    <div class="mb-6 flex flex-col items-start gap-3 sm:flex-row sm:items-center">
+        <x-boton-volver />
+        <h1 class="text-2xl md:text-3xl font-bold text-gray-800 leading-tight break-words">Catálogo de productos</h1>
     </div>
 
     @if(session('success'))
@@ -63,7 +60,7 @@
                     />
                 </div>
 
-                <div class="w-full md:w-1/4 flex items-end gap-2">
+                <div class="w-full md:w-1/4 flex flex-col sm:flex-row sm:items-end gap-2">
                     <label class="inline-flex items-center text-sm gap-2">
                         <input type="checkbox" name="stock_bajo" value="1" {{ request('stock_bajo')?'checked':'' }}>
                         <span>Stock bajo</span>
@@ -72,20 +69,20 @@
                         <input type="checkbox" name="inactivos" value="1" {{ request('inactivos')?'checked':'' }}>
                         <span>Ver inactivos</span>
                     </label>
-                    <button class="ml-auto bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">Aplicar</button>
+                    <button class="w-full sm:w-auto sm:ml-auto bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">Aplicar</button>
                 </div>
             </div>
         </div>
     </form>
 
     {{-- Acciones principales --}}
-    <div class="flex justify-end mb-4 gap-2">
+    <div class="grid grid-cols-1 sm:flex sm:justify-end mb-4 gap-2">
         <a href="{{ route('producto.crear') }}"
-           class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+           class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2">
             <i class="fas fa-plus"></i> Añadir producto
         </a>
         <a href="{{ route('entrada') }}"
-           class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2">
+           class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2">
             <i class="fas fa-sign-in-alt"></i> Nueva entrada
         </a>
 

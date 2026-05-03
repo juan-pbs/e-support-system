@@ -81,8 +81,11 @@ class SeguimientoServiciosController extends Controller
         $prioridad  = $request->query('prioridad');
         $monedaF    = $request->query('moneda');
         $tecnicoQ   = trim((string) $request->query('tecnico'));
+        $clienteQ   = trim((string) $request->query('cliente'));
+        $clienteId  = (int) $request->query('cliente_id', 0);
         $desde      = $request->query('desde');
         $hasta      = $request->query('hasta');
+        $fecha      = $request->query('fecha');
 
         $hasSegTable   = Schema::hasTable('seguimiento_servicio');
         $hasExtraTable = Schema::hasTable((new OrdenMaterialExtra())->getTable());
@@ -94,12 +97,18 @@ class SeguimientoServiciosController extends Controller
         $ordenTable    = (new OrdenServicio())->getTable();
         $hasFechaOrden = Schema::hasColumn($ordenTable, 'fecha_orden');
         $hasCreatedAt  = Schema::hasColumn($ordenTable, 'created_at');
+        $hasUpdatedAt  = Schema::hasColumn($ordenTable, 'updated_at');
 
         $colTotalAdic  = $this->totalAdicionalColumn(); // puede ser null
 
         $ordenesQuery = OrdenServicio::with($with);
 
-        // Rango quincena
+        if ($fecha) {
+            $desde = $fecha;
+            $hasta = $fecha;
+        }
+
+        // Fecha unica o rango seleccionado por el usuario.
         if ($hasFechaOrden) {
             if ($desde) $ordenesQuery->whereDate('fecha_orden', '>=', $desde);
             if ($hasta) $ordenesQuery->whereDate('fecha_orden', '<=', $hasta);
@@ -108,7 +117,21 @@ class SeguimientoServiciosController extends Controller
             if ($hasta) $ordenesQuery->whereDate('created_at', '<=', $hasta);
         }
 
-        $ordenesQuery->orderByDesc('id_orden_servicio');
+        if ($clienteId > 0) {
+            $ordenesQuery->where('id_cliente', $clienteId);
+        } elseif ($clienteQ !== '') {
+            $ordenesQuery->whereHas('cliente', function ($q) use ($clienteQ) {
+                $q->where('nombre', 'like', '%' . $clienteQ . '%')
+                  ->orWhere('nombre_empresa', 'like', '%' . $clienteQ . '%')
+                  ->orWhere('codigo_cliente', 'like', '%' . $clienteQ . '%');
+            });
+        }
+
+        if ($hasUpdatedAt) {
+            $ordenesQuery->orderByDesc('updated_at');
+        } else {
+            $ordenesQuery->orderByDesc('id_orden_servicio');
+        }
 
         if ($prioridad && $prioridad !== 'all') {
             $ordenesQuery->where('prioridad', $prioridad);
@@ -293,6 +316,7 @@ class SeguimientoServiciosController extends Controller
                 'finalTotalMxn'       => round($finalEnMxn, 2),
                 'facturado'           => $facturado,
                 'facturacion'         => $facturado ? 'Facturado' : 'No facturado',
+                'updatedAt'           => optional($o->updated_at)->format('Y-m-d H:i:s'),
             ];
         })->values();
 
@@ -310,6 +334,13 @@ class SeguimientoServiciosController extends Controller
             $needle = $tecnicoQ;
             $rows = $rows->filter(function ($r) use ($needle) {
                 $name = (string) ($r['technician'] ?? '');
+                return $name !== '' && stripos($name, $needle) !== false;
+            })->values();
+        }
+        if ($clienteId <= 0 && $clienteQ !== '') {
+            $needle = $clienteQ;
+            $rows = $rows->filter(function ($r) use ($needle) {
+                $name = (string) ($r['cliente'] ?? $r['client'] ?? '');
                 return $name !== '' && stripos($name, $needle) !== false;
             })->values();
         }
@@ -456,6 +487,7 @@ class SeguimientoServiciosController extends Controller
         });
 
         $totalMxn = $this->syncTotalAdicionalMxn((int)$orden->id_orden_servicio);
+        $orden->touch();
 
         return response()->json(['ok' => true, 'totalAdicional' => $totalMxn], 201);
     }
@@ -497,6 +529,7 @@ class SeguimientoServiciosController extends Controller
         });
 
         $totalMxn = $this->syncTotalAdicionalMxn((int)$orden->id_orden_servicio);
+        $orden->touch();
 
         return response()->json(['ok' => true, 'totalAdicional' => $totalMxn]);
     }
@@ -521,6 +554,7 @@ class SeguimientoServiciosController extends Controller
         });
 
         $totalMxn = $this->syncTotalAdicionalMxn((int)$orden->id_orden_servicio);
+        $orden->touch();
 
         return response()->json(['ok' => true, 'totalAdicional' => $totalMxn]);
     }
@@ -597,6 +631,7 @@ class SeguimientoServiciosController extends Controller
             'comentarios'       => $texto,
             'imagen'            => '',
         ]);
+        $orden->touch();
 
         return response()->json(['ok' => true, 'id' => $seguimiento->id_seguimiento], 201);
     }
@@ -630,6 +665,7 @@ class SeguimientoServiciosController extends Controller
 
             $created[] = ['id' => $img->id_imagen, 'url' => $img->url];
         }
+        $orden->touch();
 
         return response()->json(['ok' => true, 'count' => count($created), 'imagenes' => $created], 201);
     }

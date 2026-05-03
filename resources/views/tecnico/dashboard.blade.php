@@ -8,27 +8,27 @@
     {{-- TARJETAS RESUMEN SUPERIORES --}}
     <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
         {{-- Servicios asignados este mes --}}
-        <div class="bg-white rounded-xl p-6 text-center shadow-sm border border-slate-200">
+        <div class="bg-white rounded-xl p-4 sm:p-6 text-center shadow-sm border border-slate-200 overflow-hidden">
             <div class="text-4xl font-bold text-blue-600">
                 {{ $asignadosMes ?? 0 }}
             </div>
             <div class="text-sm font-semibold text-slate-800 mt-2">
                 Servicios asignados este mes
             </div>
-            <p class="mt-1 text-xs text-slate-500">
+            <p class="mt-1 text-xs text-slate-500 break-words whitespace-normal max-w-[220px] mx-auto">
                 Contabiliza los servicios que te asignan en el mes actual.
             </p>
         </div>
 
         {{-- Servicios completados este mes --}}
-        <div class="bg-white rounded-xl p-6 text-center shadow-sm border border-slate-200">
+        <div class="bg-white rounded-xl p-4 sm:p-6 text-center shadow-sm border border-slate-200 overflow-hidden">
             <div class="text-4xl font-bold text-emerald-600">
                 {{ $completadosMes ?? 0 }}
             </div>
             <div class="text-sm font-semibold text-slate-800 mt-2">
                 Servicios completados este mes
             </div>
-            <p class="mt-1 text-xs text-slate-500">
+            <p class="mt-1 text-xs text-slate-500 break-words whitespace-normal max-w-[220px] mx-auto">
                 Se reinicia automáticamente cada inicio de mes.
             </p>
         </div>

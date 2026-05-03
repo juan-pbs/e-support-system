@@ -255,6 +255,31 @@ it('permite actualizar la facturacion aunque la orden tenga acta firmada', funct
         ->and($orden->fresh()->facturacion_label)->toBe('Facturado');
 });
 
+it('filtra ordenes por facturacion en el index', function () {
+    $gerente = User::factory()->create([
+        'puesto' => 'gerente',
+    ]);
+
+    $ordenFacturada = crearOrden([
+        'facturado' => true,
+    ]);
+
+    $ordenNoFacturada = crearOrden([
+        'facturado' => false,
+    ]);
+
+    $response = $this
+        ->actingAs($gerente)
+        ->get(route('ordenes.index', [
+            'facturado' => '1',
+        ]));
+
+    $response
+        ->assertOk()
+        ->assertSee($ordenFacturada->folio)
+        ->assertDontSee($ordenNoFacturada->folio);
+});
+
 it('muestra la facturacion junto al estado en el index de ordenes', function () {
     $gerente = User::factory()->create([
         'puesto' => 'gerente',
