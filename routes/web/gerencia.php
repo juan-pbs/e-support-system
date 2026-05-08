@@ -20,6 +20,7 @@ use App\Http\Controllers\Gerencia\Reportes\ReporteController;
 use App\Http\Controllers\Sistema\MantenimientoController;
 use App\Http\Controllers\Sistema\UsuariosConectadosController;
 use App\Http\Controllers\Shared\Actas\ActaConformidadController;
+use App\Http\Controllers\Shared\GoogleCalendarController;
 use App\Http\Controllers\Shared\Seguimiento\SeguimientoServiciosController;
 use App\Models\Inventario;
 use App\Models\OrdenServicio;
@@ -91,6 +92,10 @@ Route::middleware(['auth', 'gerente'])->group(function () {
         Route::post('/jornadas/{jornada}/cerrar', [LogisticaController::class, 'closeJornada'])->name('jornadas.close');
         Route::put('/movimientos/{movimiento}', [LogisticaController::class, 'updateMovimiento'])->name('movimientos.update');
         Route::post('/movimientos/{movimiento}/confirmar-recepcion', [LogisticaController::class, 'confirmarRecepcion'])->name('movimientos.confirmarRecepcion');
+    });
+
+    Route::prefix('integraciones/google-calendar')->name('gerente.google-calendar.')->group(function () {
+        Route::get('/', [GoogleCalendarController::class, 'gerenteIndex'])->name('index');
     });
 
     Route::prefix('catalogo')->group(function () {

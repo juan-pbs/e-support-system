@@ -83,4 +83,9 @@ class User extends Authenticatable
                 ->withTimestamps();
 }
 
+    public function googleCalendarAccount()
+    {
+        return $this->hasOne(GoogleCalendarAccount::class);
+    }
+
 }

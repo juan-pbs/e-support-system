@@ -261,6 +261,15 @@
                         </div>
                     </a>
 
+                    <a href="{{ route('gerente.google-calendar.index') }}" class="block">
+                        <div class="flex items-center gap-3 px-4 py-3 transition-colors rounded-lg {{ request()->routeIs('gerente.google-calendar.*') ? 'bg-white text-gray-900' : 'menu-item-hover' }}">
+                            <div class="flex items-center justify-center w-8 h-8">
+                                <i data-lucide="calendar-days" class="lucide-icon"></i>
+                            </div>
+                            <span class="text-sm font-medium">Google Calendar</span>
+                        </div>
+                    </a>
+
                     <a href="{{ route('reportes') }}" class="block">
                         <div class="flex items-center gap-3 px-4 py-3 transition-colors menu-item-hover rounded-lg">
                             <div class="flex items-center justify-center w-8 h-8">

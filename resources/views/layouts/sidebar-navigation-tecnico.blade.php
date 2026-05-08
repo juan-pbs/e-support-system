@@ -137,6 +137,14 @@
                         <span class="text-sm font-medium">Logística</span>
                     </div>
                 </a>
+
+                <a href="{{ route('tecnico.google-calendar.index') }}" class="block">
+                    <div class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors
+                        {{ request()->routeIs('tecnico.google-calendar.*') ? 'bg-white text-gray-900' : 'menu-item-hover' }}">
+                        <i data-lucide="calendar-days" class="lucide-icon"></i>
+                        <span class="text-sm font-medium">Google Calendar</span>
+                    </div>
+                </a>
             </nav>
         </div>
     </div>

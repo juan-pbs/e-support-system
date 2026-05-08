@@ -17,9 +17,12 @@ use App\Models\Cliente;
 use App\Models\Cotizacion;
 use App\Models\Inventario;
 use App\Models\NumeroSerie;
+use App\Services\Ordenes\OrdenServicioService;
 
 class SalidaInventarioController extends Controller
 {
+    public function __construct(private OrdenServicioService $ordenService) {}
+
     /**
      * Listado de salidas + datos para el modal (productos, clientes, series).
      */
@@ -172,27 +175,35 @@ class SalidaInventarioController extends Controller
             DB::transaction(function () use ($validated, $seriesArr, $cantidad) {
 
                 $producto = Producto::lockForUpdate()->findOrFail($validated['codigo_producto']);
+                $codigoProducto = (int) $producto->codigo_producto;
+                $qty = (float) $cantidad;
+                $seriesConsumidas = $seriesArr;
+                $usaSeries = $this->productHasSerials($codigoProducto);
 
-                // Validar series
-                if (count($seriesArr) > 0) {
-                    $inventarioIds = Inventario::where('codigo_producto', $producto->codigo_producto)->pluck('id');
-                    if ($inventarioIds->isEmpty()) {
-                        throw new \Exception('No hay entradas de inventario para este producto.');
+                if ($usaSeries) {
+                    if (count($seriesConsumidas) === 0) {
+                        $seriesConsumidas = $this->ordenService->peekAvailableSerials($codigoProducto, $qty);
+                    } else {
+                        $disponibles = array_flip($this->ordenService->peekSeriesAll($codigoProducto));
+                        $faltantes = array_values(array_filter(
+                            $seriesConsumidas,
+                            fn($serie) => !isset($disponibles[(string) $serie])
+                        ));
+
+                        if (!empty($faltantes)) {
+                            throw new \Exception('Alguna serie seleccionada ya no está disponible.');
+                        }
                     }
 
-                    $seriesDisponibles = NumeroSerie::whereIn('inventario_id', $inventarioIds)
-                        ->whereIn('numero_serie', $seriesArr)
-                        ->pluck('numero_serie')
-                        ->toArray();
-
-                    if (count($seriesDisponibles) !== count($seriesArr)) {
-                        throw new \Exception('Alguna serie seleccionada ya no está disponible.');
+                    if (count($seriesConsumidas) !== (int) ceil($qty)) {
+                        throw new \Exception('No hay suficientes números de serie disponibles para realizar la salida.');
                     }
+
+                    $qty = (float) count($seriesConsumidas);
                 }
 
                 // Verificar stock
-                $stockActual = (float) ($producto->stock_total ?? 0);
-                $qty = (float) $cantidad;
+                $stockActual = (float) $this->ordenService->calculateAvailableForProduct($codigoProducto);
 
                 if ($stockActual < $qty) {
                     throw new \Exception('Stock insuficiente para realizar la salida.');
@@ -234,17 +245,9 @@ class SalidaInventarioController extends Controller
                     'total'             => $precioUnit * $qty,
                 ]);
 
-                // 3) Descontar stock
-                $producto->stock_total = max(0, $stockActual - $qty);
-                $producto->save();
-
-                // 4) Quitar series y registrarlas
-                if (count($seriesArr) > 0) {
-                    $inventarioIds = Inventario::where('codigo_producto', $producto->codigo_producto)->pluck('id');
-
-                    NumeroSerie::whereIn('inventario_id', $inventarioIds)
-                        ->whereIn('numero_serie', $seriesArr)
-                        ->delete();
+                // 3) Consumir inventario físico y recalcular disponible
+                if ($usaSeries) {
+                    $this->consumeSerialInventory($codigoProducto, $seriesConsumidas);
 
                     $rows = array_map(function ($ns) use ($detalle) {
                         return [
@@ -253,10 +256,16 @@ class SalidaInventarioController extends Controller
                             'created_at'        => now(),
                             'updated_at'        => now(),
                         ];
-                    }, $seriesArr);
+                    }, $seriesConsumidas);
 
-                    DetalleOrdenProductoSerie::insert($rows);
+                    if (!empty($rows)) {
+                        DetalleOrdenProductoSerie::insert($rows);
+                    }
+                } else {
+                    $this->consumeNonSerialInventory($codigoProducto, $qty);
                 }
+
+                $this->ordenService->refreshProductStockTotals($codigoProducto);
             });
 
             return redirect()->route('inventario.salidas')
@@ -286,9 +295,189 @@ class SalidaInventarioController extends Controller
                 ->toArray();
         }
 
+        if (empty($series)) {
+            $series = Inventario::where('codigo_producto', $codigo)
+                ->whereNotNull('numero_serie')
+                ->where('numero_serie', '!=', '')
+                ->orderBy('numero_serie')
+                ->pluck('numero_serie')
+                ->toArray();
+        }
+
         return response()->json([
             'series' => $series,
             'count'  => count($series),
         ]);
+    }
+
+    private function productHasSerials(int $codigoProducto): bool
+    {
+        if (
+            Inventario::where('codigo_producto', $codigoProducto)
+                ->whereNotNull('numero_serie')
+                ->where('numero_serie', '!=', '')
+                ->exists()
+        ) {
+            return true;
+        }
+
+        $inventarioIds = Inventario::where('codigo_producto', $codigoProducto)->pluck('id');
+
+        return $inventarioIds->isNotEmpty()
+            && NumeroSerie::whereIn('inventario_id', $inventarioIds)->exists();
+    }
+
+    private function consumeNonSerialInventory(int $codigoProducto, float $qty): void
+    {
+        $restante = max($qty, 0);
+
+        $rows = Inventario::where('codigo_producto', $codigoProducto)
+            ->where(function ($query) {
+                $query->whereNull('numero_serie')
+                    ->orWhere('numero_serie', '');
+            })
+            ->orderBy('fecha_entrada')
+            ->orderBy('hora_entrada')
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
+
+        foreach ($rows as $row) {
+            if ($restante <= 0) {
+                break;
+            }
+
+            $restante -= $this->consumeFromInventarioRow($row, $restante);
+        }
+
+        if ($restante > 0.00001) {
+            throw new \RuntimeException('Stock físico insuficiente para realizar la salida.');
+        }
+    }
+
+    private function consumeSerialInventory(int $codigoProducto, array $series): void
+    {
+        $seriesPendientes = collect($series)
+            ->map(fn($serie) => trim((string) $serie))
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        if (empty($seriesPendientes)) {
+            return;
+        }
+
+        $seriesTabla = NumeroSerie::query()
+            ->select('numeros_serie.id', 'numeros_serie.numero_serie', 'numeros_serie.inventario_id')
+            ->join('inventario', 'inventario.id', '=', 'numeros_serie.inventario_id')
+            ->where('inventario.codigo_producto', $codigoProducto)
+            ->whereIn('numeros_serie.numero_serie', $seriesPendientes)
+            ->lockForUpdate()
+            ->get();
+
+        if ($seriesTabla->isNotEmpty()) {
+            $inventarioRows = Inventario::whereIn('id', $seriesTabla->pluck('inventario_id')->unique()->all())
+                ->lockForUpdate()
+                ->get()
+                ->keyBy('id');
+
+            foreach ($seriesTabla->groupBy('inventario_id') as $inventarioId => $items) {
+                NumeroSerie::whereIn('id', $items->pluck('id')->all())->delete();
+
+                $row = $inventarioRows->get((int) $inventarioId);
+                if ($row) {
+                    $this->consumeFromInventarioRow($row, (float) $items->count());
+                }
+            }
+
+            $seriesConsumidas = array_flip($seriesTabla->pluck('numero_serie')->map(fn($serie) => trim((string) $serie))->all());
+            $seriesPendientes = array_values(array_filter(
+                $seriesPendientes,
+                fn($serie) => !isset($seriesConsumidas[$serie])
+            ));
+        }
+
+        if (!empty($seriesPendientes)) {
+            $rowsLegacy = Inventario::where('codigo_producto', $codigoProducto)
+                ->whereIn('numero_serie', $seriesPendientes)
+                ->orderBy('id')
+                ->lockForUpdate()
+                ->get();
+
+            $legacyMap = [];
+            foreach ($rowsLegacy as $row) {
+                $serie = trim((string) $row->numero_serie);
+                if ($serie !== '' && !isset($legacyMap[$serie])) {
+                    $legacyMap[$serie] = $row;
+                }
+            }
+
+            foreach ($seriesPendientes as $serie) {
+                if (!isset($legacyMap[$serie])) {
+                    continue;
+                }
+
+                $legacyMap[$serie]->delete();
+                unset($legacyMap[$serie]);
+            }
+
+            $consumidasLegacy = $rowsLegacy->pluck('numero_serie')
+                ->map(fn($serie) => trim((string) $serie))
+                ->filter()
+                ->unique()
+                ->values()
+                ->all();
+
+            $seriesPendientes = array_values(array_filter(
+                $seriesPendientes,
+                fn($serie) => !in_array($serie, $consumidasLegacy, true)
+            ));
+        }
+
+        if (!empty($seriesPendientes)) {
+            throw new \RuntimeException('Alguna serie seleccionada ya no está disponible.');
+        }
+    }
+
+    private function consumeFromInventarioRow(Inventario $row, float $qty): float
+    {
+        $disponible = $this->inventarioRowQuantity($row);
+        if ($disponible <= 0) {
+            return 0;
+        }
+
+        $consumir = min(max($qty, 0), $disponible);
+        $restante = max($disponible - $consumir, 0);
+        $piezasPorPaquete = max((float) ($row->piezas_por_paquete ?? 0), 0);
+
+        if ($piezasPorPaquete > 0) {
+            $paquetes = (int) floor($restante / $piezasPorPaquete);
+            $sueltas = $restante - ($paquetes * $piezasPorPaquete);
+
+            $row->paquetes_restantes = $paquetes;
+            $row->piezas_sueltas = (int) round($sueltas);
+        } else {
+            $row->paquetes_restantes = 0;
+            $row->piezas_sueltas = (int) round($restante);
+        }
+
+        if ($restante <= 0.00001) {
+            $row->fecha_salida = now()->toDateString();
+            $row->hora_salida = now()->format('H:i:s');
+        }
+
+        $row->save();
+
+        return $consumir;
+    }
+
+    private function inventarioRowQuantity(Inventario $row): float
+    {
+        $paquetes = max((float) ($row->paquetes_restantes ?? 0), 0);
+        $piezasPorPaquete = max((float) ($row->piezas_por_paquete ?? 0), 0);
+        $sueltas = max((float) ($row->piezas_sueltas ?? 0), 0);
+
+        return max(($paquetes * $piezasPorPaquete) + $sueltas, 0);
     }
 }

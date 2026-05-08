@@ -1558,6 +1558,11 @@ class OrdenServicioService
                 ->where('codigo_producto', $codigoProducto)
                 ->whereHas('orden', function ($q) {
                     $q->where(function ($w) {
+                        $w->whereNull('tipo_orden')
+                            ->orWhere('tipo_orden', '<>', 'salida_manual');
+                    });
+
+                    $q->where(function ($w) {
                         $w->whereNull('estado')
                             ->orWhereNotIn('estado', [
                                 'Cancelado',

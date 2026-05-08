@@ -98,10 +98,6 @@
         </a>
     </div>
 
-    <div class="mb-6 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
-        La administración de categorías está disponible dentro de <a href="{{ route('producto.crear') }}" class="font-semibold underline">Añadir producto</a> y al editar productos, en una ventana compacta para no saturar la vista.
-    </div>
-
     {{-- Grid --}}
     <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
         @forelse($productos as $p)

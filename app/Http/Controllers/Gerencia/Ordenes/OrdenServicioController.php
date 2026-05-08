@@ -12,6 +12,7 @@ use App\Models\DetalleOrdenProducto;
 use App\Models\DetalleOrdenProductoSerie;
 use App\Models\OrdenServicio;
 use App\Models\User;
+use App\Services\GoogleCalendar\GoogleCalendarService;
 use App\Services\Logistica\LogisticaService;
 use App\Services\Ordenes\OrdenServicioService;
 use Carbon\Carbon;
@@ -26,7 +27,8 @@ class OrdenServicioController extends Controller
 {
     public function __construct(
         private OrdenServicioService $svc,
-        private LogisticaService $logistica
+        private LogisticaService $logistica,
+        private GoogleCalendarService $googleCalendar
     ) {}
 
     public function index(Request $request)
@@ -379,7 +381,9 @@ class OrdenServicioController extends Controller
             ], 500));
         }
 
-        $this->logistica->syncEntregaDesdeOrden(OrdenServicio::with(['cliente.direccionesLogisticas', 'direccionCliente', 'productos', 'tecnicos'])->findOrFail((int) $ordenId));
+        $ordenSincronizada = OrdenServicio::with(['cliente.direccionesLogisticas', 'direccionCliente', 'tecnico', 'tecnicos', 'productos'])->findOrFail((int) $ordenId);
+        $this->logistica->syncEntregaDesdeOrden($ordenSincronizada);
+        $this->googleCalendar->syncOrderAssignments($ordenSincronizada);
 
         $this->svc->generarYGuardarPdfOrden((int) $ordenId);
 
@@ -578,7 +582,9 @@ class OrdenServicioController extends Controller
             ], 500));
         }
 
-        $this->logistica->syncEntregaDesdeOrden(OrdenServicio::with(['cliente.direccionesLogisticas', 'direccionCliente', 'productos', 'tecnicos'])->findOrFail((int) $ordenId));
+        $ordenSincronizada = OrdenServicio::with(['cliente.direccionesLogisticas', 'direccionCliente', 'tecnico', 'tecnicos', 'productos'])->findOrFail((int) $ordenId);
+        $this->logistica->syncEntregaDesdeOrden($ordenSincronizada);
+        $this->googleCalendar->syncOrderAssignments($ordenSincronizada);
 
         $this->svc->generarYGuardarPdfOrden((int) $ordenId);
 
@@ -775,8 +781,9 @@ class OrdenServicioController extends Controller
             throw $e;
         }
 
-        $orden->load(['cliente.direccionesLogisticas', 'direccionCliente', 'productos', 'tecnicos']);
+        $orden->load(['cliente.direccionesLogisticas', 'direccionCliente', 'tecnico', 'productos', 'tecnicos']);
         $this->logistica->syncEntregaDesdeOrden($orden);
+        $this->googleCalendar->syncOrderAssignments($orden);
 
         $this->svc->generarYGuardarPdfOrden((int) $orden->getKey());
 
@@ -845,6 +852,7 @@ class OrdenServicioController extends Controller
             }
 
             $this->logistica->cancelarMovimientosPorOrden($orden);
+            $this->googleCalendar->removeOrderFromCalendars($orden);
 
             if (!empty($orden->archivo_pdf) && \Storage::disk('public')->exists($orden->archivo_pdf)) {
                 \Storage::disk('public')->delete($orden->archivo_pdf);
