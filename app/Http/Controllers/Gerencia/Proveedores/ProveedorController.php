@@ -108,31 +108,9 @@ class ProveedorController extends Controller
     /** === GUARDAR === */
     public function guardar(Request $request)
     {
-        $request->merge([
-            'correo'   => $request->filled('correo') ? mb_strtolower(trim($request->correo)) : null,
-            'telefono' => $request->filled('telefono') ? preg_replace('/\D+/', '', $request->telefono) : null,
-            'rfc'      => $request->filled('rfc') ? mb_strtoupper(trim($request->rfc)) : null,
-            'alias'    => $request->filled('alias') ? trim($request->alias) : null,
-        ]);
+        $payload = $this->validatedPayload($request);
 
-        $rfcRegex = '/^(?:[A-ZÑ&]{3}|[A-ZÑ&]{4})\d{6}[A-Z0-9]{3}$/';
-
-        $request->validate([
-            'nombre'    => 'required|string|max:255',
-            'rfc'       => ['required','string','max:20',"regex:$rfcRegex",'unique:proveedores,rfc'],
-            'alias'     => 'nullable|string|max:60',
-            'direccion' => 'nullable|string|max:255',
-            'contacto'  => 'nullable|string|max:255',
-            'telefono'  => 'required|digits_between:7,20',
-            'correo'    => 'nullable|email|max:255',
-        ], [
-            'rfc.regex'  => 'El RFC no tiene el formato válido (12/13 caracteres + homoclave).',
-            'rfc.unique' => 'Ya existe un proveedor con este RFC.',
-        ]);
-
-        Proveedor::create($request->only([
-            'nombre','rfc','alias','direccion','contacto','telefono','correo'
-        ]));
+        Proveedor::create($payload);
 
         $redirect = session()->pull('proveedor_redirect_to');
 
@@ -156,35 +134,9 @@ class ProveedorController extends Controller
     public function actualizar(Request $request, $id)
     {
         $proveedor = Proveedor::findOrFail($id);
+        $payload = $this->validatedPayload($request, $proveedor);
 
-        $request->merge([
-            'correo'   => $request->filled('correo') ? mb_strtolower(trim($request->correo)) : null,
-            'telefono' => $request->filled('telefono') ? preg_replace('/\D+/', '', $request->telefono) : null,
-            'rfc'      => $request->filled('rfc') ? mb_strtoupper(trim($request->rfc)) : null,
-            'alias'    => $request->filled('alias') ? trim($request->alias) : null,
-        ]);
-
-        $rfcRegex = '/^(?:[A-ZÑ&]{3}|[A-ZÑ&]{4})\d{6}[A-Z0-9]{3}$/';
-
-        $request->validate([
-            'nombre'    => 'required|string|max:255',
-            'rfc'       => [
-                'required','string','max:20',"regex:$rfcRegex",
-                Rule::unique('proveedores','rfc')->ignore($proveedor->clave_proveedor, 'clave_proveedor'),
-            ],
-            'alias'     => 'nullable|string|max:60',
-            'direccion' => 'nullable|string|max:255',
-            'contacto'  => 'nullable|string|max:255',
-            'telefono'  => 'required|digits_between:7,20',
-            'correo'    => 'nullable|email|max:255',
-        ], [
-            'rfc.regex'  => 'El RFC no tiene el formato válido (12/13 caracteres + homoclave).',
-            'rfc.unique' => 'Ya existe otro proveedor con este RFC.',
-        ]);
-
-        $proveedor->update($request->only([
-            'nombre','rfc','alias','direccion','contacto','telefono','correo'
-        ]));
+        $proveedor->update($payload);
 
         return redirect()->route('proveedores.index')->with('success', 'Proveedor actualizado correctamente.');
     }
@@ -225,5 +177,60 @@ class ProveedorController extends Controller
             });
 
         return response()->json($items);
+    }
+
+    private function validatedPayload(Request $request, ?Proveedor $proveedor = null): array
+    {
+        $request->merge([
+            'correo'   => $request->filled('correo') ? mb_strtolower(trim($request->correo)) : null,
+            'telefono' => $request->filled('telefono') ? preg_replace('/\D+/', '', $request->telefono) : null,
+            'rfc'      => $request->filled('rfc') ? mb_strtoupper(trim($request->rfc)) : null,
+            'alias'    => $request->filled('alias') ? trim($request->alias) : null,
+        ]);
+
+        $rfcRegex = '/^(?:[A-ZÑ&]{3}|[A-ZÑ&]{4})\d{6}[A-Z0-9]{3}$/';
+        $rfcRule = $proveedor
+            ? Rule::unique('proveedores', 'rfc')->ignore($proveedor->clave_proveedor, 'clave_proveedor')
+            : 'unique:proveedores,rfc';
+
+        $validated = $request->validate([
+            'nombre'    => 'required|string|max:255',
+            'rfc'       => ['required', 'string', 'max:20', "regex:$rfcRegex", $rfcRule],
+            'alias'     => 'nullable|string|max:60',
+            'direccion_logistica' => 'required|string|max:255',
+            'direccion_logistica_place_id' => 'required|string|max:255',
+            'direccion_logistica_latitud' => 'required|numeric',
+            'direccion_logistica_longitud' => 'required|numeric',
+            'direccion_logistica_referencia' => 'nullable|string|max:1000',
+            'direccion_logistica_verificada_en_mapa' => 'accepted',
+            'direccion_logistica_metodo' => 'required|in:autocomplete,mapa',
+            'contacto'  => 'nullable|string|max:255',
+            'telefono'  => 'required|digits_between:7,20',
+            'correo'    => 'nullable|email|max:255',
+        ], [
+            'rfc.regex'  => 'El RFC no tiene el formato válido (12/13 caracteres + homoclave).',
+            'rfc.unique' => $proveedor ? 'Ya existe otro proveedor con este RFC.' : 'Ya existe un proveedor con este RFC.',
+            'direccion_logistica.required' => 'Selecciona la dirección del proveedor desde el mapa.',
+            'direccion_logistica_place_id.required' => 'La dirección del proveedor debe quedar vinculada a un punto real.',
+            'direccion_logistica_verificada_en_mapa.accepted' => 'La dirección del proveedor debe quedar verificada en mapa.',
+            'direccion_logistica_metodo.required' => 'Selecciona la dirección del proveedor usando el mapa o el buscador.',
+        ]);
+
+        return [
+            'nombre' => $validated['nombre'],
+            'rfc' => $validated['rfc'],
+            'alias' => $validated['alias'] ?? null,
+            'direccion' => $validated['direccion_logistica'],
+            'direccion_logistica' => $validated['direccion_logistica'],
+            'direccion_logistica_place_id' => $validated['direccion_logistica_place_id'],
+            'direccion_logistica_latitud' => $validated['direccion_logistica_latitud'],
+            'direccion_logistica_longitud' => $validated['direccion_logistica_longitud'],
+            'direccion_logistica_referencia' => trim((string) ($validated['direccion_logistica_referencia'] ?? '')) ?: null,
+            'direccion_logistica_verificada_en_mapa' => true,
+            'direccion_logistica_metodo' => $validated['direccion_logistica_metodo'],
+            'contacto' => trim((string) ($validated['contacto'] ?? '')) ?: null,
+            'telefono' => $validated['telefono'],
+            'correo' => $validated['correo'] ?? null,
+        ];
     }
 }

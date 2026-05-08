@@ -25,6 +25,7 @@ class Cotizacion extends Model
         'iva',
         'total',
         'cantidad_escrita',
+        'observaciones_pdf',
         'condiciones_pago',
         'tiempo_entrega',
         'archivo_pdf',
@@ -74,4 +75,36 @@ class Cotizacion extends Model
     {
          return $this->hasOne(OrdenServicio::class, 'id_cotizacion', 'id_cotizacion');
      }
+
+    public function getFolioAttribute(): string
+    {
+        return $this->buildNumeroCotizacion();
+    }
+
+    public function getNumeroCotizacionAttribute(): string
+    {
+        return $this->buildNumeroCotizacion();
+    }
+
+    protected function buildNumeroCotizacion(): string
+    {
+        $id = $this->attributes[$this->primaryKey] ?? null;
+        $id = $id !== null && $id !== '' ? (string) $id : '';
+
+        $codigoCliente = trim((string) optional($this->cliente)->codigo_cliente);
+
+        if ($codigoCliente === '' && !empty($this->registro_cliente)) {
+            $codigoCliente = trim((string) $this->cliente()->value('codigo_cliente'));
+        }
+
+        if ($codigoCliente !== '' && $id !== '') {
+            return $codigoCliente . ' ' . $id;
+        }
+
+        if ($id !== '') {
+            return 'SET-' . $id;
+        }
+
+        return 'SET-S/N';
+    }
 }

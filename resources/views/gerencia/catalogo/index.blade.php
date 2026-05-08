@@ -37,11 +37,22 @@
                     <label class="block text-sm font-medium text-gray-700 mb-1">Categoría</label>
                     <select name="categoria" class="w-full border px-3 py-2 rounded-lg">
                         <option value="">Todas</option>
-                        @foreach($categorias as $cat)
-                            <option value="{{ $cat }}" {{ request('categoria')==$cat?'selected':'' }}>
-                                {{ ucfirst($cat) }}
-                            </option>
-                        @endforeach
+                        <optgroup label="Categorías base">
+                            @foreach($categoriasPredefinidas as $cat)
+                                <option value="{{ $cat }}" {{ request('categoria')==$cat?'selected':'' }}>
+                                    {{ ucfirst($cat) }}
+                                </option>
+                            @endforeach
+                        </optgroup>
+                        @if($categoriasExtra->isNotEmpty())
+                            <optgroup label="Categorías registradas">
+                                @foreach($categoriasExtra as $cat)
+                                    <option value="{{ $cat }}" {{ request('categoria')==$cat?'selected':'' }}>
+                                        {{ $cat }}
+                                    </option>
+                                @endforeach
+                            </optgroup>
+                        @endif
                     </select>
                 </div>
 
@@ -85,7 +96,10 @@
            class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2">
             <i class="fas fa-sign-in-alt"></i> Nueva entrada
         </a>
+    </div>
 
+    <div class="mb-6 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+        La administración de categorías está disponible dentro de <a href="{{ route('producto.crear') }}" class="font-semibold underline">Añadir producto</a> y al editar productos, en una ventana compacta para no saturar la vista.
     </div>
 
     {{-- Grid --}}

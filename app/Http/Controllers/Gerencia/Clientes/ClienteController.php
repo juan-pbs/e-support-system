@@ -5,10 +5,12 @@ namespace App\Http\Controllers\Gerencia\Clientes;
 use App\Http\Controllers\Controller;
 
 use App\Models\Cliente;
+use App\Models\ClienteDireccionLogistica;
 use App\Models\CreditoCliente;
 use App\Models\PagoCredito;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 
 class ClienteController extends Controller
@@ -23,7 +25,7 @@ class ClienteController extends Controller
             $buscarCodigo = trim(Str::before($buscarRaw, ' - '));
         }
 
-        $clientes = Cliente::with('creditoCliente')
+        $clientes = Cliente::with(['creditoCliente', 'direccionesLogisticas'])
             ->when($buscarRaw !== '', function ($query) use ($buscarRaw, $buscarCodigo) {
                 $query->where(function ($w) use ($buscarRaw, $buscarCodigo) {
                     // ✅ Buscar por código "puro" (cuando viene del sugerido)
@@ -39,7 +41,7 @@ class ClienteController extends Controller
             ->orderBy('created_at', 'desc')
             ->paginate(15);
 
-        $clientesJson = Cliente::with('creditoCliente')
+        $clientesJson = Cliente::with(['creditoCliente', 'direccionesLogisticas'])
             ->when($buscarRaw !== '', function ($query) use ($buscarRaw, $buscarCodigo) {
                 $query->where(function ($w) use ($buscarRaw, $buscarCodigo) {
                     $w->where('codigo_cliente', 'like', '%' . $buscarCodigo . '%')
@@ -103,11 +105,26 @@ class ClienteController extends Controller
             'datos_fiscales'     => 'nullable|string|max:13',
             'contacto'           => 'nullable|string|max:255',
             'redirect_to'        => 'nullable|string',
+            'direcciones_logisticas' => 'required|array|min:1',
+            'direcciones_logisticas.*.id' => 'nullable|integer',
+            'direcciones_logisticas.*.alias' => 'nullable|string|max:120',
+            'direcciones_logisticas.*.direccion_formateada' => 'nullable|string|max:255',
+            'direcciones_logisticas.*.place_id' => 'nullable|string|max:255',
+            'direcciones_logisticas.*.latitud' => 'nullable|numeric',
+            'direcciones_logisticas.*.longitud' => 'nullable|numeric',
+            'direcciones_logisticas.*.referencia' => 'nullable|string|max:1000',
+            'direcciones_logisticas.*.predeterminada' => 'nullable',
+            'direcciones_logisticas.*.verificada_en_mapa' => 'nullable',
+            'direcciones_logisticas.*.metodo_verificacion' => 'nullable|string|max:30',
         ], [
             'codigo_cliente.unique'     => 'Ese código de cliente ya existe.',
             'codigo_cliente.alpha_dash' => 'El código solo puede contener letras, números, guiones o guion bajo.',
             'correo.unique'             => 'Este correo electrónico ya está registrado.',
+            'direcciones_logisticas.required' => 'Registra al menos una dirección logística del cliente.',
         ]);
+
+        $direcciones = $this->parseDireccionesLogisticas($request);
+        $this->validarDireccionesLogisticas($direcciones);
 
         $cliente = Cliente::create([
             'codigo_cliente'     => $request->codigo_cliente,
@@ -121,6 +138,9 @@ class ClienteController extends Controller
             'datos_fiscales'     => $request->datos_fiscales,
             'contacto'           => $request->contacto,
         ]);
+
+        $this->syncDireccionesLogisticas($cliente, $direcciones);
+        $this->syncUbicacionLegacy($cliente, $request);
 
         $redirectTo = $request->input('redirect_to')
             ?: $request->session()->pull('clientes.redirect_to')
@@ -148,7 +168,7 @@ class ClienteController extends Controller
 
     public function edit($id)
     {
-        $cliente = Cliente::findOrFail($id);
+        $cliente = Cliente::with('direccionesLogisticas')->findOrFail($id);
         return view('gerencia.clientes.edit', compact('cliente'));
     }
 
@@ -167,11 +187,26 @@ class ClienteController extends Controller
             'direccion_fiscal'   => 'required|string|max:255',
             'datos_fiscales'     => 'nullable|string|max:13',
             'contacto'           => 'nullable|string|max:255',
+            'direcciones_logisticas' => 'required|array|min:1',
+            'direcciones_logisticas.*.id' => 'nullable|integer',
+            'direcciones_logisticas.*.alias' => 'nullable|string|max:120',
+            'direcciones_logisticas.*.direccion_formateada' => 'nullable|string|max:255',
+            'direcciones_logisticas.*.place_id' => 'nullable|string|max:255',
+            'direcciones_logisticas.*.latitud' => 'nullable|numeric',
+            'direcciones_logisticas.*.longitud' => 'nullable|numeric',
+            'direcciones_logisticas.*.referencia' => 'nullable|string|max:1000',
+            'direcciones_logisticas.*.predeterminada' => 'nullable',
+            'direcciones_logisticas.*.verificada_en_mapa' => 'nullable',
+            'direcciones_logisticas.*.metodo_verificacion' => 'nullable|string|max:30',
         ], [
             'codigo_cliente.unique'     => 'Ese código de cliente ya existe.',
             'codigo_cliente.alpha_dash' => 'El código solo puede contener letras, números, guiones o guion bajo.',
             'correo.unique'             => 'Este correo electrónico ya está registrado.',
+            'direcciones_logisticas.required' => 'Registra al menos una dirección logística del cliente.',
         ]);
+
+        $direcciones = $this->parseDireccionesLogisticas($request);
+        $this->validarDireccionesLogisticas($direcciones);
 
         $cliente->update([
             'codigo_cliente'     => $request->codigo_cliente,
@@ -185,6 +220,9 @@ class ClienteController extends Controller
             'datos_fiscales'     => $request->datos_fiscales,
             'contacto'           => $request->contacto,
         ]);
+
+        $this->syncDireccionesLogisticas($cliente, $direcciones);
+        $this->syncUbicacionLegacy($cliente, $request);
 
         return redirect()->route('clientes')->with('success', 'Cliente actualizado correctamente.');
     }
@@ -340,5 +378,137 @@ class ClienteController extends Controller
             ->get();
 
         return response()->json($pagos);
+    }
+
+    protected function parseDireccionesLogisticas(Request $request): Collection
+    {
+        return collect($request->input('direcciones_logisticas', []))
+            ->map(function ($row) {
+                return [
+                    'id' => !empty($row['id']) ? (int) $row['id'] : null,
+                    'alias' => trim((string) ($row['alias'] ?? '')),
+                    'direccion_formateada' => trim((string) ($row['direccion_formateada'] ?? '')),
+                    'place_id' => trim((string) ($row['place_id'] ?? '')) ?: null,
+                    'latitud' => $row['latitud'] !== null && $row['latitud'] !== '' ? (float) $row['latitud'] : null,
+                    'longitud' => $row['longitud'] !== null && $row['longitud'] !== '' ? (float) $row['longitud'] : null,
+                    'referencia' => trim((string) ($row['referencia'] ?? '')) ?: null,
+                    'predeterminada' => !empty($row['predeterminada']),
+                    'verificada_en_mapa' => !empty($row['verificada_en_mapa']),
+                    'metodo_verificacion' => trim((string) ($row['metodo_verificacion'] ?? '')) ?: null,
+                ];
+            })
+            ->filter(function (array $row) {
+                return $row['alias'] !== ''
+                    || $row['direccion_formateada'] !== ''
+                    || $row['place_id'] !== null
+                    || $row['latitud'] !== null
+                    || $row['longitud'] !== null;
+            })
+            ->values();
+    }
+
+    protected function syncDireccionesLogisticas(Cliente $cliente, Collection $rows): void
+    {
+        if ($rows->isEmpty()) {
+            $cliente->direccionesLogisticas()->delete();
+            return;
+        }
+
+        $predeterminadaAsignada = false;
+        $idsConservados = [];
+
+        foreach ($rows as $index => $row) {
+            $direccion = $row['id']
+                ? $cliente->direccionesLogisticas()->whereKey($row['id'])->first()
+                : new ClienteDireccionLogistica();
+
+            if (!$direccion) {
+                $direccion = new ClienteDireccionLogistica();
+            }
+
+            $direccion->clave_cliente = $cliente->clave_cliente;
+            $direccion->alias = $row['alias'];
+            $direccion->direccion_formateada = $row['direccion_formateada'];
+            $direccion->place_id = $row['place_id'];
+            $direccion->latitud = $row['latitud'];
+            $direccion->longitud = $row['longitud'];
+            $direccion->referencia = $row['referencia'];
+            $direccion->activa = true;
+            $direccion->predeterminada = !$predeterminadaAsignada && ($row['predeterminada'] || $index === 0);
+            $direccion->verificada_en_mapa = (bool) $row['verificada_en_mapa'];
+            $direccion->metodo_verificacion = $row['metodo_verificacion'];
+            $direccion->save();
+
+            $predeterminadaAsignada = $predeterminadaAsignada || $direccion->predeterminada;
+            $idsConservados[] = $direccion->id;
+        }
+
+        $cliente->direccionesLogisticas()
+            ->when(!empty($idsConservados), fn ($q) => $q->whereNotIn('id', $idsConservados))
+            ->when(empty($idsConservados), fn ($q) => $q)
+            ->delete();
+    }
+
+    protected function validarDireccionesLogisticas(Collection $rows): void
+    {
+        if ($rows->isEmpty()) {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'direcciones_logisticas' => 'Registra al menos una dirección logística del cliente.',
+            ]);
+        }
+
+        $errors = [];
+        $aliases = [];
+        $predeterminadas = 0;
+
+        foreach ($rows as $index => $row) {
+            if ($row['predeterminada']) {
+                $predeterminadas++;
+            }
+
+            if ($row['alias'] === '') {
+                $errors["direcciones_logisticas.$index.alias"] = 'Cada dirección logística necesita un alias.';
+            } else {
+                $aliasNormalizado = mb_strtolower($row['alias']);
+                if (in_array($aliasNormalizado, $aliases, true)) {
+                    $errors["direcciones_logisticas.$index.alias"] = 'No repitas alias de direcciones dentro del mismo cliente.';
+                }
+                $aliases[] = $aliasNormalizado;
+            }
+
+            if ($row['direccion_formateada'] === '') {
+                $errors["direcciones_logisticas.$index.direccion_formateada"] = 'Selecciona la dirección desde el mapa.';
+            }
+
+            if ($row['place_id'] === null || $row['latitud'] === null || $row['longitud'] === null) {
+                $errors["direcciones_logisticas.$index.place_id"] = 'La dirección debe incluir coordenadas válidas.';
+            }
+
+            if (!$row['verificada_en_mapa']) {
+                $errors["direcciones_logisticas.$index.verificada_en_mapa"] = 'La dirección debe quedar verificada en mapa.';
+            }
+
+            if (!in_array($row['metodo_verificacion'], ['autocomplete', 'mapa'], true)) {
+                $errors["direcciones_logisticas.$index.metodo_verificacion"] = 'Selecciona la dirección usando el mapa o el buscador.';
+            }
+        }
+
+        if ($predeterminadas < 1) {
+            $errors['direcciones_logisticas'] = 'Selecciona una dirección principal del cliente.';
+        }
+
+        if (!empty($errors)) {
+            throw \Illuminate\Validation\ValidationException::withMessages($errors);
+        }
+    }
+
+    protected function syncUbicacionLegacy(Cliente $cliente, Request $request): void
+    {
+        $principal = $cliente->direccionesLogisticas()
+            ->where('predeterminada', true)
+            ->first();
+
+        $cliente->ubicacion = $principal?->direccion_formateada ?: ($request->input('ubicacion') ?: null);
+        $cliente->save();
     }
 }

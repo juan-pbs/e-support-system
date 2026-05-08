@@ -54,7 +54,7 @@
                     type="text"
                     name="buscar"
                     value="{{ request('buscar') }}"
-                    placeholder="Buscar por SET-#, cliente, correo o descripción…"
+                    placeholder="Buscar por folio, código cliente, cliente, correo o descripción…"
                     autocomplete="off"
                     class="w-full border px-3 py-2 rounded-lg focus:ring-2 focus:ring-blue-500"
                 />
@@ -72,7 +72,7 @@
                 </div>
 
                 <p class="hidden sm:block text-[11px] text-gray-500 mt-1 break-words">
-                    Si eliges una sugerencia (SET-###), filtra exacto. Si escribes texto, busca por cliente/correo/descripcion.
+                    Si eliges una sugerencia, filtra exacto. Si escribes texto, busca por código de cliente, cliente, correo o descripción.
                 </p>
             </div>
 
@@ -105,7 +105,7 @@
                 <div class="flex items-start justify-between gap-3">
                     <div class="min-w-0">
                         <div class="text-sm font-semibold text-gray-900">
-                            SET-{{ $c->id_cotizacion }}
+                            {{ $c->folio }}
                         </div>
 
                         <div class="text-sm text-gray-900 mt-1 break-words">
@@ -180,7 +180,7 @@
                     <a href="#"
                        class="text-center px-3 py-2 text-sm rounded-lg bg-gray-100 hover:bg-gray-200 js-open-pdf"
                        data-url="{{ route('cotizaciones.verPDF', $c->id_cotizacion) }}"
-                       data-title="Cotización SET-{{ $c->id_cotizacion }}">
+                       data-title="Cotización {{ $c->folio }}">
                         PDF
                     </a>
 
@@ -196,7 +196,7 @@
 
                     <form action="{{ route('cotizaciones.eliminar', $c->id_cotizacion) }}" method="POST"
                           class="col-span-2"
-                          onsubmit="return confirm('¿Eliminar la cotización SET-{{ $c->id_cotizacion }}?')">
+                          onsubmit="return confirm('¿Eliminar la cotización {{ $c->folio }}?')">
                         @csrf @method('DELETE')
                         <button class="w-full px-3 py-2 text-sm rounded-lg bg-red-600 text-white hover:bg-red-700">
                             Eliminar
@@ -242,7 +242,7 @@
                     @endphp
 
                     <tr class="hover:bg-gray-50">
-                        <td class="px-3 py-3">SET-{{ $c->id_cotizacion }}</td>
+                        <td class="px-3 py-3">{{ $c->folio }}</td>
 
                         <td class="px-3 py-3">
                             <div class="font-medium">{{ $c->cliente->nombre ?? '—' }}</div>
@@ -300,7 +300,7 @@
                                 <a href="#"
                                    class="px-2 py-1 text-xs rounded bg-gray-100 hover:bg-gray-200 js-open-pdf"
                                    data-url="{{ route('cotizaciones.verPDF', $c->id_cotizacion) }}"
-                                   data-title="Cotización SET-{{ $c->id_cotizacion }}"
+                                   data-title="Cotización {{ $c->folio }}"
                                    title="Ver PDF">PDF</a>
 
                                 <a href="{{ route('cotizaciones.editar', $c->id_cotizacion) }}"
@@ -312,7 +312,7 @@
                                    title="Procesar a OS">Procesar</a>
 
                                 <form action="{{ route('cotizaciones.eliminar', $c->id_cotizacion) }}" method="POST"
-                                      onsubmit="return confirm('¿Eliminar la cotización SET-{{ $c->id_cotizacion }}?')">
+                                      onsubmit="return confirm('¿Eliminar la cotización {{ $c->folio }}?')">
                                     @csrf @method('DELETE')
                                     <button class="px-2 py-1 text-xs rounded bg-red-600 text-white hover:bg-red-700"
                                             title="Eliminar">Eliminar</button>
@@ -513,8 +513,24 @@ document.addEventListener('DOMContentLoaded', () => {
 
     form?.addEventListener('submit', () => {
         if (!hiddenId.value) {
-            const num = (input.value || '').replace(/\D+/g, '');
-            if (num) hiddenId.value = num;
+            const text = (input.value || '').trim();
+            let match = null;
+
+            if (/^\d+$/.test(text)) {
+                hiddenId.value = text;
+                return;
+            }
+
+            match = text.match(/^SET-(\d+)$/i);
+            if (match) {
+                hiddenId.value = match[1];
+                return;
+            }
+
+            match = text.match(/^.+\s+(\d+)$/);
+            if (match) {
+                hiddenId.value = match[1];
+            }
         }
     });
 

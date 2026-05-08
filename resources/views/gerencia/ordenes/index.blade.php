@@ -53,7 +53,7 @@
 
     @php
         $tipoOpciones = [
-            'compra'            => 'Compra',
+            'compra'            => 'Entrega venta',
             'servicio_simple'   => 'Servicio (simple)',
             'servicio_proyecto' => 'Servicio (proyecto)',
         ];

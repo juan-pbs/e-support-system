@@ -877,15 +877,6 @@ function renderAsignarBtn(item) {
   const tipo   = (item.tipo || item.tipo_orden || '').toLowerCase();
   const locked = isOrderLocked(item.status);
 
-  if (tipo === 'compra') {
-    return `<button type="button"
-              class="px-3 py-1.5 rounded-md bg-gray-200 text-gray-500 text-xs cursor-not-allowed whitespace-nowrap"
-              disabled aria-disabled="true"
-              title="Las órdenes de compra no requieren técnico">
-              No requiere
-            </button>`;
-  }
-
   if (locked) {
     return `<button type="button"
               class="px-3 py-1.5 rounded-md bg-gray-200 text-gray-500 text-xs cursor-not-allowed whitespace-nowrap"
@@ -947,14 +938,6 @@ function renderEyeBtn(item) {
 function renderAsignarBtnCard(item) {
   const tipo   = (item.tipo || item.tipo_orden || '').toLowerCase();
   const locked = isOrderLocked(item.status);
-
-  if (tipo === 'compra') {
-    return `<button type="button"
-              class="w-full px-3 py-2 rounded-lg bg-gray-200 text-gray-500 text-sm cursor-not-allowed"
-              disabled>
-              No requiere
-            </button>`;
-  }
 
   if (locked) {
     return `<button type="button"

@@ -196,7 +196,7 @@ class VentasReport
     protected function tipoOrdenLabel(string $tipo): string
     {
         return match ($tipo) {
-            'compra' => 'Compra',
+            'compra' => 'Entrega venta',
             'servicio_simple' => 'Servicio (simple)',
             'servicio_proyecto' => 'Servicio (proyecto)',
             default => $tipo !== '' ? $tipo : '-',

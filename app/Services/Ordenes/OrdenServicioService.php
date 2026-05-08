@@ -21,6 +21,8 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class OrdenServicioService
 {
@@ -161,14 +163,15 @@ class OrdenServicioService
     public function commonFormData(): array
     {
         $clientes = Cliente::orderBy('nombre')->get([
-            'clave_cliente',
-            'nombre',
-            'nombre_empresa',
-            'correo_electronico',
-            'telefono',
-            'ubicacion',
-            'direccion_fiscal',
-        ]);
+                'clave_cliente',
+                'nombre',
+                'nombre_empresa',
+                'correo_electronico',
+                'telefono',
+                'ubicacion',
+                'direccion_fiscal',
+            ])
+            ->load('direccionesLogisticas');
 
         $tecnicos = User::where('puesto', 'tecnico')
             ->orderBy('name')
@@ -336,10 +339,12 @@ class OrdenServicioService
 
         $rules = [
             'id_cliente'                => ['required', 'integer', 'exists:cliente,clave_cliente'],
+            'cliente_direccion_id'      => ['nullable', 'integer', 'exists:cliente_direcciones_logisticas,id'],
             'servicio'                  => ['nullable', 'string'],
-            'tipo_orden'                => ['required', 'in:compra,servicio_simple,servicio_proyecto'],
+            'tipo_orden'                => ['required', Rule::in(['compra', 'entrega_venta', 'servicio_simple', 'servicio_proyecto'])],
             'prioridad'                 => ['required', 'in:Baja,Media,Alta,Urgente'],
             'estado'                    => ['nullable', 'string'],
+            'requiere_logistica'        => ['nullable', 'boolean'],
             'id_tecnico'                => ['nullable', 'integer', 'exists:users,id'],
             'tecnicos_ids'              => ['nullable', 'array'],
             'tecnicos_ids.*'            => ['integer', 'exists:users,id'],
@@ -387,6 +392,17 @@ class OrdenServicioService
         }
 
         $data = $request->validate($rules);
+        $data['tipo_orden'] = $this->normalizeTipoOrden($data['tipo_orden'] ?? null);
+
+        if (
+            $this->isEntregaVentaType($data['tipo_orden'] ?? null)
+            && !empty($data['requiere_logistica'])
+            && empty($data['cliente_direccion_id'])
+        ) {
+            throw ValidationException::withMessages([
+                'cliente_direccion_id' => 'Selecciona una dirección logística del cliente para programar la entrega.',
+            ]);
+        }
 
         if (!empty($data['fecha_programada']) && empty($data['fecha_orden'])) {
             $data['fecha_orden'] = Carbon::today()->toDateString();
@@ -411,11 +427,15 @@ class OrdenServicioService
             }
         };
 
+        $tipoOrden = $this->normalizeTipoOrden($data['tipo_orden'] ?? null);
+
         $set('id_cliente', $data['id_cliente']);
+        $set('cliente_direccion_id', $data['cliente_direccion_id'] ?? null);
         $set('servicio', $data['servicio'] ?? $orden->servicio ?? null);
-        $set('tipo_orden', $data['tipo_orden']);
+        $set('tipo_orden', $tipoOrden);
         $set('prioridad', $data['prioridad']);
         $set('estado', $data['estado'] ?? ($orden->estado ?? 'Pendiente'));
+        $set('requiere_logistica', !empty($data['requiere_logistica']));
         $set('id_tecnico', $data['id_tecnico'] ?? ($data['tecnicos_ids'][0] ?? null));
         $set('tipo_pago', $data['tipo_pago'] ?? null);
         if (array_key_exists('facturado', $data)) {
@@ -451,6 +471,18 @@ class OrdenServicioService
         if (isset($data['anticipo_mxn']) && $data['anticipo_mxn'] !== '' && $data['anticipo_mxn'] !== null) {
             $set('anticipo_mxn', (float) $data['anticipo_mxn']);
         }
+    }
+
+    public function normalizeTipoOrden(?string $tipo): string
+    {
+        $tipo = strtolower(trim((string) $tipo));
+
+        return $tipo === 'entrega_venta' ? 'compra' : $tipo;
+    }
+
+    public function isEntregaVentaType(?string $tipo): bool
+    {
+        return $this->normalizeTipoOrden($tipo) === 'compra';
     }
 
     protected function normalizeOptionalText($value): ?string

@@ -290,10 +290,6 @@ class OrdenesServicioExport implements
 
     protected function tecnicosLabel(OrdenServicio $orden): string
     {
-        if ((string) $orden->tipo_orden === 'compra') {
-            return 'No aplica';
-        }
-
         $names = $orden->tecnicos->pluck('name')->filter()->values();
         if ($names->isNotEmpty()) {
             return $names->implode(', ');
@@ -305,7 +301,7 @@ class OrdenesServicioExport implements
     protected function tipoOrdenLabel(string $tipo): string
     {
         return match ($tipo) {
-            'compra' => 'Compra',
+            'compra' => 'Entrega venta',
             'servicio_simple' => 'Servicio (simple)',
             'servicio_proyecto' => 'Servicio (proyecto)',
             default => $tipo,

@@ -246,7 +246,7 @@
 </head>
 <body>
   @if(!empty($draft))
-    <div class="watermark">BORRADOR</div>
+    <div class="watermark">{{ $pdfTheme['draft_chip_text'] ?? 'BORRADOR' }}</div>
   @endif
 
   @php
@@ -256,10 +256,10 @@
         ?? ('OS-' . str_pad((string)($orden->id_orden_servicio ?? $orden->getKey()), 5, '0', STR_PAD_LEFT));
 
     $folioCot = null;
-    if (!empty($orden->id_cotizacion)) {
-        $folioCot = $orden->id_cotizacion;
-    } elseif (!empty($cotizacion)) {
+    if (!empty($cotizacion)) {
         $folioCot = optional($cotizacion)->folio;
+    } elseif (!empty($orden->id_cotizacion)) {
+        $folioCot = $orden->id_cotizacion;
     }
 
     $conformeTxt = (($actaData['conforme'] ?? 'si') === 'no') ? 'No' : 'Sí';
@@ -369,45 +369,14 @@
   @endphp
 
   {{-- ENCABEZADO --}}
-  <div class="header">
-      @if($barraBase64)
-          <img src="{{ $barraBase64 }}" alt="" class="barra-superior">
-      @else
-          <table class="barra-fallback" role="presentation"><tr><td></td></tr></table>
-      @endif
-
-      <table class="tabla-header">
-          <tr>
-              <td class="td-logo">
-                  @if($logoBase64)
-                      <img src="{{ $logoBase64 }}" class="logo" alt="">
-                  @else
-                      <div class="logo-fallback">
-                          <strong>E-SUPPORT QUERETARO</strong>
-                          <span>Soporte y servicio tecnico</span>
-                      </div>
-                  @endif
-              </td>
-              <td class="td-info">
-                  <div class="info-empresa">
-                      <strong>E-SUPPORT QUERÉTARO</strong>
-                      <span>Jose Alberto Rivera Rodríguez</span>
-                      <span>RFC: RIRA781030RI8</span>
-                      <span>Av. Emeterio González No. 27 int. 2</span>
-                      <span>Hércules, Querétaro, Qro. C.P. 76069</span>
-                      <span>Cel: 442-169-7094</span>
-                  </div>
-              </td>
-          </tr>
-      </table>
-  </div>
+  @include('pdf.partials.document-header')
 
   {{-- PANEL ENCABEZADO ACTA --}}
   <div class="panel-acta">
       <table class="tabla-acta">
           <tr>
               <td style="width:70%;">
-                  <div class="acta-titulo">ACTA DE CONFORMIDAD</div>
+                  <div class="acta-titulo">{{ $pdfTheme['document_title'] ?? 'ACTA DE CONFORMIDAD' }}</div>
                   <div class="acta-sub muted small">
                       Folio OS: <strong>{{ $folioOs }}</strong>
                       @if($folioCot)
@@ -426,7 +395,7 @@
               </td>
               <td style="text-align:right; width:30%;">
                   @if(!empty($draft))
-                    <span class="chip">BORRADOR</span>
+                    <span class="chip">{{ $pdfTheme['draft_chip_text'] ?? 'BORRADOR' }}</span>
                   @else
                     <span class="chip">DEFINITIVO</span>
                   @endif
@@ -528,7 +497,7 @@
       </div>
     </div>
     <div class="col">
-      <strong>Observaciones</strong>
+      <strong>{{ $pdfTheme['observations_label'] ?? 'Observaciones' }}</strong>
       <div class="box" style="margin-top:6px; white-space: pre-line;">
         {{ $actaData['observaciones'] ?? '—' }}
       </div>
@@ -539,7 +508,7 @@
   @if(!empty($detalles) && count($detalles))
     <div class="section">
       <strong>Materiales de la orden</strong>
-      <table class="table-bordered small" style="margin-top:6px;">
+      <table class="table-bordered small tabla-detalle-acta" style="margin-top:6px;">
         <thead>
           <tr>
             <th style="width:54%;">Producto</th>
@@ -578,7 +547,7 @@
     <div class="section">
       <strong>Materiales / gastos extra</strong>
 
-      <table class="table-bordered small" style="margin-top:6px;">
+      <table class="table-bordered small tabla-extra-acta" style="margin-top:6px;">
         <thead>
           <tr>
             <th style="width:54%;">Material extra</th>
@@ -711,9 +680,9 @@
               Representante de la empresa
             </div>
             <div class="small muted" style="margin-top:2px;">
-              {{ $actaData['firma_emp_nombre']  ?? 'Ing. José Alberto Rivera Rodríguez' }}<br>
-              {{ $actaData['firma_emp_puesto']  ?? 'E-SUPPORT QUERÉTARO' }}<br>
-              {{ $actaData['firma_emp_empresa'] ?? 'E-SUPPORT QUERÉTARO' }}
+              {{ $actaData['firma_emp_nombre']  ?? ($pdfTheme['company_owner'] ?? 'Ing. Jose Alberto Rivera Rodriguez') }}<br>
+              {{ $actaData['firma_emp_puesto']  ?? 'Representante de la empresa' }}<br>
+              {{ $actaData['firma_emp_empresa'] ?? ($pdfTheme['company_name'] ?? 'E-SUPPORT QUERETARO') }}
             </div>
           </div>
         </div>
@@ -723,11 +692,10 @@
   <div class="footer">
     Este documento forma parte del expediente de la Orden de Servicio {{ $folioOs }}@if($folioCot), derivada de la cotización {{ $folioCot }}@endif.
     @if(!empty($draft))
-      Estado del documento: BORRADOR (sin validez definitiva).
+      {{ $pdfTheme['draft_footer_text'] ?? 'Estado del documento: BORRADOR (sin validez definitiva).' }}
     @else
-      Estado del documento: DEFINITIVO (firmado).
+      {{ $pdfTheme['final_footer_text'] ?? 'Estado del documento: DEFINITIVO (firmado).' }}
     @endif
   </div>
 </body>
 </html>
-

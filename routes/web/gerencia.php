@@ -11,6 +11,8 @@ use App\Http\Controllers\Gerencia\Inventario\CargaRapidaInventarioController;
 use App\Http\Controllers\Gerencia\Inventario\CargaRapidaProductosController;
 use App\Http\Controllers\Gerencia\Inventario\InventarioController;
 use App\Http\Controllers\Gerencia\Inventario\SalidaInventarioController;
+use App\Http\Controllers\Gerencia\Logistica\AddressLookupController;
+use App\Http\Controllers\Gerencia\Logistica\LogisticaController;
 use App\Http\Controllers\Gerencia\Ordenes\OrdenServicioController;
 use App\Http\Controllers\Gerencia\Ordenes\OrdenServicioPdfController;
 use App\Http\Controllers\Gerencia\Proveedores\ProveedorController;
@@ -81,6 +83,16 @@ Route::middleware(['auth', 'gerente'])->group(function () {
         Route::post('/carga-rapida-productos', [CargaRapidaProductosController::class, 'procesar'])->name('cargaRapidaProd.procesar');
     });
 
+    Route::prefix('logistica')->name('logistica.')->group(function () {
+        Route::get('/', [LogisticaController::class, 'index'])->name('index');
+        Route::get('/direcciones/search', [AddressLookupController::class, 'search'])->name('direcciones.search');
+        Route::get('/direcciones/reverse', [AddressLookupController::class, 'reverse'])->name('direcciones.reverse');
+        Route::post('/jornadas', [LogisticaController::class, 'storeJornada'])->name('jornadas.store');
+        Route::post('/jornadas/{jornada}/cerrar', [LogisticaController::class, 'closeJornada'])->name('jornadas.close');
+        Route::put('/movimientos/{movimiento}', [LogisticaController::class, 'updateMovimiento'])->name('movimientos.update');
+        Route::post('/movimientos/{movimiento}/confirmar-recepcion', [LogisticaController::class, 'confirmarRecepcion'])->name('movimientos.confirmarRecepcion');
+    });
+
     Route::prefix('catalogo')->group(function () {
         Route::get('/', [CatalogoProductoController::class, 'index'])->name('catalogo.index');
 
@@ -109,6 +121,9 @@ Route::middleware(['auth', 'gerente'])->group(function () {
         Route::get('/producto/editar/{id}', [CatalogoProductoController::class, 'editar'])->name('producto.editar');
         Route::put('/producto/actualizar/{id}', [CatalogoProductoController::class, 'actualizar'])->name('producto.actualizar');
         Route::get('/autocomplete', [CatalogoProductoController::class, 'autocomplete'])->name('catalogo.autocomplete');
+        Route::post('/categorias', [CatalogoProductoController::class, 'guardarCategoria'])->name('catalogo.categorias.guardar');
+        Route::put('/categorias/{id}', [CatalogoProductoController::class, 'actualizarCategoria'])->name('catalogo.categorias.actualizar');
+        Route::delete('/categorias/{id}', [CatalogoProductoController::class, 'eliminarCategoria'])->name('catalogo.categorias.eliminar');
     });
 
     Route::prefix('proveedores')->group(function () {

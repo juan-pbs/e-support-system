@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <title>Cotización</title>
+
     <style>
         /* ===== Layout general ===== */
         body {
@@ -13,7 +14,13 @@
             background-color: #ffffff;
         }
 
-        /* Encabezado */
+        .page-wrap {
+            width: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* ===== Encabezado ===== */
         .header {
             width: 100%;
             margin-bottom: 6px;
@@ -33,6 +40,7 @@
         .tabla-header td {
             border: none;
             vertical-align: middle;
+            padding: 0;
         }
 
         .td-logo {
@@ -62,31 +70,34 @@
             font-size: 10px;
         }
 
-        /* Segunda barra azul bajo el bloque gris de cabecera */
+        /* ===== Separador ===== */
         .separador-azul {
-            margin-top: 0;
             width: 100%;
             height: 4px;
             background-color: #0072bc;
+            margin: 0;
+            padding: 0;
         }
 
-        /* Bloque gris de cabecera (cotización / empresa / solicita) */
+        /* ===== Panel gris superior ===== */
         .panel-encabezado {
+            width: 100%;
             margin-top: 14px;
             background-color: #e3e3e3;
+            padding: 0; /* IMPORTANTE: sin padding para evitar desfase */
             border: none;
-            padding: 8px 12px 10px 12px;
         }
 
         .tabla-encabezado {
             width: 100%;
             border-collapse: collapse;
+            table-layout: fixed;
             font-size: 10px;
         }
 
         .tabla-encabezado th,
         .tabla-encabezado td {
-            padding: 3px 4px;
+            padding: 4px 12px;
             border: none;
             vertical-align: top;
         }
@@ -96,8 +107,8 @@
             background-color: #cfcfcf;
             font-weight: bold;
             font-size: 11px;
-            padding-top: 4px;
-            padding-bottom: 4px;
+            padding-top: 6px;
+            padding-bottom: 6px;
         }
 
         .enc-titulo {
@@ -107,12 +118,12 @@
 
         .enc-numero {
             text-align: left;
+            color: #222222;
         }
 
         .enc-label {
             font-weight: bold;
             color: #555555;
-            width: 70px;
             white-space: nowrap;
         }
 
@@ -123,33 +134,36 @@
         .enc-bloque {
             font-weight: bold;
             color: #0072bc;
-            padding-top: 6px;
+            padding-top: 8px;
             padding-bottom: 2px;
         }
 
         .enc-solicita-label {
             font-weight: bold;
             color: #0072bc;
-            text-align: right;
+            text-align: center;
+            white-space: nowrap;
         }
 
         .enc-solicita-valor {
             text-align: right;
             font-weight: bold;
+            color: #222222;
         }
 
-        /* ===== Tabla de productos SIN contorno ni fondo ===== */
+        /* ===== Tabla de productos SIN bordes ===== */
         .tabla-productos {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 16px;
-            font-size: 9.8px;
+            table-layout: fixed;
+            margin-top: 12px;
+            font-size: 9.6px;
         }
 
         .tabla-productos th,
         .tabla-productos td {
-            border: none;
-            padding: 4px 5px;
+            border: none; /* sin bordes */
+            padding: 4px 6px;
             vertical-align: top;
             background-color: #ffffff;
         }
@@ -157,46 +171,78 @@
         .tabla-productos th {
             color: #0072bc;
             font-weight: bold;
-            text-transform: uppercase;
+            text-align: left;
         }
 
         .tabla-productos th.cant,
-        .tabla-productos th.num {
+        .tabla-productos td.cant {
+            width: 11%;
             text-align: center;
+            white-space: nowrap;
         }
 
-        .tabla-productos td.cant,
-        .tabla-productos td.num {
-            text-align: center;
+        .tabla-productos th.descripcion-col,
+        .tabla-productos td.descripcion-col {
+            width: 57%;
+            text-align: left;
+            white-space: normal;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            word-break: break-word;
+            line-height: 1.25;
         }
 
-        .tabla-productos td.monto {
+        .tabla-productos th.unit-price,
+        .tabla-productos td.unit-price {
+            width: 16%;
             text-align: right;
+            white-space: nowrap;
+            font-size: 8.8px;
+        }
+
+        .tabla-productos th.total-col,
+        .tabla-productos td.total-col {
+            width: 16%;
+            text-align: right;
+            white-space: nowrap;
+            font-size: 8.8px;
+        }
+
+        .tabla-productos th.unit-price,
+        .tabla-productos th.total-col {
+            line-height: 1.1;
         }
 
         .descripcion-producto {
             font-size: 9px;
             color: #333333;
             margin-top: 2px;
+            line-height: 1.25;
+            white-space: normal;
+            word-wrap: break-word;
+            overflow-wrap: break-word;
+            word-break: break-word;
         }
 
-        /* Bloque gris inferior: vigencia / moneda / condiciones / totales */
+        /* ===== Panel gris inferior ===== */
         .panel-inferior {
-            margin-top: 18px;
+            width: 100%;
+            margin-top: 14px;
             background-color: #e3e3e3;
-            padding: 6px 12px 8px 12px;
+            padding: 0; /* IMPORTANTE: sin padding para evitar desfase */
             font-size: 9.8px;
-            border-top: 3px solid #0072bc;     /* borde azul al LÍMITE superior */
-            border-bottom: 3px solid #0072bc;  /* borde azul al LÍMITE inferior */
+            border-top: 3px solid #0072bc;
+            border-bottom: 3px solid #0072bc;
         }
 
         .tabla-inferior {
             width: 100%;
             border-collapse: collapse;
+            table-layout: fixed;
         }
 
         .tabla-inferior td {
-            padding: 3px 4px;
+            padding: 4px 12px;
             border: none;
             vertical-align: top;
         }
@@ -204,8 +250,11 @@
         .inf-label {
             font-weight: bold;
             color: #555555;
-            width: 110px;
             white-space: nowrap;
+        }
+
+        .inf-valor {
+            color: #222222;
         }
 
         .inf-valor a,
@@ -218,32 +267,49 @@
         .tot-label {
             text-align: right;
             font-weight: bold;
+            white-space: nowrap;
+            color: #222222;
         }
 
         .tot-valor {
             text-align: right;
+            white-space: nowrap;
+            color: #222222;
         }
 
-        /* Texto de cierre */
+        /* ===== Pie / observaciones ===== */
         .footer-text {
             font-size: 10px;
-            text-align: center;
+            text-align: left;
         }
 
         .footer-text p {
             margin: 0;
         }
 
-        /* Layout de texto + firma al final */
+        .footer-observaciones {
+            font-size: 9.5px;
+            margin-bottom: 18px;
+            color: #222222;
+            white-space: pre-line;
+        }
+
+        .footer-copy {
+            padding-top: 24px;
+        }
+
+        /* ===== Firma ===== */
         .firma-layout {
             width: 100%;
-            margin-top: 40px;
+            margin-top: 12px;
             border-collapse: collapse;
+            table-layout: fixed;
         }
 
         .firma-layout td {
             border: none;
-            vertical-align: top;
+            vertical-align: bottom;
+            padding: 0;
         }
 
         .firma-col-text {
@@ -256,7 +322,6 @@
             text-align: center;
         }
 
-        /* Bloque de firma dentro de la columna derecha */
         .firma-section {
             font-size: 10px;
             text-align: center;
@@ -273,9 +338,9 @@
         }
 
         .firma-line {
-            width: 220px;
-            border-top: 1px solid #000;
-            margin: 0 auto 3px auto;
+            width: 200px;
+            border-top: 1px solid #000000;
+            margin: 0 auto 4px auto;
         }
 
         .firma-nombre {
@@ -285,12 +350,14 @@
         .firma-puesto,
         .firma-empresa,
         .firma-telefono {
-            margin-top: 1px;
+            margin-top: 2px;
         }
+
         @include('pdf.partials.corporate-theme')
-</style>
+    </style>
 </head>
 <body>
+<div class="page-wrap">
 @php
     use Carbon\Carbon;
 
@@ -298,9 +365,29 @@
     $MONEDA_RAW = $cotizacion->moneda ?? 'MXN';
     $MONEDA = strtoupper(trim((string) $MONEDA_RAW));
 
-    // Formato: $18.09 USD
     $fmt = function($v) use ($MONEDA) {
         return '$' . number_format((float)$v, 2) . ' ' . $MONEDA;
+    };
+
+    /* ============= Funciones para evitar ruptura de tabla ============= */
+    $splitLongWord = function ($word, $limit = 38) {
+        $word = (string) $word;
+
+        if (function_exists('mb_str_split')) {
+            return implode("\n", mb_str_split($word, $limit, 'UTF-8'));
+        }
+
+        return trim(chunk_split($word, $limit, "\n"));
+    };
+
+    $wrapText = function ($text, $limit = 38) use ($splitLongWord) {
+        $text = (string) $text;
+
+        $text = preg_replace_callback('/[^\s]{' . $limit . ',}/u', function ($matches) use ($splitLongWord, $limit) {
+            return $splitLongWord($matches[0], $limit);
+        }, $text);
+
+        return nl2br(e($text));
     };
 
     /* ============= Firma ============= */
@@ -316,8 +403,6 @@
         $solicita = $cliente->nombre;
     }
 
-    $condicionesPago = $cotizacion->condiciones_pago ?? 'CRÉDITO';
-
     $condicionesPagoMap = [
         'efectivo' => 'Efectivo',
         'transferencia' => 'Transferencia',
@@ -327,10 +412,18 @@
         'crédito' => 'Credito cliente',
         'contado' => 'Efectivo',
     ];
+
     $condicionesPagoKey = strtolower(trim((string) ($cotizacion->condiciones_pago ?? 'efectivo')));
     $condicionesPago = $condicionesPagoMap[$condicionesPagoKey] ?? ucfirst($condicionesPagoKey);
+
     $tiempoEntrega = $cotizacion->tiempo_entrega ?? null;
     $notaFija = $cotizacion->nota_fija ?? 'PRECIOS SUJETOS A CAMBIO SIN PREVIO AVISO';
+
+    $codigoCliente = trim((string) ($cliente->codigo_cliente ?? ''));
+
+    $folioCotizacion = $codigoCliente !== ''
+        ? $codigoCliente . ' ' . (string) ($cotizacion->id_cotizacion ?? 'PREVIEW')
+        : 'SET-' . (string) ($cotizacion->id_cotizacion ?? 'PREVIEW');
 
     $fechaCot = $cotizacion->fecha
         ? Carbon::parse($cotizacion->fecha)->format('d/m/Y')
@@ -340,9 +433,7 @@
         ? Carbon::parse($cotizacion->vigencia)->format('d/m/Y')
         : '';
 
-    /* ============= Totales (como en orden de servicio) ============= */
-
-    // Subtotal de productos
+    /* ============= Totales ============= */
     $subtotalMaterial = 0.0;
     foreach ($productos as $p) {
         $qty = (float)($p->cantidad ?? 0);
@@ -350,18 +441,14 @@
         $subtotalMaterial += $qty * $pu;
     }
 
-    // Servicio (si existe)
     $costoServicio = (!empty($servicio) && isset($servicio->precio))
         ? (float)$servicio->precio
         : 0.0;
 
-    // Costo operativo / envío
     $costoOperativo = (float)($cotizacion->costo_operativo ?? 0);
 
-    // Subtotal gravable = productos + servicio
     $subtotalBruto = $subtotalMaterial + $costoServicio;
 
-    // IVA: usamos lo almacenado si existe, si no lo calculamos
     $ivaDB = null;
     if (isset($cotizacion->impuestos)) {
         $ivaDB = (float)$cotizacion->impuestos;
@@ -372,19 +459,17 @@
     $ivaCalculado = round($subtotalBruto * 0.16, 2);
     $iva = $ivaDB !== null ? $ivaDB : $ivaCalculado;
 
-    // Total: usamos el de BD si está, si no lo calculamos
     $totalDB = $cotizacion->total ?? null;
     if ($totalDB !== null && $totalDB > 0) {
         $total = (float)$totalDB;
-        // Ajustamos el subtotal para que cuadre con lo guardado
         $subtotalBruto = $total - $iva - $costoOperativo;
     } else {
         $total = $subtotalBruto + $iva + $costoOperativo;
     }
 
     $cantidadEscrita = $cotizacion->cantidad_escrita ?? '';
+    $observacionesPdf = trim((string) ($cotizacion->observaciones_pdf ?? ''));
 
-    // Tasa de cambio (aceptamos tasa_cambio o tipo_cambio)
     $tasaCambioRaw = $cotizacion->tasa_cambio
         ?? $cotizacion->tipo_cambio
         ?? null;
@@ -394,7 +479,7 @@
         $tasaCambio = null;
     }
 
-    /* ============= Imágenes (logo / barra) ============= */
+    /* ============= Imágenes ============= */
     $logoBase64  = null;
     $barraBase64 = null;
 
@@ -410,53 +495,33 @@
     }
 @endphp
 
-{{-- ===== Encabezado: barra azul + logo + datos en tabla ===== --}}
-<div class="header">
-    @if($barraBase64)
-        <img src="{{ $barraBase64 }}" alt="" class="barra-superior">
-    @else
-        <table class="barra-fallback" role="presentation"><tr><td></td></tr></table>
-    @endif
+{{-- ===== Encabezado: barra azul + logo + datos ===== --}}
+@include('pdf.partials.document-header')
 
-    <table class="tabla-header">
-        <tr>
-            <td class="td-logo">
-                @if($logoBase64)
-                    <img src="{{ $logoBase64 }}" class="logo" alt="">
-                @else
-                    <div class="logo-fallback">
-                        <strong>E-SUPPORT QUERETARO</strong>
-                        <span>Soporte y servicio tecnico</span>
-                    </div>
-                @endif
-            </td>
-            <td class="td-info">
-                <div class="info-empresa">
-                    <strong>E-SUPPORT QUERÉTARO</strong>
-                    <span>Jose Alberto Rivera Rodríguez</span>
-                    <span>RFC: RIRA781030RI8</span>
-                    <span>Av. Emeterio González No. 27 int. 2</span>
-                    <span>Hércules, Querétaro, Qro. C.P. 76069</span>
-                </div>
-            </td>
-        </tr>
-    </table>
-</div>
-
-{{-- ===== Panel gris de cabecera (COTIZACIÓN / EMPRESA / SOLICITA) ===== --}}
+{{-- ===== Panel gris de cabecera ===== --}}
 <div class="panel-encabezado">
     <table class="tabla-encabezado">
+        <colgroup>
+            <col style="width: 10%;">
+            <col style="width: 28%;">
+            <col style="width: 17%;">
+            <col style="width: 45%;">
+        </colgroup>
+
         <tr>
-            <th class="enc-titulo" colspan="2">COTIZACIÓN NO.</th>
-            <th class="enc-numero" colspan="2">SET-{{ $cotizacion->id_cotizacion }}</th>
+            <th class="enc-titulo" colspan="2">
+                {{ $pdfTheme['document_title'] ?? 'COTIZACIÓN NO.' }}
+            </th>
+            <th class="enc-numero" colspan="2">
+                {{ $folioCotizacion }}
+            </th>
         </tr>
+
         <tr>
             <td class="enc-label">Fecha:</td>
             <td class="enc-valor">{{ $fechaCot }}</td>
             <td class="enc-solicita-label">SOLICITA</td>
-            <td class="enc-solicita-valor">
-                {{ $solicita ?: '-' }}
-            </td>
+            <td class="enc-solicita-valor">{{ $solicita ?: '-' }}</td>
         </tr>
 
         @if(!empty($cliente))
@@ -465,12 +530,14 @@
                 <td></td>
                 <td></td>
             </tr>
+
             <tr>
                 <td class="enc-label">Nombre:</td>
                 <td class="enc-valor" colspan="3">
                     {{ $cliente->nombre_empresa ?: ($cliente->nombre ?? '-') }}
                 </td>
             </tr>
+
             <tr>
                 <td class="enc-label">Domicilio:</td>
                 <td class="enc-valor" colspan="3">
@@ -483,100 +550,142 @@
 
 <div class="separador-azul"></div>
 
-{{-- ===== Tabla de productos ===== --}}
-<table class="tabla-productos">
+{{-- ===== Tabla de productos SIN bordes ===== --}}
+<table class="tabla-productos" cellpadding="0" cellspacing="0">
+    <colgroup>
+        <col style="width: 11%;">
+        <col style="width: 57%;">
+        <col style="width: 16%;">
+        <col style="width: 16%;">
+    </colgroup>
+
     <thead>
         <tr>
-            <th class="cant" style="width: 70px;">CANTIDAD</th>
-            <th>DESCRIPCIÓN</th>
-            <th class="num" style="width: 95px;">PRECIO UNT</th>
-            <th class="num" style="width: 95px;">TOTAL</th>
+            <th class="cant">Cantidad</th>
+            <th class="descripcion-col">Descripción</th>
+            <th class="unit-price">Precio<br>unit</th>
+            <th class="total-col">Total</th>
         </tr>
     </thead>
+
     <tbody>
         @foreach ($productos as $producto)
+            @php
+                $desc = isset($producto->descripcion_item) && trim($producto->descripcion_item) !== ''
+                    ? $producto->descripcion_item
+                    : '';
+
+                $totalProducto = isset($producto->total)
+                    ? $producto->total
+                    : ((float)($producto->cantidad ?? 0) * (float)($producto->precio_unitario ?? 0));
+            @endphp
+
             <tr>
-                <td class="cant">{{ $producto->cantidad }}</td>
-                <td>
-                    {{ $producto->nombre_producto }}
-                    @php
-                        $desc = isset($producto->descripcion_item) && trim($producto->descripcion_item) !== ''
-                            ? $producto->descripcion_item
-                            : '';
-                    @endphp
+                <td class="cant">
+                    {{ $producto->cantidad }}
+                </td>
+
+                <td class="descripcion-col">
+                    {!! $wrapText($producto->nombre_producto ?? '', 38) !!}
+
                     @if($desc)
-                        <div class="descripcion-producto">{{ $desc }}</div>
+                        <div class="descripcion-producto">
+                            {!! $wrapText($desc, 48) !!}
+                        </div>
                     @endif
                 </td>
-                <td class="monto">{{ $fmt($producto->precio_unitario) }}</td>
-                <td class="monto">{{ $fmt($producto->total) }}</td>
+
+                <td class="unit-price">
+                    {{ $fmt($producto->precio_unitario ?? 0) }}
+                </td>
+
+                <td class="total-col">
+                    {{ $fmt($totalProducto) }}
+                </td>
             </tr>
         @endforeach
 
         @if(!empty($servicio))
             <tr>
                 <td class="cant">1</td>
-                <td>
+
+                <td class="descripcion-col">
                     <strong>Servicio:</strong>
+
                     @if(!empty($servicio->descripcion))
                         <div class="descripcion-producto">
-                            {{ $servicio->descripcion }}
+                            {!! $wrapText($servicio->descripcion, 48) !!}
                         </div>
                     @endif
                 </td>
-                <td class="monto">{{ $fmt($servicio->precio) }}</td>
-                <td class="monto">{{ $fmt($servicio->precio) }}</td>
+
+                <td class="unit-price">
+                    {{ $fmt($servicio->precio ?? 0) }}
+                </td>
+
+                <td class="total-col">
+                    {{ $fmt($servicio->precio ?? 0) }}
+                </td>
             </tr>
         @endif
     </tbody>
 </table>
 
-{{-- ===== Panel inferior: vigencia / moneda / condiciones / totales ===== --}}
+{{-- ===== Panel inferior ===== --}}
 <div class="panel-inferior">
     <table class="tabla-inferior">
+        <colgroup>
+            <col style="width: 24%;">
+            <col style="width: 36%;">
+            <col style="width: 20%;">
+            <col style="width: 20%;">
+        </colgroup>
+
         <tr>
             <td class="inf-label">Vigencia:</td>
-            <td class="inf-valor">
-                {{ $vigenciaFecha ?: '-' }}
-            </td>
+            <td class="inf-valor">{{ $vigenciaFecha ?: '-' }}</td>
             <td class="tot-label">Sub-total</td>
             <td class="tot-valor">{{ $fmt($subtotalBruto) }}</td>
         </tr>
+
         <tr>
             <td class="inf-label">Moneda:</td>
             <td class="inf-valor">{{ $MONEDA }}</td>
             <td class="tot-label">IVA (16%)</td>
             <td class="tot-valor">{{ $fmt($iva) }}</td>
         </tr>
+
         <tr>
             <td class="inf-label">Tiempo de entrega:</td>
             <td class="inf-valor">{{ $tiempoEntrega ?: '-' }}</td>
             <td class="tot-label">Total</td>
             <td class="tot-valor"><strong>{{ $fmt($total) }}</strong></td>
         </tr>
+
         <tr>
             <td class="inf-label">Condiciones de pago:</td>
             <td class="inf-valor" colspan="3">
                 <span class="inf-valor-link">{{ $condicionesPago }}</span>
             </td>
         </tr>
+
         <tr>
             <td class="inf-label">Cantidad en letra:</td>
             <td class="inf-valor" colspan="3">
-                {{ $cantidadEscrita }}
-            </td>
-        </tr>
-        <tr>
-            <td class="inf-label">Nota:</td>
-            <td class="inf-valor" colspan="3">
-                <strong>{{ $notaFija }}</strong>
+                <strong>{{ $cantidadEscrita }}</strong>
             </td>
         </tr>
 
-        {{-- Nota de tipo de cambio SOLO cuando la cotización está en USD y existe una tasa válida --}}
+        <tr>
+            <td class="inf-label">Nota:</td>
+            <td class="inf-valor" colspan="3">
+                <strong>{{ $pdfTheme['fixed_note_text'] ?? $notaFija }}</strong>
+            </td>
+        </tr>
+
         @if($MONEDA === 'USD' && $tasaCambio)
             <tr>
-                <td colspan="4" style="padding-top:6px; font-size:9px; color:#555;">
+                <td colspan="4" style="padding-top:6px; font-size:9px; color:#555555;">
                     Nota: TC al registrar: 1 USD = {{ number_format($tasaCambio, 4, '.', ',') }} MXN
                 </td>
             </tr>
@@ -584,15 +693,20 @@
     </table>
 </div>
 
-{{-- ===== Texto + firma con mejor distribución ===== --}}
+{{-- ===== Texto + firma ===== --}}
 <table class="firma-layout">
     <tr>
         <td class="firma-col-text">
-            <div class="footer-text">
+            @if($observacionesPdf !== '')
+                <div class="footer-observaciones">
+                    <strong>{{ $pdfTheme['observations_label'] ?? 'Observaciones' }}:</strong>
+                    <div>{!! nl2br(e($observacionesPdf)) !!}</div>
+                </div>
+            @endif
+
+            <div class="footer-text footer-copy">
                 <p>
-                    Sin más por el momento y esperando escuchar pronto de usted, quedo
-                    a sus órdenes para cualquier duda o aclaración respecto a esta
-                    cotización.
+                    {{ $pdfTheme['closing_text'] ?? 'Sin más por el momento y esperando escuchar pronto de usted, quedo a sus órdenes para cualquier duda o aclaración respecto a esta cotización.' }}
                 </p>
             </div>
         </td>
@@ -600,7 +714,7 @@
         <td class="firma-col-sign">
             @if($firmaNombre || $firmaPuesto || $firmaEmpresa || $firmaImagen)
                 <div class="firma-section">
-                    <p>Atentamente</p>
+                    <p>{{ $pdfTheme['signature_heading'] ?? 'Atentamente' }}</p>
 
                     @if($firmaImagen)
                         <img src="{{ $firmaImagen }}" alt="Firma" class="firma-img">
@@ -611,18 +725,23 @@
                     @if($firmaNombre)
                         <div class="firma-nombre">{{ $firmaNombre }}</div>
                     @endif
+
                     @if($firmaPuesto)
                         <div class="firma-puesto">{{ $firmaPuesto }}</div>
                     @endif
+
                     @if($firmaEmpresa)
                         <div class="firma-empresa">{{ $firmaEmpresa }}</div>
                     @endif
-                    <div class="firma-telefono">Cel: 442-169-7094</div>
+
+                    <div class="firma-telefono">
+                        {{ $pdfTheme['signature_phone'] ?? 'Cel: 442-169-7094' }}
+                    </div>
                 </div>
             @endif
         </td>
     </tr>
 </table>
+</div>
 </body>
 </html>
-

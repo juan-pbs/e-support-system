@@ -129,6 +129,14 @@
                         <span class="text-sm font-medium">Servicios</span>
                     </div>
                 </a>
+
+                <a href="{{ route('tecnico.logistica.index') }}" class="block">
+                    <div class="flex items-center gap-3 px-4 py-3 rounded-lg transition-colors
+                        {{ request()->routeIs('tecnico.logistica.*') ? 'bg-white text-gray-900' : 'menu-item-hover' }}">
+                        <i data-lucide="map-pinned" class="lucide-icon"></i>
+                        <span class="text-sm font-medium">Logística</span>
+                    </div>
+                </a>
             </nav>
         </div>
     </div>

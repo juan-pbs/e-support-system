@@ -201,38 +201,7 @@
 ?>
 
 {{-- ENCABEZADO --}}
-<div class="header">
-    <?php if (!empty($barraBase64)) : ?>
-        <img src="{{ $barraBase64 }}" alt="" class="barra-superior">
-    <?php else : ?>
-        <table class="barra-fallback" role="presentation"><tr><td></td></tr></table>
-    <?php endif; ?>
-
-    <table class="tabla-header">
-        <tr>
-            <td class="td-logo">
-                <?php if (!empty($logoBase64)) : ?>
-                    <img src="{{ $logoBase64 }}" class="logo" alt="">
-                <?php else : ?>
-                    <div class="logo-fallback">
-                        <strong>E-SUPPORT QUERETARO</strong>
-                        <span>Soporte y servicio tecnico</span>
-                    </div>
-                <?php endif; ?>
-            </td>
-            <td class="td-info">
-                <div class="info-empresa">
-                    <strong>E-SUPPORT QUERETARO</strong>
-                    <span>Jose Alberto Rivera Rodriguez</span>
-                    <span>RFC: RIRA781030RI8</span>
-                    <span>Av. Emeterio Gonzalez No. 27 int. 2</span>
-                    <span>Hercules, Queretaro, Qro. C.P. 76069</span>
-                    <span>Cel: 442-169-7094</span>
-                </div>
-            </td>
-        </tr>
-    </table>
-</div>
+@include('pdf.partials.document-header')
 
 {{-- PANEL --}}
 <div class="panel-wrap">
@@ -240,6 +209,10 @@
         <tr>
             <td class="panel-td-left">
                 <div class="titulo-doc">{{ $tituloTxt }}</div>
+
+                @if(!empty($pdfTheme['intro_text']))
+                    <div class="sub-doc muted">{{ $pdfTheme['intro_text'] }}</div>
+                @endif
 
                 <div class="sub-doc muted">
                     Listado de cotizaciones generadas en el rango seleccionado, con cliente, vigencia, moneda, total y contadores de acciones.
@@ -255,7 +228,7 @@
             </td>
 
             <td class="panel-td-right muted">
-                Sistema E-Support
+                {{ $pdfTheme['company_name'] ?? 'Sistema E-Support' }}
             </td>
         </tr>
     </table>
@@ -303,10 +276,7 @@
     </div>
 <?php endif; ?>
 
-<div class="footer">
-    Generado el {{ now()->format('d/m/Y H:i') }} - Sistema E-Support
-</div>
+@include('pdf.partials.report-footer')
 
 </body>
 </html>
-

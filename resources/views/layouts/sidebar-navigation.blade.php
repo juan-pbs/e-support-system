@@ -252,6 +252,15 @@
                         </div>
                     </a>
 
+                    <a href="{{ route('logistica.index') }}" class="block">
+                        <div class="flex items-center gap-3 px-4 py-3 transition-colors menu-item-hover rounded-lg">
+                            <div class="flex items-center justify-center w-8 h-8">
+                                <i data-lucide="map-pinned" class="lucide-icon"></i>
+                            </div>
+                            <span class="text-sm font-medium">Logística</span>
+                        </div>
+                    </a>
+
                     <a href="{{ route('reportes') }}" class="block">
                         <div class="flex items-center gap-3 px-4 py-3 transition-colors menu-item-hover rounded-lg">
                             <div class="flex items-center justify-center w-8 h-8">

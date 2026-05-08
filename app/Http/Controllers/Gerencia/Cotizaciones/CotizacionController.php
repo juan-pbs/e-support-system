@@ -58,10 +58,10 @@ class CotizacionController extends Controller
         $buscar = trim((string) $request->query('buscar', ''));
 
         $cotizacionIdRaw = trim((string) $request->query('cotizacion_id', ''));
-        $cotizacionId = (int) preg_replace('/\D+/', '', $cotizacionIdRaw);
+        $cotizacionId = $this->resolveCotizacionId($cotizacionIdRaw);
 
         if ($cotizacionId <= 0 && $buscar !== '') {
-            $cotizacionId = (int) preg_replace('/\D+/', '', $buscar);
+            $cotizacionId = $this->resolveCotizacionId($buscar);
         }
 
         $likeBuscar = "%{$buscar}%";
@@ -77,6 +77,7 @@ class CotizacionController extends Controller
                         ->orWhere('descripcion', 'like', $likeBuscar)
                         ->orWhereHas('cliente', function ($c) use ($likeBuscar) {
                             $c->where('nombre', 'like', $likeBuscar)
+                              ->orWhere('codigo_cliente', 'like', $likeBuscar)
                               ->orWhere('nombre_empresa', 'like', $likeBuscar)
                               ->orWhere('correo_electronico', 'like', $likeBuscar);
                         });
@@ -168,6 +169,9 @@ class CotizacionController extends Controller
                 $total,
                 $cotizacion->moneda
             );
+            if (Schema::hasColumn('cotizaciones', 'observaciones_pdf')) {
+                $cotizacion->observaciones_pdf = $this->normalizeOptionalText($request->input('observaciones_pdf'));
+            }
             if (Schema::hasColumn('cotizaciones', 'condiciones_pago')) {
                 $cotizacion->condiciones_pago = $this->resolveCondicionesPago($request->input('condiciones_pago'));
             }
@@ -337,6 +341,9 @@ class CotizacionController extends Controller
                 $total,
                 $cotizacion->moneda
             );
+            if (Schema::hasColumn('cotizaciones', 'observaciones_pdf')) {
+                $cotizacion->observaciones_pdf = $this->normalizeOptionalText($request->input('observaciones_pdf'));
+            }
             if (Schema::hasColumn('cotizaciones', 'condiciones_pago')) {
                 $cotizacion->condiciones_pago = $this->resolveCondicionesPago($request->input('condiciones_pago'));
             }
@@ -395,6 +402,10 @@ class CotizacionController extends Controller
             $this->generateAndStorePdf((int)$cotizacion->id_cotizacion, true);
         } catch (\Throwable $e) {
             // opcional: avisar
+        }
+
+        if ($request->input('accion') === 'guardar_descargar') {
+            return $this->descargarPDF($request, (int) $cotizacion->id_cotizacion);
         }
 
         return redirect()
@@ -475,7 +486,7 @@ class CotizacionController extends Controller
     public function autocomplete(Request $request)
     {
         $termRaw = trim((string) $request->input('term', ''));
-        $termNum = (int) preg_replace('/\D+/', '', $termRaw);
+        $termNum = $this->resolveCotizacionId($termRaw);
         $like    = "%{$termRaw}%";
 
         $items = Cotizacion::with('cliente')
@@ -486,6 +497,7 @@ class CotizacionController extends Controller
                     $sub->orWhere('descripcion', 'like', $like)
                         ->orWhereHas('cliente', function ($c) use ($like) {
                             $c->where('nombre', 'like', $like)
+                              ->orWhere('codigo_cliente', 'like', $like)
                               ->orWhere('nombre_empresa', 'like', $like)
                               ->orWhere('correo_electronico', 'like', $like);
                         });
@@ -501,8 +513,8 @@ class CotizacionController extends Controller
 
                 return [
                     'id'    => (int) $c->id_cotizacion,
-                    'label' => 'SET-' . $c->id_cotizacion . ' - ' . $nombreCliente,
-                    'value' => 'SET-' . $c->id_cotizacion,
+                    'label' => $c->folio . ' - ' . $nombreCliente,
+                    'value' => $c->folio,
                 ];
             });
 
@@ -582,6 +594,7 @@ class CotizacionController extends Controller
                 $total,
                 (string) $request->input('moneda', 'MXN')
             ),
+            'observaciones_pdf' => $this->normalizeOptionalText($request->input('observaciones_pdf')),
             'condiciones_pago' => $this->resolveCondicionesPago($request->input('condiciones_pago')),
             'tiempo_entrega'   => $this->normalizeOptionalText($request->input('tiempo_entrega')),
             'nota_fija'        => self::NOTA_FIJA,
@@ -631,7 +644,7 @@ class CotizacionController extends Controller
 
     public function verPDF(Request $request, $id)
     {
-        $path = $this->getOrCreatePdfPath((int)$id, $request->boolean('regen'));
+        $path = $this->getOrCreatePdfPath((int)$id, true);
         $bin  = Storage::get($path);
 
         return response($bin, 200, [
@@ -644,7 +657,7 @@ class CotizacionController extends Controller
     {
         // compatibilidad con tu llamada: descargarPDF($id)
         $realId = (int) ($id ?? $request->route('id'));
-        $path   = $this->getOrCreatePdfPath($realId, $request->boolean('regen'));
+        $path   = $this->getOrCreatePdfPath($realId, true);
         $bin    = Storage::get($path);
 
         return response($bin, 200, [
@@ -757,6 +770,7 @@ class CotizacionController extends Controller
             'condiciones_pago'     => 'nullable|in:efectivo,transferencia,tarjeta,credito_cliente',
             'tiempo_entrega'       => 'nullable|string|max:255',
             'cantidad_escrita'     => 'nullable|string|max:255',
+            'observaciones_pdf'    => 'nullable|string|max:5000',
             'productos_json'       => 'nullable|string',
             'tasa_cambio'          => 'nullable|numeric|min:0',
 
@@ -1069,5 +1083,28 @@ class CotizacionController extends Controller
         }
 
         return (string) $number;
+    }
+
+    private function resolveCotizacionId(?string $value): int
+    {
+        $text = trim((string) $value);
+
+        if ($text === '') {
+            return 0;
+        }
+
+        if (preg_match('/^\d+$/', $text)) {
+            return (int) $text;
+        }
+
+        if (preg_match('/^SET-(\d+)$/i', $text, $matches)) {
+            return (int) $matches[1];
+        }
+
+        if (preg_match('/^.+\s+(\d+)$/', $text, $matches)) {
+            return (int) $matches[1];
+        }
+
+        return 0;
     }
 }

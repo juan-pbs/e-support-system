@@ -12,6 +12,7 @@ use App\Models\DetalleOrdenProducto;
 use App\Models\DetalleOrdenProductoSerie;
 use App\Models\OrdenServicio;
 use App\Models\User;
+use App\Services\Logistica\LogisticaService;
 use App\Services\Ordenes\OrdenServicioService;
 use Carbon\Carbon;
 use Illuminate\Http\Exceptions\HttpResponseException;
@@ -23,7 +24,10 @@ use Maatwebsite\Excel\Facades\Excel;
 
 class OrdenServicioController extends Controller
 {
-    public function __construct(private OrdenServicioService $svc) {}
+    public function __construct(
+        private OrdenServicioService $svc,
+        private LogisticaService $logistica
+    ) {}
 
     public function index(Request $request)
     {
@@ -175,7 +179,7 @@ class OrdenServicioController extends Controller
      */
     public function edit($id)
     {
-        $orden = OrdenServicio::with(['cliente', 'tecnico', 'tecnicos'])->findOrFail($id);
+        $orden = OrdenServicio::with(['cliente.direccionesLogisticas', 'direccionCliente', 'tecnico', 'tecnicos', 'cotizacion.cliente'])->findOrFail($id);
 
         if ($orden->acta_estado === 'firmada') {
             return redirect()->route('ordenes.index')
@@ -234,6 +238,7 @@ class OrdenServicioController extends Controller
         $data['firmaFromCotizacion'] = false;
 
         return view('gerencia.ordenes.edit', $data + [
+            'cotizacion'       => $orden->cotizacion,
             'firma'            => $firma,
             'orden'            => $orden,
             'productosPrefill' => $productosPrefill,
@@ -374,6 +379,8 @@ class OrdenServicioController extends Controller
             ], 500));
         }
 
+        $this->logistica->syncEntregaDesdeOrden(OrdenServicio::with(['cliente.direccionesLogisticas', 'direccionCliente', 'productos', 'tecnicos'])->findOrFail((int) $ordenId));
+
         $this->svc->generarYGuardarPdfOrden((int) $ordenId);
 
         if ($request->ajax() || $request->wantsJson()) {
@@ -400,7 +407,12 @@ class OrdenServicioController extends Controller
 
         $productosBase = $data['productos'] ?? [];
 
-        if (empty($productosBase) && $cotizacion->productos && $cotizacion->productos->count()) {
+        if (
+            empty($productosBase)
+            && !$request->boolean('productos_present')
+            && $cotizacion->productos
+            && $cotizacion->productos->count()
+        ) {
             $productosBase = $cotizacion->productos->map(function ($d) {
                 return [
                     'codigo_producto' => $d->codigo_producto ?? null,
@@ -566,6 +578,8 @@ class OrdenServicioController extends Controller
             ], 500));
         }
 
+        $this->logistica->syncEntregaDesdeOrden(OrdenServicio::with(['cliente.direccionesLogisticas', 'direccionCliente', 'productos', 'tecnicos'])->findOrFail((int) $ordenId));
+
         $this->svc->generarYGuardarPdfOrden((int) $ordenId);
 
         if ($request->ajax() || $request->wantsJson()) {
@@ -593,6 +607,12 @@ class OrdenServicioController extends Controller
 
         if ($orden->acta_estado === 'firmada') {
             return back()->with('error', 'La orden está cerrada por acta firmada y no puede modificarse.');
+        }
+
+        if (!empty($orden->id_cotizacion)) {
+            $request->merge([
+                'cotizacion_id' => (int) $orden->id_cotizacion,
+            ]);
         }
 
         $data  = $this->svc->validateOrden($request, !empty($orden->id_cotizacion));
@@ -755,6 +775,9 @@ class OrdenServicioController extends Controller
             throw $e;
         }
 
+        $orden->load(['cliente.direccionesLogisticas', 'direccionCliente', 'productos', 'tecnicos']);
+        $this->logistica->syncEntregaDesdeOrden($orden);
+
         $this->svc->generarYGuardarPdfOrden((int) $orden->getKey());
 
         if ($request->ajax() || $request->wantsJson()) {
@@ -820,6 +843,8 @@ class OrdenServicioController extends Controller
                     $cot->save();
                 }
             }
+
+            $this->logistica->cancelarMovimientosPorOrden($orden);
 
             if (!empty($orden->archivo_pdf) && \Storage::disk('public')->exists($orden->archivo_pdf)) {
                 \Storage::disk('public')->delete($orden->archivo_pdf);

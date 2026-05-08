@@ -204,8 +204,10 @@
     // ===== Título dinámico =====
     $tipo = (string)($orden->tipo_orden ?? '');
     $isCompra = $tipo === 'compra';
-    $tituloDocumento = $isCompra ? 'ORDEN DE COMPRA' : 'ORDEN DE SERVICIO';
-    $prefijo = $isCompra ? 'OC' : 'OS';
+    $tituloDocumento = $isCompra
+        ? ($pdfTheme['delivery_title'] ?? 'ORDEN DE ENTREGA VENTA')
+        : ($pdfTheme['service_title'] ?? 'ORDEN DE SERVICIO');
+    $prefijo = $isCompra ? 'EV' : 'OS';
 
     // Folio
     $folio = $orden->folio ?? $orden->id_orden_servicio ?? $orden->id ?? '—';
@@ -272,38 +274,7 @@
 @endphp
 
 {{-- ===== ENCABEZADO ===== --}}
-<div class="header">
-    @if($barraBase64)
-        <img src="{{ $barraBase64 }}" alt="" class="barra-superior">
-    @else
-        <table class="barra-fallback" role="presentation"><tr><td></td></tr></table>
-    @endif
-
-    <table class="tabla-header">
-        <tr>
-            <td class="td-logo">
-                @if($logoBase64)
-                    <img src="{{ $logoBase64 }}" class="logo" alt="">
-                @else
-                    <div class="logo-fallback">
-                        <strong>E-SUPPORT QUERETARO</strong>
-                        <span>Soporte y servicio tecnico</span>
-                    </div>
-                @endif
-            </td>
-            <td class="td-info">
-                <div class="info-empresa">
-                    <strong>E-SUPPORT QUERÉTARO</strong>
-                    <span>Jose Alberto Rivera Rodríguez</span>
-                    <span>RFC: RIRA781030RI8</span>
-                    <span>Av. Emeterio González No. 27 int. 2</span>
-                    <span>Hércules, Querétaro, Qro. C.P. 76069</span>
-                    <span>Cel: 442-169-7094</span>
-                </div>
-            </td>
-        </tr>
-    </table>
-</div>
+@include('pdf.partials.document-header')
 
 {{-- PANEL GRIS: DATOS DE LA ORDEN --}}
 <div class="panel-orden">
@@ -316,7 +287,7 @@
             <td class="enc-label">Fecha:</td>
             <td class="enc-valor">{{ $fechaMostrar }}</td>
             <td class="enc-label">Tipo de Orden:</td>
-            <td class="enc-valor">{{ ucfirst(str_replace('_',' ',$orden->tipo_orden)) }}</td>
+            <td class="enc-valor">{{ $orden->tipo_orden_label ?? ucfirst(str_replace('_',' ',$orden->tipo_orden)) }}</td>
             <td class="enc-label">Prioridad:</td>
             <td class="enc-valor">{{ $orden->prioridad }}</td>
         </tr>
@@ -671,7 +642,7 @@
                 @endphp
 
                 <div class="firma-section">
-                    <p>Firma de autorización</p>
+                    <p>{{ $pdfTheme['signature_heading'] ?? 'Firma de autorización' }}</p>
 
                     @if($firmaImagen)
                         <img src="{{ $firmaImagen }}" class="firma-img" alt="Firma digital">
@@ -702,4 +673,3 @@
 
 </body>
 </html>
-

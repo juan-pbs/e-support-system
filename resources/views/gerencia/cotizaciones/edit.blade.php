@@ -43,6 +43,7 @@
         <form method="POST" action="{{ route('cotizaciones.actualizar', $cotizacion->id_cotizacion) }}" id="cotizacionForm">
             @csrf
             @method('PUT')
+            <input type="hidden" name="accion" id="cotizacion_accion" value="guardar">
 
             {{-- Fuente de verdad: JSON de productos --}}
             <input type="hidden" name="productos_json" id="productos_json" value='{{ $productosJson }}'>
@@ -211,6 +212,20 @@
                         @enderror
                     </div>
 
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700 mb-2">Observaciones</label>
+                        <textarea name="observaciones_pdf"
+                                  rows="4"
+                                  placeholder="Estas observaciones se mostrarán arriba del texto de cierre en el PDF."
+                                  class="w-full px-3 py-2 border border-gray-300 rounded-md resize-none">{{ old('observaciones_pdf', $cotizacion->observaciones_pdf) }}</textarea>
+                        <p class="mt-1 text-xs text-gray-500">
+                            Este texto aparecerá arriba de la frase "Sin más por el momento..." en la cotización PDF.
+                        </p>
+                        @error('observaciones_pdf')
+                        <p class="mt-1 text-xs text-red-600">{{ $message }}</p>
+                        @enderror
+                    </div>
+
                     {{-- Firma digital --}}
                     <x-firma-digital
                         :firma="($firmaEmpresa ?? $firmaDefaultEmpresa ?? null)"
@@ -284,7 +299,7 @@
                             Previsualizar PDF
                         </button>
                         <button type="button"
-                                onclick="guardarCambios()"
+                                onclick="guardarCambios('guardar')"
                                 class="flex-1 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors">
                             Guardar Cambios
                         </button>
@@ -302,9 +317,11 @@
                 <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-4 sm:mb-6 space-y-3 sm:space-y-0">
                     <h2 class="text-lg sm:text-xl font-semibold text-gray-800">Agregar producto</h2>
                     <div class="flex items-center justify-between sm:justify-end gap-4">
-                        <button id="addNonExistentProduct" class="text-green-600 hover:text-green-700 text-sm font-medium">
-                            Agregar producto no existente
-                        </button>
+                        <a id="addNonExistentProduct"
+                           href="{{ route('producto.crear', ['redirect_to' => url()->full()]) }}"
+                           class="text-green-600 hover:text-green-700 text-sm font-medium">
+                            Agregar producto nuevo
+                        </a>
                         <button onclick="closeModal()" class="text-gray-400 hover:text-gray-600">
                             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
@@ -314,14 +331,12 @@
                 </div>
 
                 <div class="mb-4 sm:mb-6">
-                    <x-barra-busqueda-live
-                        :action="route('cotizaciones.crear')"
-                        autocompleteUrl="{{ route('productos.autocomplete') }}"
-                        placeholder="Buscar productos..."
-                        inputId="productSearch"
-                        resultId="productSearchResults"
-                        name="buscar"
-                    />
+                    <input
+                        type="text"
+                        id="productSearch"
+                        placeholder="Buscar productos o número de parte..."
+                        class="w-full border border-gray-300 rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500"
+                    >
                 </div>
 
                 <div class="w-full sm:w-48 mb-4 sm:mb-6">
@@ -348,6 +363,7 @@
                         @foreach($productosDisponibles as $producto)
                             <tr class="border-b border-gray-100 hover:bg-gray-50"
                                 data-name="{{ strtolower($producto->nombre) }}"
+                                data-part-number="{{ strtolower($producto->numero_parte ?? '') }}"
                                 data-category="{{ strtolower($producto->categoria) }}">
                                 <td class="py-3 px-2">
                                     <div class="w-12 h-12 bg-blue-100 flex items-center justify-center rounded-full overflow-hidden">
@@ -360,7 +376,12 @@
                                         @endif
                                     </div>
                                 </td>
-                                <td class="py-3 px-2 text-sm text-gray-800 break-words max-w-[180px]">{{ $producto->nombre }}</td>
+                                <td class="py-3 px-2 text-sm text-gray-800 break-words max-w-[180px]">
+                                    <div class="font-medium">{{ $producto->nombre }}</div>
+                                    @if($producto->numero_parte)
+                                        <div class="text-xs text-gray-500">N/P: {{ $producto->numero_parte }}</div>
+                                    @endif
+                                </td>
                                 <td class="py-3 px-2 text-sm text-gray-600 break-words max-w-[120px]">{{ $producto->unidad }}</td>
                                 <td class="py-3 px-2 text-sm text-gray-600">
                                     ${{ number_format(optional($producto->inventario->first())->precio ?? 0, 2) }}
@@ -383,6 +404,7 @@
                     @foreach($productosDisponibles as $producto)
                         <div class="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
                              data-name="{{ strtolower($producto->nombre) }}"
+                             data-part-number="{{ strtolower($producto->numero_parte ?? '') }}"
                              data-category="{{ strtolower($producto->categoria) }}">
                             <div class="flex items-start space-x-3">
                                 <div class="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center overflow-hidden">
@@ -396,7 +418,12 @@
                                 </div>
                                 <div class="flex-1 min-w-0">
                                     <div class="flex justify-between items-start mb-2 gap-2">
-                                        <h3 class="text-sm font-medium text-gray-900 break-words">{{ $producto->nombre }}</h3>
+                                        <div class="min-w-0">
+                                            <h3 class="text-sm font-medium text-gray-900 break-words">{{ $producto->nombre }}</h3>
+                                            @if($producto->numero_parte)
+                                                <p class="text-[11px] text-gray-500 break-words">N/P: {{ $producto->numero_parte }}</p>
+                                            @endif
+                                        </div>
                                         <button onclick="openQuantityModal({{ $producto->codigo_producto }})"
                                                 class="w-8 h-8 bg-green-500 rounded-full flex items-center justify-center text-white hover:bg-green-600 flex-shrink-0 ml-2">
                                             <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -518,6 +545,10 @@
                 <label class="block text-sm font-medium text-gray-700 mb-2">Precio unitario:</label>
                 <input type="number" id="editProductPrice" step="0.01" min="0" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500">
             </div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Descripción / observaciones:</label>
+                <textarea id="editProductDescription" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-green-500"></textarea>
+            </div>
             <div id="editQuantityError" class="text-red-500 text-sm mb-4 hidden">
                 La cantidad debe ser mayor que 0 y el precio debe ser válido
             </div>
@@ -543,10 +574,21 @@
 
             <div id="pdfPreviewCanvas" class="flex-1 border w-full overflow-auto bg-gray-100 p-3"></div>
 
-            <div class="flex flex-col sm:flex-row sm:justify-end mt-4 gap-2">
-                <button onclick="guardarCambios()"
-                        class="bg-green-600 hover:bg-green-700 text-white px-6 py-2 rounded">
-                    Guardar Cambios
+            <div class="px-4 py-3 border-t flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2 mt-4">
+                <button type="button"
+                        onclick="cerrarModalPDF()"
+                        class="px-4 py-2 rounded-md border text-gray-700 hover:bg-gray-50">
+                    Cerrar
+                </button>
+                <button type="button"
+                        onclick="guardarCambios('guardar')"
+                        class="px-4 py-2 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white">
+                    Guardar
+                </button>
+                <button type="button"
+                        onclick="guardarCambios('guardar_descargar')"
+                        class="px-4 py-2 rounded-md bg-indigo-600 hover:bg-indigo-700 text-white">
+                    Guardar y descargar
                 </button>
             </div>
         </div>
@@ -749,7 +791,7 @@
 
         initClienteAutocomplete();
 
-        document.getElementById('addNonExistentProduct')?.addEventListener('click', e => { e.preventDefault(); showFormView(); });
+        document.getElementById('addNonExistentProduct')?.addEventListener('click', e => { e.preventDefault(); window.location.href = addProductCreateUrl; });
         document.getElementById('backToProducts')?.addEventListener('click', e => { e.preventDefault(); showProductView(); });
         document.getElementById('formAddProduct')?.addEventListener('click', addNonExistentProduct);
         document.getElementById('cancelAddProduct')?.addEventListener('click', showProductView);
@@ -786,6 +828,16 @@
     const editProductModal = document.getElementById('editProductModal');
     const productView    = document.getElementById('productView');
     const formView       = document.getElementById('formView');
+    const addProductCreateUrl = @json(route('producto.crear', ['redirect_to' => url()->full()]));
+
+    function escapeHtml(value) {
+        return String(value ?? '')
+            .replaceAll('&', '&amp;')
+            .replaceAll('<', '&lt;')
+            .replaceAll('>', '&gt;')
+            .replaceAll('"', '&quot;')
+            .replaceAll("'", '&#39;');
+    }
 
     function showFormView() { productView.classList.add('hidden'); formView.classList.remove('hidden'); }
     function showProductView() { formView.classList.add('hidden'); productView.classList.remove('hidden'); }
@@ -799,6 +851,7 @@
         const defaultPrice = moneda === 'USD'
             ? (basePriceMXN * exchangeRates.mxn_usd).toFixed(2)
             : basePriceMXN.toFixed(2);
+        const defaultDescription = currentProduct?.descripcion || '';
 
         const modalBody = document.querySelector('#quantityModal .modal-body');
         modalBody.innerHTML = `
@@ -809,6 +862,10 @@
             <div class="mb-4">
                 <label class="block text-sm font-medium text-gray-700 mb-2">Precio unitario (${moneda}):</label>
                 <input type="number" id="productPriceInput" step="0.01" min="0" value="${defaultPrice}" class="w-full px-3 py-2 border border-gray-300 rounded-md">
+            </div>
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-700 mb-2">Descripción / observaciones</label>
+                <textarea id="productDescriptionInput" rows="3" class="w-full px-3 py-2 border border-gray-300 rounded-md">${escapeHtml(defaultDescription)}</textarea>
             </div>`;
         document.getElementById('productModalTitle').textContent = currentProduct?.nombre || 'Producto';
         quantityModal.classList.remove('hidden');
@@ -821,20 +878,25 @@
 
         document.querySelectorAll('#productTableBody tr').forEach(row => {
             const name = row.dataset.name || '';
+            const part = row.dataset.partNumber || '';
             const cat = row.dataset.category || '';
-            row.style.display = (name.includes(search) && (theCategory === '' || cat.includes(theCategory))) ? '' : 'none';
+            const matchesSearch = search === '' || name.includes(search) || part.includes(search);
+            row.style.display = (matchesSearch && (theCategory === '' || cat.includes(theCategory))) ? '' : 'none';
         });
 
         document.querySelectorAll('#mobileProductList > div').forEach(card => {
             const name = card.dataset.name || '';
+            const part = card.dataset.partNumber || '';
             const cat = card.dataset.category || '';
-            card.style.display = (name.includes(search) && (theCategory === '' || cat.includes(theCategory))) ? '' : 'none';
+            const matchesSearch = search === '' || name.includes(search) || part.includes(search);
+            card.style.display = (matchesSearch && (theCategory === '' || cat.includes(theCategory))) ? '' : 'none';
         });
     }
 
     function addSelectedProduct() {
         const quantity = parseInt(document.getElementById('productQuantityInput').value);
         const thePrice = parseFloat(document.getElementById('productPriceInput').value);
+        const description = (document.getElementById('productDescriptionInput')?.value || '').trim();
         const error = document.getElementById('quantityError');
 
         if (quantity <= 0 || isNaN(thePrice) || thePrice < 0) { error.classList.remove('hidden'); return; }
@@ -847,7 +909,7 @@
             quantity: quantity,
             unit: currentProduct.unidad || 'unidad',
             image: currentProduct.imagen || '',
-            description: currentProduct.descripcion || ''
+            description: description
         });
 
         closeQuantityModal();
@@ -883,7 +945,13 @@
 
     function addProductToQuote(product) {
         if (product.image && !product.image.startsWith('http') && !product.image.startsWith('/')) product.image = '/' + product.image;
-        const idx = products.findIndex(p => p.id === product.id);
+        product.description = (product.description || '').trim();
+
+        const idx = products.findIndex(p =>
+            p.id === product.id &&
+            Number(p.price) === Number(product.price) &&
+            (p.description || '').trim() === product.description
+        );
         if (idx >= 0) products[idx].quantity += product.quantity;
         else products.push(product);
 
@@ -911,8 +979,11 @@
                                   : `<span class="text-gray-500 font-medium">${(p.name || '').charAt(0)}</span>`}
                     </div>
                     <div class="min-w-0">
-                        <p class="text-sm font-medium break-words">${p.name || ''}</p>
-                        <p class="text-xs text-gray-500 break-words">${p.quantity} ${p.unit || 'unidad'} × $${Number(p.price).toFixed(2)}</p>
+                        <p class="text-sm font-medium break-words">${escapeHtml(p.name || '')}</p>
+                        <p class="text-xs text-gray-500 break-words">${escapeHtml(p.quantity)} ${escapeHtml(p.unit || 'unidad')} × $${Number(p.price).toFixed(2)}</p>
+                        ${p.description
+                            ? `<p class="mt-1 text-xs text-gray-500 break-words whitespace-pre-line">${escapeHtml(p.description)}</p>`
+                            : ''}
                     </div>
                 </div>
                 <div class="flex items-center gap-2 flex-shrink-0">
@@ -950,6 +1021,7 @@
         document.getElementById('editProductName').textContent = p.name || '';
         document.getElementById('editProductQuantity').value = p.quantity;
         document.getElementById('editProductPrice').value = Number(p.price).toFixed(2);
+        document.getElementById('editProductDescription').value = p.description || '';
 
         editProductModal.classList.remove('hidden');
     }
@@ -962,10 +1034,12 @@
     function updateProduct() {
         const q = parseInt(document.getElementById('editProductQuantity').value);
         const pr = parseFloat(document.getElementById('editProductPrice').value);
+        const desc = (document.getElementById('editProductDescription').value || '').trim();
         if (q <= 0 || isNaN(pr) || pr < 0) { document.getElementById('editQuantityError').classList.remove('hidden'); return; }
         document.getElementById('editQuantityError').classList.add('hidden');
         products[currentEditIndex].quantity = q;
         products[currentEditIndex].price = pr;
+        products[currentEditIndex].description = desc;
         updateProductList();
         updateTotals();
         closeEditModal();
@@ -1183,14 +1257,23 @@
 
         const form = document.getElementById('cotizacionForm');
         const formData = new FormData(form);
+        const csrfToken =
+            form.querySelector('input[name="_token"]')?.value ||
+            document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ||
+            '';
 
         // IMPORTANTE: en preview quitamos _method=PUT
         formData.delete('_method');
+        if (csrfToken) {
+            formData.set('_token', csrfToken);
+        }
 
         fetch("{{ route('cotizaciones.preview') }}", {
             method: "POST",
+            credentials: "same-origin",
             headers: {
-                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                'X-CSRF-TOKEN': csrfToken,
+                'X-Requested-With': 'XMLHttpRequest',
                 'Accept': 'application/pdf',
             },
             body: formData
@@ -1220,7 +1303,7 @@
         window.eSupportPdfViewer?.clear('pdfPreviewCanvas');
     }
 
-function guardarCambios() {
+function guardarCambios(accion = 'guardar') {
     if (bloqueandoSubmit) {
         console.warn('Submit bloqueado: edición de producto activa');
         return;
@@ -1236,6 +1319,11 @@ function guardarCambios() {
     if (tipo !== 'servicio' && products.length === 0) {
         alert('Debes agregar al menos un producto para este tipo de cotización.');
         return;
+    }
+
+    const accionInput = document.getElementById('cotizacion_accion');
+    if (accionInput) {
+        accionInput.value = accion;
     }
 
     document.getElementById('cotizacionForm').submit();

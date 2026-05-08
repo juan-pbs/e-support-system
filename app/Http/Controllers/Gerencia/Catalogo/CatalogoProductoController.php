@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Gerencia\Catalogo;
 
 use App\Http\Controllers\Controller;
 
+use App\Models\CategoriaProducto;
 use App\Models\Producto;
 use App\Services\Ordenes\OrdenServicioService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 use Illuminate\Support\Str;
 
@@ -31,6 +33,8 @@ class CatalogoProductoController extends Controller
     /** Listado con filtros */
     public function index(Request $request)
     {
+        $this->syncCategoriasDesdeProductos();
+
         $subStock = '(SELECT COALESCE(SUM(paquetes_restantes * COALESCE(piezas_por_paquete,1) + COALESCE(piezas_sueltas,0)),0)
                       FROM inventario WHERE inventario.codigo_producto = productos.codigo_producto)';
 
@@ -111,19 +115,18 @@ class CatalogoProductoController extends Controller
 
             return $producto;
         });
-        $categorias = Producto::whereNotNull('categoria')->distinct()->orderBy('categoria')->pluck('categoria');
+        $categorias = CategoriaProducto::query()
+            ->orderBy('nombre')
+            ->pluck('nombre');
 
-        return view('gerencia.catalogo.index', compact('productos', 'categorias'));
+        return view('gerencia.catalogo.index', compact('productos', 'categorias') + $this->catalogoCategoriasFormData());
     }
 
     public function crear()
     {
-        $base = ['hardware', 'software', 'perifericos', 'componentes', 'redes', 'accesorios', 'otra'];
-        $fromDb = Producto::whereNotNull('categoria')->distinct()->pluck('categoria')->toArray();
-        $categoriasPredefinidas = $base;
-        $categoriasExtra = collect(array_merge($base, $fromDb))->unique()->diff($base)->sort()->values()->toArray();
+        $this->syncCategoriasDesdeProductos();
 
-        return view('gerencia.catalogo.create', compact('categoriasPredefinidas', 'categoriasExtra'));
+        return view('gerencia.catalogo.create', $this->catalogoCategoriasFormData());
     }
 
     public function guardar(Request $request)
@@ -131,26 +134,30 @@ class CatalogoProductoController extends Controller
         // ✅ OJO: unidad ahora SIEMPRE se trimmea y NO se vuelve null
         $request->merge([
             'nombre'          => trim((string) $request->nombre),
-            'numero_parte'    => $request->filled('numero_parte') ? strtoupper(trim((string) $request->numero_parte)) : null,
-            'categoria'       => $request->filled('categoria') ? trim((string) $request->categoria) : null,
+            'numero_parte'    => $request->filled('numero_parte') ? $this->normalizeNumeroParte($request->numero_parte) : null,
+            'categoria'       => $this->resolveCategoriaInput($request),
             'clave_prodserv'  => $request->filled('clave_prodserv') ? preg_replace('/\D+/', '', $request->clave_prodserv) : null,
             'unidad'          => trim((string) $request->unidad), // ✅ OBLIGATORIO (no null)
             'stock_seguridad' => $request->filled('stock_seguridad') ? (int) $request->stock_seguridad : 0,
             'descripcion'     => $request->filled('descripcion') ? trim((string) $request->descripcion) : null,
             'require_serie'   => $request->boolean('require_serie'),
+            'redirect_to'     => $this->resolveRedirectTarget($request->input('redirect_to')),
         ]);
 
         $request->validate([
             'nombre'          => 'required|string|min:3|max:255',
             'numero_parte'    => 'nullable|string|max:100|unique:productos,numero_parte',
-            'categoria'       => 'nullable|string|max:255',
+            'categoria'       => 'required|string|max:255',
+            'categoria_nueva' => 'nullable|string|max:255',
             'clave_prodserv'  => ['nullable', 'regex:/^\d{4,8}$/'],
             'unidad'          => 'required|string|max:50', // ✅ YA NO nullable
             'stock_seguridad' => 'nullable|integer|min:0',
             'descripcion'     => 'nullable|string',
             'imagen'          => 'nullable|image|max:2048',
             'require_serie'   => 'boolean',
+            'redirect_to'     => 'nullable|string|max:2048',
         ], [
+            'categoria.required' => 'La categoría es obligatoria.',
             'unidad.required' => 'La unidad es obligatoria.',
         ]);
 
@@ -191,8 +198,14 @@ class CatalogoProductoController extends Controller
             'stock_piezas_sueltas' => 0,
         ]);
 
+        $this->ensureCategoriaExiste($request->categoria);
+
         $msg = 'Producto guardado.';
         if ($autoMsg) $msg .= ' ' . $autoMsg . ' Puedes modificarlo después.';
+
+        if ($redirectTo = $this->resolveRedirectTarget($request->input('redirect_to'))) {
+            return redirect()->to($redirectTo)->with('success', $msg);
+        }
 
         return redirect()->route('catalogo.index')->with('success', $msg);
     }
@@ -201,12 +214,11 @@ class CatalogoProductoController extends Controller
     {
         $producto = Producto::findOrFail($id);
 
-        $base = ['hardware', 'software', 'perifericos', 'componentes', 'redes', 'accesorios', 'otra'];
-        $fromDb = Producto::whereNotNull('categoria')->distinct()->pluck('categoria')->toArray();
-        $categoriasPredefinidas = $base;
-        $categoriasExtra = collect(array_merge($base, $fromDb))->unique()->diff($base)->sort()->values()->toArray();
+        $this->syncCategoriasDesdeProductos();
 
-        return view('gerencia.catalogo.edit', compact('producto', 'categoriasPredefinidas', 'categoriasExtra'));
+        return view('gerencia.catalogo.edit', [
+            'producto' => $producto,
+        ] + $this->catalogoCategoriasFormData());
     }
 
     public function actualizar(Request $request, $id)
@@ -216,26 +228,30 @@ class CatalogoProductoController extends Controller
         // ✅ OJO: unidad ahora SIEMPRE se trimmea y NO se vuelve null
         $request->merge([
             'nombre'          => trim((string) $request->nombre),
-            'numero_parte'    => $request->filled('numero_parte') ? strtoupper(trim((string) $request->numero_parte)) : null,
-            'categoria'       => $request->filled('categoria') ? trim((string) $request->categoria) : null,
+            'numero_parte'    => $request->filled('numero_parte') ? $this->normalizeNumeroParte($request->numero_parte) : null,
+            'categoria'       => $this->resolveCategoriaInput($request),
             'clave_prodserv'  => $request->filled('clave_prodserv') ? preg_replace('/\D+/', '', $request->clave_prodserv) : null,
             'unidad'          => trim((string) $request->unidad), // ✅ OBLIGATORIO
             'stock_seguridad' => $request->filled('stock_seguridad') ? (int) $request->stock_seguridad : 0,
             'descripcion'     => $request->filled('descripcion') ? trim((string) $request->descripcion) : null,
             'require_serie'   => $request->boolean('require_serie'),
+            'redirect_to'     => $this->resolveRedirectTarget($request->input('redirect_to')),
         ]);
 
         $request->validate([
             'nombre'          => 'required|string|min:3|max:255',
             'numero_parte'    => ['required', 'string', 'max:100', Rule::unique('productos', 'numero_parte')->ignore($producto->codigo_producto, 'codigo_producto')],
-            'categoria'       => 'nullable|string|max:255',
+            'categoria'       => 'required|string|max:255',
+            'categoria_nueva' => 'nullable|string|max:255',
             'clave_prodserv'  => ['nullable', 'regex:/^\d{4,8}$/'],
             'unidad'          => 'required|string|max:50', // ✅ YA NO nullable
             'stock_seguridad' => 'nullable|integer|min:0',
             'descripcion'     => 'nullable|string',
             'imagen'          => 'nullable|image|max:2048',
             'require_serie'   => 'boolean',
+            'redirect_to'     => 'nullable|string|max:2048',
         ], [
+            'categoria.required' => 'La categoría es obligatoria.',
             'unidad.required' => 'La unidad es obligatoria.',
         ]);
 
@@ -257,6 +273,12 @@ class CatalogoProductoController extends Controller
             'require_serie'
         ]));
         $producto->save();
+
+        $this->ensureCategoriaExiste($request->categoria);
+
+        if ($redirectTo = $this->resolveRedirectTarget($request->input('redirect_to'))) {
+            return redirect()->to($redirectTo)->with('success', 'Producto actualizado.');
+        }
 
         return redirect()->route('catalogo.index')->with('success', 'Producto actualizado.');
     }
@@ -311,6 +333,73 @@ class CatalogoProductoController extends Controller
         return redirect()->route('catalogo.index')->with('success', 'Producto eliminado.');
     }
 
+    public function guardarCategoria(Request $request)
+    {
+        $request->validate([
+            'nombre' => 'required|string|max:255',
+        ]);
+
+        $nombre = $this->normalizeCategoria($request->input('nombre'));
+        if ($nombre === null) {
+            return back()->with('error', 'Captura un nombre de categoría válido.');
+        }
+
+        if ($this->buscarCategoriaPorNombre($nombre)) {
+            return back()->with('error', 'La categoría ya existe.');
+        }
+
+        CategoriaProducto::create([
+            'nombre' => $nombre,
+        ]);
+
+        return back()->with('success', 'Categoría creada correctamente.');
+    }
+
+    public function actualizarCategoria(Request $request, $id)
+    {
+        $request->validate([
+            'nombre' => 'required|string|max:255',
+        ]);
+
+        $categoria = CategoriaProducto::findOrFail($id);
+        $nuevoNombre = $this->normalizeCategoria($request->input('nombre'));
+
+        if ($nuevoNombre === null) {
+            return back()->with('error', 'Captura un nombre de categoría válido.');
+        }
+
+        $duplicada = $this->buscarCategoriaPorNombre($nuevoNombre);
+        if ($duplicada && (int) $duplicada->id !== (int) $categoria->id) {
+            return back()->with('error', 'Ya existe una categoría con ese nombre.');
+        }
+
+        DB::transaction(function () use ($categoria, $nuevoNombre) {
+            $nombreAnterior = $categoria->nombre;
+
+            $categoria->nombre = $nuevoNombre;
+            $categoria->save();
+
+            Producto::where('categoria', $nombreAnterior)->update([
+                'categoria' => $nuevoNombre,
+            ]);
+        });
+
+        return back()->with('success', 'Categoría actualizada correctamente.');
+    }
+
+    public function eliminarCategoria($id)
+    {
+        $categoria = CategoriaProducto::findOrFail($id);
+
+        if (Producto::where('categoria', $categoria->nombre)->exists()) {
+            return back()->with('error', 'No se puede eliminar la categoría porque ya tiene productos asignados.');
+        }
+
+        $categoria->delete();
+
+        return back()->with('success', 'Categoría eliminada correctamente.');
+    }
+
     // ✅ Autocomplete ahora devuelve {id, label}
     public function autocomplete(Request $request)
     {
@@ -337,6 +426,137 @@ class CatalogoProductoController extends Controller
             ]);
 
         return response()->json($productos);
+    }
+
+    private function syncCategoriasDesdeProductos(): void
+    {
+        if (!Schema::hasTable('categorias_productos')) {
+            return;
+        }
+
+        $categorias = Producto::query()
+            ->whereNotNull('categoria')
+            ->pluck('categoria')
+            ->map(fn ($categoria) => $this->normalizeCategoria($categoria))
+            ->filter()
+            ->unique()
+            ->values();
+
+        foreach ($categorias as $categoria) {
+            $this->ensureCategoriaExiste($categoria);
+        }
+    }
+
+    private function catalogoCategoriasFormData(): array
+    {
+        $registradas = CategoriaProducto::query()
+            ->orderBy('nombre')
+            ->pluck('nombre')
+            ->map(fn ($categoria) => $this->normalizeCategoria($categoria))
+            ->filter()
+            ->unique(fn ($categoria) => mb_strtolower($categoria, 'UTF-8'))
+            ->values();
+
+        $categoriasBase = $this->categoriasBase();
+        $categoriasBaseLc = array_map(
+            fn ($categoria) => mb_strtolower((string) $categoria, 'UTF-8'),
+            $categoriasBase
+        );
+
+        $categoriasExtra = $registradas
+            ->filter(fn ($categoria) => !in_array(mb_strtolower($categoria, 'UTF-8'), $categoriasBaseLc, true))
+            ->values();
+
+        return [
+            'categorias'             => $registradas,
+            'categoriasPredefinidas' => $categoriasBase,
+            'categoriasExtra'        => $categoriasExtra,
+            'categoriasResumen'      => CategoriaProducto::query()
+                ->orderBy('nombre')
+                ->get()
+                ->map(function (CategoriaProducto $categoria) {
+                    $categoria->productos_count = Producto::where('categoria', $categoria->nombre)->count();
+                    return $categoria;
+                }),
+        ];
+    }
+
+    private function categoriasBase(): array
+    {
+        return ['hardware', 'software', 'perifericos', 'componentes', 'redes', 'accesorios', 'otra'];
+    }
+
+    private function ensureCategoriaExiste(?string $categoria): void
+    {
+        $nombre = $this->normalizeCategoria($categoria);
+
+        if ($nombre === null || !Schema::hasTable('categorias_productos')) {
+            return;
+        }
+
+        $categoriaExistente = $this->buscarCategoriaPorNombre($nombre);
+
+        if ($categoriaExistente) {
+            if ($categoriaExistente->nombre !== $nombre) {
+                $categoriaExistente->nombre = $nombre;
+                $categoriaExistente->save();
+            }
+
+            return;
+        }
+
+        CategoriaProducto::create([
+            'nombre' => $nombre,
+        ]);
+    }
+
+    private function buscarCategoriaPorNombre(string $nombre): ?CategoriaProducto
+    {
+        return CategoriaProducto::query()
+            ->whereRaw('LOWER(TRIM(nombre)) = ?', [mb_strtolower(trim($nombre), 'UTF-8')])
+            ->first();
+    }
+
+    private function normalizeCategoria(mixed $value): ?string
+    {
+        $categoria = trim((string) $value);
+        $categoria = preg_replace('/\s+/', ' ', $categoria) ?? '';
+
+        return $categoria !== '' ? $categoria : null;
+    }
+
+    private function resolveCategoriaInput(Request $request): ?string
+    {
+        $categoriaNueva = $this->normalizeCategoria($request->input('categoria_nueva'));
+        if ($categoriaNueva !== null) {
+            return $categoriaNueva;
+        }
+
+        return $this->normalizeCategoria($request->input('categoria'));
+    }
+
+    private function normalizeNumeroParte(mixed $value): string
+    {
+        $numeroParte = trim((string) $value);
+        $numeroParte = preg_replace('/\s+/', '', $numeroParte) ?? '';
+
+        return mb_strtoupper($numeroParte, 'UTF-8');
+    }
+
+    private function resolveRedirectTarget(?string $target): ?string
+    {
+        $target = trim((string) $target);
+        if ($target === '') {
+            return null;
+        }
+
+        $base = rtrim(url('/'), '/');
+
+        if ($target === $base || str_starts_with($target, $base . '/')) {
+            return $target;
+        }
+
+        return null;
     }
 
     /** Garantiza unicidad agregando sufijos -2, -3, ... si es necesario */
@@ -370,6 +590,3 @@ class CatalogoProductoController extends Controller
             ->with('error', 'La exportacion de catalogo no esta disponible en este controlador.');
     }
 }
-
-
-

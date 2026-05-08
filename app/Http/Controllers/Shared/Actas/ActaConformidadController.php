@@ -321,6 +321,13 @@ class ActaConformidadController extends Controller
     {
         $ordenService = app(OrdenServicioService::class);
         $cliente = $orden->cliente ?? null;
+        $cotizacion = null;
+
+        if (!empty($orden->id_cotizacion)) {
+            $cotizacion = $orden->relationLoaded('cotizacion')
+                ? $orden->cotizacion
+                : $orden->cotizacion()->with('cliente')->first();
+        }
 
         // Detalles de productos de la orden
         $detalles = DetalleOrdenProducto::with('series')->where('id_orden_servicio', $orden->id_orden_servicio)->get();
@@ -394,7 +401,7 @@ class ActaConformidadController extends Controller
                 (float) $totalGeneral,
                 (string) ($orden->moneda ?? 'MXN')
             ),
-            'cotizacion'         => null,
+            'cotizacion'         => $cotizacion,
             'draft'              => $preview,
         ];
     }

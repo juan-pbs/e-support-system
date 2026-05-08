@@ -3,7 +3,9 @@
 use App\Exports\Ordenes\OrdenesServicioExport;
 use App\Exports\Reportes\SalidasInventarioExport;
 use App\Models\Cliente;
+use App\Models\Cotizacion;
 use App\Models\CreditoCliente;
+use App\Models\DetalleCotizacionProducto;
 use App\Models\DetalleOrdenProducto;
 use App\Models\OrdenServicio;
 use App\Models\PagoCredito;
@@ -165,6 +167,177 @@ it('genera el precio escrito en la orden cuando no se captura manualmente', func
     expect($orden)->not->toBeNull()
         ->and($orden->precio_escrito)->toContain('PESOS')
         ->and($orden->precio_escrito)->toContain('M.N.');
+});
+
+it('permite editar una orden ligada a cotizacion aunque el formulario no envie cotizacion_id', function () {
+    $gerente = User::factory()->create([
+        'puesto' => 'gerente',
+    ]);
+
+    $tecnicoInicial = User::factory()->create([
+        'puesto' => 'tecnico',
+        'name' => 'Tecnico Inicial',
+    ]);
+
+    $tecnicoNuevo = User::factory()->create([
+        'puesto' => 'tecnico',
+        'name' => 'Tecnico Nuevo',
+    ]);
+
+    $cliente = crearCliente([
+        'codigo_cliente' => 'CLI-ORD-77',
+        'correo_electronico' => 'orden77@example.com',
+    ]);
+
+    $cotizacion = Cotizacion::create([
+        'fecha' => now()->toDateString(),
+        'vigencia' => now()->addDays(7)->toDateString(),
+        'moneda' => 'MXN',
+        'tipo_solicitud' => 'servicio',
+        'registro_cliente' => $cliente->clave_cliente,
+        'descripcion' => 'Cotizacion base para orden',
+        'importe' => 0,
+        'costo_operativo' => 0,
+        'iva' => 0,
+        'total' => 0,
+        'cantidad_escrita' => 'CERO PESOS 00/100 M.N.',
+    ]);
+
+    $orden = crearOrden([
+        'cliente' => $cliente,
+        'id_cotizacion' => $cotizacion->id_cotizacion,
+        'id_tecnico' => $tecnicoInicial->id,
+        'estado' => 'Pendiente',
+        'prioridad' => 'Media',
+        'servicio' => 'Servicio desde cotizacion',
+        'descripcion_servicio' => 'Configuracion inicial',
+    ]);
+
+    $orden->tecnicos()->sync([$tecnicoInicial->id]);
+
+    $this
+        ->actingAs($gerente)
+        ->get(route('ordenes.edit', $orden->id_orden_servicio))
+        ->assertOk()
+        ->assertSee('Orden generada a partir de la cotización')
+        ->assertSee($cotizacion->folio)
+        ->assertSee('name="cotizacion_id"', false);
+
+    $response = $this
+        ->actingAs($gerente)
+        ->from(route('ordenes.edit', $orden->id_orden_servicio))
+        ->put(route('ordenes.update', $orden->id_orden_servicio), [
+            'id_cliente' => $cliente->clave_cliente,
+            'servicio' => 'Servicio desde cotizacion',
+            'tipo_orden' => 'servicio_simple',
+            'prioridad' => 'Media',
+            'estado' => 'Pendiente',
+            'id_tecnico' => $tecnicoNuevo->id,
+            'tecnicos_ids' => [$tecnicoNuevo->id],
+            'tipo_pago' => 'efectivo',
+            'precio' => 0,
+            'costo_operativo' => 0,
+            'descripcion' => 'Orden actualizada',
+            'descripcion_servicio' => 'Cambio de tecnico',
+            'moneda' => 'MXN',
+            'tasa_cambio' => 1,
+            'productos' => [],
+            'precio_escrito' => '',
+        ]);
+
+    $response
+        ->assertRedirect(route('ordenes.index'))
+        ->assertSessionHas('success', 'Orden actualizada correctamente.');
+
+    $orden->refresh();
+
+    expect($orden->id_cotizacion)->toBe($cotizacion->id_cotizacion)
+        ->and($orden->id_tecnico)->toBe($tecnicoNuevo->id)
+        ->and($orden->tecnicos()->pluck('users.id')->all())->toBe([$tecnicoNuevo->id]);
+});
+
+it('no repone productos de la cotizacion cuando el usuario los elimino antes de guardar la orden', function () {
+    $gerente = User::factory()->create([
+        'puesto' => 'gerente',
+    ]);
+
+    $cliente = crearCliente([
+        'codigo_cliente' => 'CLI-ORD-88',
+        'correo_electronico' => 'orden88@example.com',
+    ]);
+
+    $producto = Producto::create([
+        'nombre' => 'Camara sin stock',
+        'numero_parte' => 'CAM-000',
+        'categoria' => 'Videovigilancia',
+        'clave_prodserv' => '46171610',
+        'unidad' => 'PZA',
+        'stock_seguridad' => 0,
+        'descripcion' => 'Producto sin inventario',
+        'activo' => true,
+        'stock_total' => 0,
+        'stock_paquetes' => 0,
+        'stock_piezas_sueltas' => 0,
+    ]);
+
+    $cotizacion = Cotizacion::create([
+        'fecha' => now()->toDateString(),
+        'vigencia' => now()->addDays(7)->toDateString(),
+        'moneda' => 'MXN',
+        'tipo_solicitud' => 'servicio',
+        'registro_cliente' => $cliente->clave_cliente,
+        'descripcion' => 'Cotizacion para orden sin productos',
+        'importe' => 0,
+        'costo_operativo' => 0,
+        'iva' => 0,
+        'total' => 0,
+        'cantidad_escrita' => 'CERO PESOS 00/100 M.N.',
+    ]);
+
+    DetalleCotizacionProducto::create([
+        'id_cotizacion' => $cotizacion->id_cotizacion,
+        'codigo_producto' => $producto->codigo_producto,
+        'nombre_producto' => $producto->nombre,
+        'descripcion_item' => 'Equipo original de la cotizacion',
+        'cantidad' => 1,
+        'precio_unitario' => 100,
+        'total' => 100,
+        'unidad' => 'PZA',
+    ]);
+
+    $response = $this
+        ->actingAs($gerente)
+        ->postJson(route('ordenes.guardarDesdeCotizacion'), [
+            'cotizacion_id' => $cotizacion->id_cotizacion,
+            'estado_cotizacion' => 'Procesada',
+            'productos_present' => 1,
+            'productos' => [],
+            'id_cliente' => $cliente->clave_cliente,
+            'servicio' => 'Servicio derivado',
+            'tipo_orden' => 'servicio_simple',
+            'prioridad' => 'Baja',
+            'estado' => 'Pendiente',
+            'tipo_pago' => 'efectivo',
+            'precio' => 0,
+            'costo_operativo' => 0,
+            'descripcion' => 'Sin materiales',
+            'descripcion_servicio' => 'Orden guardada sin productos de la cotizacion',
+            'moneda' => 'MXN',
+            'tasa_cambio' => 1,
+            'precio_escrito' => '',
+        ]);
+
+    $response
+        ->assertOk()
+        ->assertJson([
+            'ok' => true,
+        ]);
+
+    $orden = OrdenServicio::latest('id_orden_servicio')->first();
+
+    expect($orden)->not->toBeNull()
+        ->and($orden->id_cotizacion)->toBe($cotizacion->id_cotizacion)
+        ->and(DetalleOrdenProducto::where('id_orden_servicio', $orden->id_orden_servicio)->count())->toBe(0);
 });
 
 it('guarda el estado de facturacion al crear una orden', function () {

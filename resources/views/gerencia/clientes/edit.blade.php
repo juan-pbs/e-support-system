@@ -38,9 +38,23 @@
     @endif
 
     <form action="{{ route('clientes.update', $cliente->clave_cliente) }}" method="POST"
-          class="bg-white border border-gray-200 shadow-xl rounded-xl p-6 space-y-5">
+          class="bg-white border border-gray-200 shadow-xl rounded-xl p-6 space-y-5"
+          x-data="clienteDireccionesManager(@js(old('direcciones_logisticas', ($cliente->direccionesLogisticas ?? collect())->map(fn($d) => [
+                'id' => $d->id,
+                'alias' => $d->alias,
+                'direccion_formateada' => $d->direccion_formateada,
+                'place_id' => $d->place_id,
+                'latitud' => $d->latitud,
+                'longitud' => $d->longitud,
+                'referencia' => $d->referencia,
+                'predeterminada' => (bool) $d->predeterminada,
+                'verificada_en_mapa' => (bool) $d->verificada_en_mapa,
+                'metodo_verificacion' => $d->metodo_verificacion,
+            ])->values()->all()))"
+          x-init="init()">
         @csrf
         @method('PUT')
+        <input type="hidden" name="ubicacion" x-model="ubicacionResumen">
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <!-- Código cliente -->
@@ -110,14 +124,88 @@
                 @enderror
             </div>
 
-            <!-- Ubicación -->
-            <div class="sm:col-span-2">
-                <label class="block text-sm font-medium text-gray-700 mb-2">Ubicación</label>
-                <input type="text" id="ubicacion" name="ubicacion" value="{{ old('ubicacion', $cliente->ubicacion) }}"
-                       class="w-full border border-gray-300 rounded-lg px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
-                @error('ubicacion')
-                    <p class="text-red-600 text-sm mt-1">{{ $message }}</p>
-                @enderror
+            <div class="sm:col-span-2 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-700">Direcciones logísticas</label>
+                        <p class="text-xs text-gray-500">Alias para recordar rápido el punto exacto de entrega o recolección.</p>
+                    </div>
+                    <button type="button" @click="addDireccion()"
+                        class="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700">
+                        Agregar dirección
+                    </button>
+                </div>
+
+                <div class="mt-4 space-y-4">
+                    <template x-for="(direccion, index) in direcciones" :key="direccion.uid">
+                        <div class="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                            <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
+                                <div>
+                                    <label class="mb-1 block text-sm font-medium text-gray-700">Alias</label>
+                                    <input type="text"
+                                        x-model="direccion.alias"
+                                        :name="`direcciones_logisticas[${index}][alias]`"
+                                        class="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+                                        placeholder="Ej. Bodega norte">
+                                </div>
+
+                                <div class="flex items-end gap-2">
+                                    <button type="button" @click="openPicker(index)"
+                                        class="flex-1 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-medium text-blue-700 hover:bg-blue-100">
+                                        Seleccionar en mapa
+                                    </button>
+                                    <button type="button" @click="markPrimary(index)"
+                                        class="rounded-lg px-4 py-3 text-sm font-medium"
+                                        :class="direccion.predeterminada ? 'bg-emerald-600 text-white' : 'border border-gray-300 text-gray-700 hover:bg-gray-100'">
+                                        Principal
+                                    </button>
+                                    <button type="button" @click="removeDireccion(index)"
+                                        class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700 hover:bg-red-100"
+                                        x-show="direcciones.length > 1">
+                                        Quitar
+                                    </button>
+                                </div>
+
+                                <div class="md:col-span-2">
+                                    <label class="mb-1 block text-sm font-medium text-gray-700">Dirección</label>
+                                    <input type="text"
+                                        x-model="direccion.direccion_formateada"
+                                        :name="`direcciones_logisticas[${index}][direccion_formateada]`"
+                                        class="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"
+                                        readonly
+                                        @click="openPicker(index)">
+                                    <p class="mt-1 text-xs text-gray-500">La dirección se edita desde el mapa para mantener coordenadas y verificación correctas.</p>
+                                </div>
+
+                                <div class="md:col-span-2">
+                                    <label class="mb-1 block text-sm font-medium text-gray-700">Referencia</label>
+                                    <textarea
+                                        x-model="direccion.referencia"
+                                        :name="`direcciones_logisticas[${index}][referencia]`"
+                                        rows="2"
+                                        class="w-full rounded-lg border border-gray-300 px-4 py-3 focus:border-blue-500 focus:ring-2 focus:ring-blue-500"></textarea>
+                                </div>
+                            </div>
+
+                            <div class="mt-3 flex flex-wrap items-center gap-3 text-xs">
+                                <span class="rounded-full px-3 py-1 font-medium"
+                                    :class="direccion.verificada_en_mapa ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'">
+                                    <span x-text="direccion.verificada_en_mapa ? 'Verificada en mapa' : 'Pendiente de validar'"></span>
+                                </span>
+                                <span class="text-gray-500" x-show="direccion.latitud && direccion.longitud"
+                                    x-text="`${Number(direccion.latitud).toFixed(6)}, ${Number(direccion.longitud).toFixed(6)}`"></span>
+                            </div>
+
+                            <input type="hidden" :name="`direcciones_logisticas[${index}][id]`" x-model="direccion.id">
+                            <input type="hidden" :name="`direcciones_logisticas[${index}][place_id]`" x-model="direccion.place_id">
+                            <input type="hidden" :name="`direcciones_logisticas[${index}][latitud]`" x-model="direccion.latitud">
+                            <input type="hidden" :name="`direcciones_logisticas[${index}][longitud]`" x-model="direccion.longitud">
+                            <input type="hidden" :name="`direcciones_logisticas[${index}][predeterminada]`" :value="direccion.predeterminada ? 1 : 0">
+                            <input type="hidden" :name="`direcciones_logisticas[${index}][verificada_en_mapa]`" :value="direccion.verificada_en_mapa ? 1 : 0">
+                            <input type="hidden" :name="`direcciones_logisticas[${index}][metodo_verificacion]`" x-model="direccion.metodo_verificacion">
+                        </div>
+                    </template>
+                </div>
             </div>
 
             <!-- Dirección fiscal -->
@@ -159,19 +247,67 @@
 </div>
 @endsection
 
+@include('partials.logistica.address-picker-modal')
 @push('scripts')
 <script>
-function initAutocomplete() {
-    const input = document.getElementById('ubicacion');
-    if (input) {
-        const autocomplete = new google.maps.places.Autocomplete(input, {
-            types: ['geocode'],
-            componentRestrictions: { country: 'mx' }
-        });
-    }
+function clienteDireccionesManager(initialDirecciones) {
+    return {
+        direcciones: [],
+        ubicacionResumen: @js(old('ubicacion', $cliente->ubicacion)),
+        init() {
+            const seed = Array.isArray(initialDirecciones) && initialDirecciones.length
+                ? initialDirecciones
+                : [{ alias: 'Principal', predeterminada: true }];
+
+            this.direcciones = seed.map((item, idx) => this.makeDireccion(item, idx === 0));
+            this.syncUbicacion();
+        },
+        toBool(value) {
+            return value === true || value === 1 || value === '1' || value === 'true';
+        },
+        makeDireccion(item = {}, fallbackPrimary = false) {
+            return {
+                uid: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()),
+                id: item.id || '',
+                alias: item.alias || '',
+                direccion_formateada: item.direccion_formateada || '',
+                place_id: item.place_id || '',
+                latitud: item.latitud || '',
+                longitud: item.longitud || '',
+                referencia: item.referencia || '',
+                predeterminada: this.toBool(item.predeterminada) || fallbackPrimary,
+                verificada_en_mapa: this.toBool(item.verificada_en_mapa),
+                metodo_verificacion: item.metodo_verificacion || '',
+            };
+        },
+        addDireccion() {
+            this.direcciones.push(this.makeDireccion({ alias: '', predeterminada: false }, false));
+        },
+        removeDireccion(index) {
+            this.direcciones.splice(index, 1);
+            if (!this.direcciones.some(d => d.predeterminada) && this.direcciones[0]) {
+                this.direcciones[0].predeterminada = true;
+            }
+            this.syncUbicacion();
+        },
+        markPrimary(index) {
+            this.direcciones.forEach((direccion, idx) => direccion.predeterminada = idx === index);
+            this.syncUbicacion();
+        },
+        openPicker(index) {
+            const direccion = this.direcciones[index];
+            if (!direccion || !window.LogisticaAddressPicker) return;
+            window.LogisticaAddressPicker.open(direccion, (payload) => {
+                Object.assign(direccion, payload);
+                direccion.verificada_en_mapa = true;
+                this.syncUbicacion();
+            });
+        },
+        syncUbicacion() {
+            const principal = this.direcciones.find(d => d.predeterminada) || this.direcciones[0];
+            this.ubicacionResumen = principal?.direccion_formateada || '';
+        },
+    };
 }
 </script>
-
-<!-- Google Places API -->
-<script src="https://maps.googleapis.com/maps/api/js?key={{ config('services.google_maps.key') }}&libraries=places&callback=initAutocomplete" async defer></script>
 @endpush
