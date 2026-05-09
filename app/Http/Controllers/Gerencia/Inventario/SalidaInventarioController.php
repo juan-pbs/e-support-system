@@ -7,6 +7,7 @@ use App\Http\Controllers\Controller;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Schema;
 
 use App\Models\User;
 use App\Models\DetalleOrdenProducto;
@@ -40,7 +41,7 @@ class SalidaInventarioController extends Controller
         $ct = (new Cotizacion())->getTable();           // cotizaciones
 
         // Productos para el modal (con conteo de series disponibles)
-        $productosLista = Producto::from("$p as pr")
+        $productosListaQuery = DB::table("$p as pr")
             ->leftJoin('inventario as inv', 'inv.codigo_producto', '=', 'pr.codigo_producto')
             ->leftJoin('numeros_serie as ns', 'ns.inventario_id', '=', 'inv.id')
             ->groupBy('pr.codigo_producto', 'pr.nombre', 'pr.numero_parte')
@@ -51,8 +52,13 @@ class SalidaInventarioController extends Controller
                 DB::raw('COUNT(ns.id) as series_disponibles'),
             ])
             ->orderBy('pr.nombre')
-            ->limit(500)
-            ->get();
+            ->limit(500);
+
+        if (Schema::hasColumn($p, 'deleted_at')) {
+            $productosListaQuery->whereNull('pr.deleted_at');
+        }
+
+        $productosLista = $productosListaQuery->get();
 
         // Clientes para el modal
         $clientesLista = Cliente::select('clave_cliente', 'nombre', 'nombre_empresa')
