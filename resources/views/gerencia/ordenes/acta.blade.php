@@ -222,9 +222,8 @@
 
 {{-- MODAL PREVIEW PDF --}}
 <x-pdf-js-viewer />
-<div id="previewModal" class="hidden fixed inset-0 z-40 bg-black/50">
-  <div class="absolute inset-0 flex items-center justify-center p-2 sm:p-4">
-    <div class="w-full max-w-5xl h-[94vh] sm:h-auto bg-white rounded-xl shadow-xl overflow-hidden flex flex-col">
+<div id="previewModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden p-2 sm:p-4">
+  <div class="bg-white p-4 rounded-lg max-w-5xl w-full h-[94vh] sm:h-[90vh] flex flex-col overflow-hidden mx-auto">
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3 border-b">
         <h3 class="font-semibold text-gray-800 leading-tight">Previsualización — Acta de conformidad</h3>
         <div class="flex flex-col sm:flex-row sm:items-center gap-2 shrink-0">
@@ -236,13 +235,12 @@
           </button>
         </div>
       </div>
-      <div class="h-[75vh] relative bg-gray-100 overflow-auto">
-        <div id="previewLoading" class="hidden absolute inset-0 grid place-content-center text-sm text-gray-600 bg-white/60">
+      <div class="relative flex-1">
+        <div id="previewLoading" class="hidden absolute inset-0 z-10 grid place-content-center text-sm text-gray-600 bg-white/60">
           Generando previsualización…
         </div>
-        <div id="previewPdfCanvas" class="min-h-full p-3"></div>
+        <div id="previewPdfCanvas" class="h-full border w-full overflow-auto bg-gray-100 p-3"></div>
       </div>
-    </div>
   </div>
 </div>
 @endsection
@@ -266,6 +264,14 @@
   const btnClose = document.getElementById('btnClose');
   const btnConf  = document.getElementById('btnConfirm');
 
+  function lockPdfModalScroll() {
+    document.body.classList.add('overflow-hidden');
+  }
+
+  function unlockPdfModalScroll() {
+    document.body.classList.remove('overflow-hidden');
+  }
+
   function setLoading(el, is){
     if(el){
       el.disabled = !!is;
@@ -273,11 +279,21 @@
     }
   }
 
-  function openModal(){ modal.classList.remove('hidden'); }
-  function closeModal(){ modal.classList.add('hidden'); window.eSupportPdfViewer?.clear(frame); }
+  function openModal(){
+    modal.classList.remove('hidden');
+    lockPdfModalScroll();
+  }
+  function closeModal(){
+    modal.classList.add('hidden');
+    window.eSupportPdfViewer?.clear(frame);
+    unlockPdfModalScroll();
+  }
 
   btnClose.addEventListener('click', closeModal);
   modal.addEventListener('click', (e)=>{ if(e.target === modal) closeModal(); });
+  document.addEventListener('keydown', (e)=>{
+    if (e.key === 'Escape' && !modal.classList.contains('hidden')) closeModal();
+  });
 
   // Helper para mostrar errores de validación (422)
   function show422(res, fallbackMsg){
@@ -357,8 +373,8 @@
       if(!j.ok || !j.pdf_base64){
         throw new Error(j.message || 'No se pudo generar la previsualización');
       }
-      await window.eSupportPdfViewer?.renderBase64(j.pdf_base64, frame);
       openModal();
+      await window.eSupportPdfViewer?.renderBase64(j.pdf_base64, frame);
     }catch(err){
       alert(err.message);
     }finally{

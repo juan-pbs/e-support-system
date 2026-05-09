@@ -158,20 +158,3 @@
     </form>
 </div>
 @endsection
-
-@push('scripts')
-<script>
-function initAutocomplete() {
-    const input = document.getElementById('ubicacion');
-    if (input) {
-        const autocomplete = new google.maps.places.Autocomplete(input, {
-            types: ['geocode'],
-            componentRestrictions: { country: 'mx' }
-        });
-    }
-}
-</script>
-
-<!-- Google Places API -->
-<script src="https://maps.googleapis.com/maps/api/js?key={{ config('services.google_maps.key') }}&libraries=places&callback=initAutocomplete" async defer></script>
-@endpush

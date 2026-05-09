@@ -896,17 +896,14 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
 
     {{-- Modal PREVIEW / PDF ACTUAL --}}
     <x-pdf-js-viewer />
-    <div id="pdfPreviewModal" class="fixed inset-0 z-50 hidden">
-        <div class="absolute inset-0 bg-black/60" onclick="closePdfModal()"></div>
-        <div class="relative mx-auto my-2 sm:my-6 bg-white rounded-xl shadow-xl max-w-5xl w-[calc(100vw-1rem)] sm:w-[95vw] h-[94vh] sm:h-[85vh] flex flex-col overflow-hidden">
-            <div class="px-4 py-3 border-b flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+    <div id="pdfPreviewModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 hidden p-2 sm:p-4">
+        <div class="bg-white p-4 rounded-lg max-w-5xl w-full h-[94vh] sm:h-[90vh] flex flex-col overflow-hidden mx-auto">
+            <div class="flex flex-col sm:flex-row sm:justify-between sm:items-center gap-2 mb-4 w-full">
                 <h3 id="pdfModalTitle" class="font-semibold text-gray-800 leading-tight">Previsualización de la orden (PDF)</h3>
                 <button class="text-gray-500 hover:text-gray-700" onclick="closePdfModal()">✕</button>
             </div>
-            <div class="flex-1 bg-gray-100 overflow-auto p-3">
-                <div id="pdfPreviewCanvas" class="min-h-full"></div>
-            </div>
-            <div class="px-4 py-3 border-t flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2">
+            <div id="pdfPreviewCanvas" class="flex-1 border w-full overflow-auto bg-gray-100 p-3"></div>
+            <div class="px-4 py-3 border-t flex flex-col sm:flex-row sm:items-center sm:justify-end gap-2 mt-4 w-full">
                 <button type="button" class="px-4 py-2 rounded-md border text-gray-700 hover:bg-gray-50" onclick="closePdfModal()">Cerrar</button>
 
                 <button type="button" id="btnDescargarActual" class="hidden px-4 py-2 rounded-md bg-blue-600 hover:bg-blue-700 text-white">
@@ -2064,6 +2061,14 @@ const clientesCatalog = {
   const stockShortageModal = document.getElementById('stockShortageModal');
   const shortageListEl     = document.getElementById('shortageList');
 
+  function lockPdfModalScroll() {
+    document.body.classList.add('overflow-hidden');
+  }
+
+  function unlockPdfModalScroll() {
+    document.body.classList.remove('overflow-hidden');
+  }
+
   function setPdfModalMode(mode) {
     if (mode === 'current') {
       if (pdfModalTitle) pdfModalTitle.textContent = 'PDF actual de la orden';
@@ -2082,19 +2087,28 @@ const clientesCatalog = {
     if (!b64) return;
     setPdfModalMode('preview');
     pdfPreviewModal.classList.remove('hidden');
+    lockPdfModalScroll();
     await window.eSupportPdfViewer?.renderBase64(b64, pdfPreviewFrame);
   }
 
   async function openCurrentPdfModal() {
     setPdfModalMode('current');
     pdfPreviewModal.classList.remove('hidden');
+    lockPdfModalScroll();
     await window.eSupportPdfViewer?.renderUrl(PDF_CURRENT_URL, pdfPreviewFrame);
   }
 
   function closePdfModal() {
     pdfPreviewModal.classList.add('hidden');
     window.eSupportPdfViewer?.clear(pdfPreviewFrame);
+    unlockPdfModalScroll();
   }
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && pdfPreviewModal && !pdfPreviewModal.classList.contains('hidden')) {
+      closePdfModal();
+    }
+  });
 
   function openStockShortageModal(items) {
     shortageListEl.innerHTML = '';

@@ -32,7 +32,33 @@
                     return typeof target === 'string' ? document.getElementById(target) : target;
                 }
 
+                async function waitForLayout(container) {
+                    if (!container) return;
+
+                    if ((container.clientWidth || 0) > 0) {
+                        return;
+                    }
+
+                    await new Promise((resolve) => requestAnimationFrame(resolve));
+                    if ((container.clientWidth || 0) > 0) {
+                        return;
+                    }
+
+                    await new Promise((resolve) => requestAnimationFrame(resolve));
+                }
+
+                function prepareContainer(container) {
+                    if (!container) return;
+
+                    container.scrollTop = 0;
+                    container.scrollLeft = 0;
+                    container.style.overscrollBehavior = 'contain';
+                    container.style.webkitOverflowScrolling = 'touch';
+                    container.style.touchAction = 'pan-x pan-y';
+                }
+
                 function showMessage(container, message) {
+                    prepareContainer(container);
                     container.innerHTML = `
                         <div class="min-h-full grid place-items-center p-6 text-sm text-gray-600">
                             <div class="rounded-lg border border-gray-200 bg-white px-4 py-3 shadow-sm">${message}</div>
@@ -40,7 +66,9 @@
                 }
 
                 async function renderDocument(pdf, container) {
+                    prepareContainer(container);
                     container.innerHTML = '';
+                    await waitForLayout(container);
                     const width = Math.max((container.clientWidth || window.innerWidth) - 32, 280);
 
                     for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
@@ -65,6 +93,9 @@
                             transform: outputScale !== 1 ? [outputScale, 0, 0, outputScale, 0, 0] : null,
                         }).promise;
                     }
+
+                    container.scrollTop = 0;
+                    container.scrollLeft = 0;
                 }
 
                 async function renderUrl(url, target) {
@@ -107,7 +138,11 @@
 
                 function clear(target) {
                     const container = getContainer(target);
-                    if (container) container.innerHTML = '';
+                    if (container) {
+                        container.innerHTML = '';
+                        container.scrollTop = 0;
+                        container.scrollLeft = 0;
+                    }
                 }
 
                 return { renderUrl, renderBase64, clear };

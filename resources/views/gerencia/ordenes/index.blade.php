@@ -459,9 +459,10 @@
 </div>
 {{-- MODAL PDF --}}
 <x-pdf-js-viewer />
-<div id="pdfModal" class="hidden fixed inset-0 z-40 bg-black/50">
-  <div class="absolute inset-0 flex items-center justify-center p-2 sm:p-4">
-    <div class="w-full max-w-5xl h-[94vh] sm:h-auto bg-white rounded-xl shadow-xl overflow-hidden flex flex-col">
+<div id="pdfModal" class="fixed inset-0 z-50 hidden">
+  <div id="pdfModalBackdrop" class="absolute inset-0 bg-black/50"></div>
+  <div class="relative mx-auto w-full max-w-5xl h-[94vh] sm:h-[92vh] mt-2 md:mt-8 px-2 sm:px-3">
+    <div class="bg-white rounded-xl shadow-lg h-full flex flex-col overflow-hidden">
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3 border-b">
         <h3 id="pdfModalTitle" class="font-semibold text-gray-800 leading-tight break-words">PDF</h3>
         <div class="flex items-center gap-2">
@@ -599,6 +600,7 @@
     document.getElementById('notesModal')?.classList.add('hidden');
   };
   const pdfModal = document.getElementById('pdfModal');
+  const pdfModalBackdrop = document.getElementById('pdfModalBackdrop');
   const pdfCanvasViewer = document.getElementById('pdfCanvasViewer');
   const pdfTitle = document.getElementById('pdfModalTitle');
   const pdfDownloadBtn = document.getElementById('pdfDownloadBtn');
@@ -618,14 +620,17 @@
     if (!btn) return;
 
     const folio = btn.getAttribute('data-folio') || btn.getAttribute('data-id');
-    const viewUrl = btn.getAttribute('data-view');
+    const viewUrlRaw = btn.getAttribute('data-view');
     const downloadUrl = btn.getAttribute('data-download');
     const customTitle = btn.getAttribute('data-title');
+    const sep = (viewUrlRaw || '').includes('?') ? '&' : '?';
+    const viewUrl = `${viewUrlRaw}${sep}ts=${Date.now()}`;
 
     pdfTitle.textContent = customTitle || `PDF — ${folio}`;
-    pdfDownloadBtn.href = downloadUrl || viewUrl;
+    pdfDownloadBtn.href = downloadUrl || viewUrlRaw;
 
     pdfModal.classList.remove('hidden');
+    document.body.classList.add('overflow-hidden');
     window.eSupportPdfViewer?.renderUrl(viewUrl, pdfCanvasViewer);
   });
 
@@ -634,6 +639,7 @@
     if (!btn) return;
     pdfModal.classList.add('hidden');
     window.eSupportPdfViewer?.clear(pdfCanvasViewer);
+    document.body.classList.remove('overflow-hidden');
   });
 
   document.addEventListener('click', (e)=>{
@@ -689,13 +695,26 @@
     deleteModal.classList.add('hidden');
   });
 
-  [pdfModal, deleteModal, exportModal, document.getElementById('notesModal')].forEach(modal=>{
+  [deleteModal, exportModal, document.getElementById('notesModal')].forEach(modal=>{
     modal?.addEventListener('click', (e)=>{
       if (e.target === modal) {
         modal.classList.add('hidden');
-        if (modal === pdfModal) window.eSupportPdfViewer?.clear(pdfCanvasViewer);
       }
     });
+  });
+
+  pdfModalBackdrop?.addEventListener('click', () => {
+    pdfModal.classList.add('hidden');
+    window.eSupportPdfViewer?.clear(pdfCanvasViewer);
+    document.body.classList.remove('overflow-hidden');
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && pdfModal && !pdfModal.classList.contains('hidden')) {
+      pdfModal.classList.add('hidden');
+      window.eSupportPdfViewer?.clear(pdfCanvasViewer);
+      document.body.classList.remove('overflow-hidden');
+    }
   });
 
   // Auto-hide alerts

@@ -177,16 +177,5 @@
         window.location.href = '/';
     }
 
-    function initAutocomplete() {
-        const input = document.getElementById('ubicacion');
-        if (input) {
-            new google.maps.places.Autocomplete(input, {
-                types: ['geocode'],
-                componentRestrictions: { country: 'mx' }
-            });
-        }
-    }
 </script>
-
-<script src="https://maps.googleapis.com/maps/api/js?key={{ config('services.google_maps.key') }}&libraries=places&callback=initAutocomplete" async defer></script>
 @endpush

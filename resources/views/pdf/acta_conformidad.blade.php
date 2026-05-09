@@ -56,6 +56,7 @@
     .table-bordered {
         border-collapse: collapse;
         width: 100%;
+        table-layout: fixed;
         font-size: 10px;
     }
     .table-bordered th,
@@ -71,6 +72,18 @@
     }
     .table-bordered tbody tr:nth-child(odd) td {
         background: #fafafa;
+    }
+    .desc-cell {
+        line-height: 1.25;
+        overflow-wrap: break-word;
+        word-break: break-word;
+    }
+    .qty-cell {
+        white-space: nowrap;
+    }
+    .money-cell {
+        white-space: nowrap;
+        font-size: 8.8px;
     }
 
     .header { width: 100%; margin-bottom: 10px; }
@@ -290,13 +303,11 @@
     $monedaOrden = strtoupper(trim((string)($orden->moneda ?? 'MXN')));
     if ($monedaOrden === '') $monedaOrden = 'MXN';
 
-    $simboloMoneda = ($monedaOrden === 'USD') ? 'USD $' : 'MXN $';
-
     $tasaCambio = (float)($orden->tasa_cambio ?? 1.0);
     if ($tasaCambio <= 0) $tasaCambio = 1.0;
 
-    $fmt = function($n) use ($simboloMoneda) {
-      return $simboloMoneda . number_format((float)$n, 2, '.', ',');
+    $fmt = function($n) use ($monedaOrden) {
+      return '$' . number_format((float)$n, 2, '.', ',') . ' ' . $monedaOrden;
     };
 
     // ===== 1) Materiales (detalles) en moneda de la orden
@@ -357,6 +368,13 @@
     $otros_costos       = $costoOperativo;
     $total_general      = $totalGeneral;
     $cantidadEscrita    = trim((string)($cantidad_escrita ?? ($actaData['cantidad_escrita'] ?? '')));
+    $cantidadEscritaNormalizada = \Illuminate\Support\Str::upper((string) preg_replace('/\s+/u', ' ', $cantidadEscrita));
+    $cantidadEscritaEsCero = preg_match('/^CERO\b/u', $cantidadEscritaNormalizada) === 1;
+
+    if ($cantidadEscrita === '' || ($total_general > 0 && $cantidadEscritaEsCero)) {
+      $cantidadEscrita = app(\App\Services\Ordenes\OrdenServicioService::class)
+        ->resolvePrecioEscrito('', (float) $total_general, $monedaOrden);
+    }
 
     // Conteo de extras pendientes (solo informativo)
     $extrasPendientes = 0;
@@ -509,12 +527,18 @@
     <div class="section">
       <strong>Materiales de la orden</strong>
       <table class="table-bordered small tabla-detalle-acta" style="margin-top:6px;">
+        <colgroup>
+          <col style="width:54%;">
+          <col style="width:10%;">
+          <col style="width:18%;">
+          <col style="width:18%;">
+        </colgroup>
         <thead>
           <tr>
-            <th style="width:54%;">Producto</th>
-            <th style="width:10%;" class="text-right">Cant.</th>
-            <th style="width:18%;" class="text-right">P. unitario</th>
-            <th style="width:18%;" class="text-right">Importe</th>
+            <th>Producto</th>
+            <th class="text-right qty-cell">Cant.</th>
+            <th class="text-right money-cell">P. unitario</th>
+            <th class="text-right money-cell">Importe</th>
           </tr>
         </thead>
         <tbody>
@@ -525,16 +549,16 @@
               $importe = (float)($d->total ?? ($d->subtotal ?? ($cant * $pu)));
             @endphp
             <tr>
-              <td>
+              <td class="desc-cell">
                 <strong>{{ $d->nombre_producto ?? 'Producto' }}</strong>
                 @php $seriesTexto = (isset($d->series) && $d->series) ? $d->series->pluck('numero_serie')->filter()->implode(', ') : ''; @endphp
                 @if($seriesTexto !== '')
                   <div class="muted"><strong>N/S:</strong> {{ $seriesTexto }}</div>
                 @endif
               </td>
-              <td class="text-right">{{ number_format($cant, 2, '.', ',') }}</td>
-              <td class="text-right">{{ $fmt($pu) }}</td>
-              <td class="text-right">{{ $fmt($importe) }}</td>
+              <td class="text-right qty-cell">{{ number_format($cant, 2, '.', ',') }}</td>
+              <td class="text-right money-cell">{{ $fmt($pu) }}</td>
+              <td class="text-right money-cell">{{ $fmt($importe) }}</td>
             </tr>
           @endforeach
         </tbody>
@@ -557,12 +581,18 @@
       </div>
 
       <table class="table-bordered small tabla-extra-acta" style="margin-top:6px;">
+        <colgroup>
+          <col style="width:54%;">
+          <col style="width:10%;">
+          <col style="width:18%;">
+          <col style="width:18%;">
+        </colgroup>
         <thead>
           <tr>
-            <th style="width:54%;">Material extra</th>
-            <th style="width:10%;" class="text-right">Cant.</th>
-            <th style="width:18%;" class="text-right">P. unitario</th>
-            <th style="width:18%;" class="text-right">Importe</th>
+            <th>Material extra</th>
+            <th class="text-right qty-cell">Cant.</th>
+            <th class="text-right money-cell">P. unitario</th>
+            <th class="text-right money-cell">Importe</th>
           </tr>
         </thead>
         <tbody>
@@ -587,16 +617,16 @@
               }
             @endphp
             <tr>
-              <td>{{ $nombreExtra }}</td>
-              <td class="text-right">{{ number_format($cant, 2, '.', ',') }}</td>
-              <td class="text-right">
+              <td class="desc-cell">{{ $nombreExtra }}</td>
+              <td class="text-right qty-cell">{{ number_format($cant, 2, '.', ',') }}</td>
+              <td class="text-right money-cell">
                 @if($pendiente)
                   <span class="muted">—</span>
                 @else
                   {{ $fmt($puDisplay) }}
                 @endif
               </td>
-              <td class="text-right">
+              <td class="text-right money-cell">
                 @if($pendiente)
                   <span class="muted">—</span>
                 @else

@@ -510,7 +510,7 @@
 <!-- Modal visor PDF de acta -->
 <x-pdf-js-viewer />
 <div id="pdfModal" class="fixed inset-0 z-50 hidden">
-  <div class="absolute inset-0 bg-black/50" onclick="closePdfModal()"></div>
+  <div id="pdfModalBackdrop" class="absolute inset-0 bg-black/50"></div>
   <div class="relative w-[calc(100vw-1rem)] sm:w-full max-w-5xl mx-auto mt-2 sm:mt-10 bg-white rounded-2xl shadow-2xl flex flex-col h-[92vh] sm:h-[80vh] overflow-hidden">
     <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3 border-b">
       <div class="min-w-0">
@@ -1940,6 +1940,7 @@ if (imageViewerImg) {
 
 /* ===== Visor PDF ===== */
 const pdfModal         = document.getElementById('pdfModal');
+const pdfModalBackdrop = document.getElementById('pdfModalBackdrop');
 const pdfCanvasViewer  = document.getElementById('pdfViewerCanvas');
 const pdfDownloadLink  = document.getElementById('pdfDownloadLink');
 
@@ -1952,6 +1953,7 @@ function openPdfModal(url) {
   }
 
   pdfModal.classList.remove('hidden');
+  document.body.classList.add('overflow-hidden');
   window.eSupportPdfViewer?.renderUrl(url, pdfCanvasViewer);
 }
 
@@ -1959,6 +1961,7 @@ function closePdfModal() {
   if (!pdfModal || !pdfCanvasViewer) return;
   pdfModal.classList.add('hidden');
   window.eSupportPdfViewer?.clear(pdfCanvasViewer);
+  document.body.classList.remove('overflow-hidden');
 
   if (pdfDownloadLink) {
     pdfDownloadLink.href = '#';
@@ -1966,12 +1969,21 @@ function closePdfModal() {
   }
 }
 
+pdfModalBackdrop?.addEventListener('click', closePdfModal);
+
 /* Cerrar modales con ESC */
 document.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') {
     ['extrasModal','progressModal','commentModal','imagesModal','imageViewerModal','pdfModal'].forEach(id => {
       const m = document.getElementById(id);
-      if (m && !m.classList.contains('hidden')) m.classList.add('hidden');
+      if (!m || m.classList.contains('hidden')) return;
+
+      if (id === 'pdfModal') {
+        closePdfModal();
+        return;
+      }
+
+      m.classList.add('hidden');
     });
   }
 });

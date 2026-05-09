@@ -67,39 +67,46 @@
             border-collapse:collapse;
             margin-top:14px;
             table-layout:fixed;
-            font-size:10px;
+            font-size:9.6px;
         }
         .tabla-seccion th, .tabla-seccion td{
-            padding:6px;
+            padding:4px 6px;
             text-align:left;
             vertical-align:top;
-            border:1px solid #ffffff; /* bordes blancos (sin contorno visible) */
+            border:none;
+            background-color:#ffffff;
         }
         .tabla-seccion th{
-            background-color:#e3e3e3;
             color:#0072bc;
             font-weight:bold;
+            line-height:1.1;
         }
-        .tabla-seccion td{ background-color:#ffffff; }
-        .tabla-seccion th.right, .tabla-seccion td.right{ text-align:right; }
-        .tabla-seccion td.center{ text-align:center; }
+        .tabla-seccion th.right, .tabla-seccion td.right{
+            text-align:right;
+            white-space:nowrap;
+        }
+        .tabla-seccion th.center, .tabla-seccion td.center{
+            text-align:center;
+            white-space:nowrap;
+        }
 
         /* ===== Utilidades ===== */
         .muted{ color:#555; font-size:9px; }
         .wrap{ word-break:break-word; white-space:normal; }
 
         /* ===== Tabla de productos ===== */
-        .w-desc  { width:55%; }
-        .w-cant  { width:15%; }
-        .w-pre   { width:15%; }
-        .w-total { width:15%; }
+        .w-desc  { width:57%; line-height:1.25; }
+        .w-cant  { width:11%; }
+        .w-pre   { width:16%; font-size:8.8px; }
+        .w-total { width:16%; font-size:8.8px; }
 
         /* ===== Totales ===== */
         .tabla-totales{
             width:100%;
             border-collapse:collapse;
             margin-top:4px;
-            font-size:10px;
+            table-layout:fixed;
+            font-size:9.8px;
         }
         .tabla-totales th, .tabla-totales td{
             padding:4px 6px;
@@ -108,8 +115,15 @@
             background-color:transparent;
         }
         .tabla-totales th{ text-align:right; font-weight:bold; }
-        .tabla-totales td{ text-align:right; }
-        .tabla-totales .muted{ text-align:right; }
+        .tabla-totales td{
+            text-align:right;
+            white-space:nowrap;
+            font-size:8.8px;
+        }
+        .tabla-totales .muted{
+            text-align:left;
+            white-space:normal;
+        }
 
         .totales-panel{
             width:100%;
@@ -198,7 +212,12 @@
 
     // ===== Moneda y fecha =====
     $moneda = strtoupper((string)($orden->moneda ?? 'MXN'));
-    $simboloMoneda = ($moneda === 'USD') ? 'USD $' : 'MXN $';
+    $fmt = function($value) use ($moneda) {
+        return '$' . number_format((float) $value, 2, '.', ',') . ' ' . $moneda;
+    };
+    $fmtMxn = function($value) {
+        return '$' . number_format((float) $value, 2, '.', ',') . ' MXN';
+    };
     $fechaMostrar = \Carbon\Carbon::parse($orden->fecha_orden ?? $orden->created_at ?? now())->format('d/m/Y');
 
     // ===== Título dinámico =====
@@ -341,16 +360,20 @@
 
 {{-- SERVICIO --}}
 <table class="tabla-seccion">
+    <colgroup>
+        <col style="width:82%;">
+        <col style="width:18%;">
+    </colgroup>
     <thead>
         <tr>
-            <th style="width:75%;">Servicio</th>
-            <th class="right" style="width:25%;">Precio</th>
+            <th>Servicio</th>
+            <th class="right">Precio</th>
         </tr>
     </thead>
     <tbody>
         <tr>
             <td class="wrap">{!! nl2br(e($orden->servicio ?: '—')) !!}</td>
-            <td class="right">{{ $simboloMoneda }}{{ number_format((float)($orden->precio ?? 0), 2) }}</td>
+            <td class="right">{{ $fmt($orden->precio ?? 0) }}</td>
         </tr>
     </tbody>
 </table>
@@ -371,6 +394,12 @@
 
 {{-- MATERIALES / PRODUCTOS --}}
 <table class="tabla-seccion">
+    <colgroup>
+        <col style="width:57%;">
+        <col style="width:11%;">
+        <col style="width:16%;">
+        <col style="width:16%;">
+    </colgroup>
     <thead>
         <tr>
             <th class="w-desc">Descripción</th>
@@ -417,8 +446,8 @@
                     @endif
                 </td>
                 <td class="right">{{ number_format($qty, 2) }}</td>
-                <td class="right">{{ $simboloMoneda }}{{ number_format($pu, 2) }}</td>
-                <td class="right">{{ $simboloMoneda }}{{ number_format($lineBruto, 2) }}</td>
+                <td class="right">{{ $fmt($pu) }}</td>
+                <td class="right">{{ $fmt($lineBruto) }}</td>
             </tr>
         @empty
             <tr><td colspan="4">No se registraron materiales/productos.</td></tr>
@@ -445,6 +474,12 @@
 
 @if($extrasTotal > 0 || ($extrasRows instanceof \Illuminate\Support\Collection && $extrasRows->count()))
     <table class="tabla-seccion">
+        <colgroup>
+            <col style="width:57%;">
+            <col style="width:11%;">
+            <col style="width:16%;">
+            <col style="width:16%;">
+        </colgroup>
         <thead>
             <tr>
                 <th class="w-desc">Materiales extra / No previstos</th>
@@ -465,8 +500,8 @@
                     <tr>
                         <td class="wrap"><strong>{{ $xDesc }}</strong></td>
                         <td class="right">{{ number_format($xQty, 2) }}</td>
-                        <td class="right">{{ $simboloMoneda }}{{ number_format($xPU, 2) }}</td>
-                        <td class="right">{{ $simboloMoneda }}{{ number_format($xTot, 2) }}</td>
+                        <td class="right">{{ $fmt($xPU) }}</td>
+                        <td class="right">{{ $fmt($xTot) }}</td>
                     </tr>
                 @endforeach
             @else
@@ -474,7 +509,7 @@
                     <td class="wrap"><strong>Total adicional</strong></td>
                     <td class="right">—</td>
                     <td class="right">—</td>
-                    <td class="right">{{ $simboloMoneda }}{{ number_format((float)$extrasTotal, 2) }}</td>
+                    <td class="right">{{ $fmt($extrasTotal) }}</td>
                 </tr>
             @endif
         </tbody>
@@ -519,47 +554,58 @@
     $totalFinalMXN = ($moneda === 'USD' && $tcInfo > 0) ? round($totalFinal * $tcInfo, 2) : null;
     $saldoMXN      = ($moneda === 'USD' && $tcInfo > 0) ? round($saldoPendiente * $tcInfo, 2) : null;
     $precioEscrito = trim((string)($orden->precio_escrito ?? ''));
+    $precioEscritoNormalizado = Str::upper((string) preg_replace('/\s+/u', ' ', $precioEscrito));
+    $precioEscritoEsCero = preg_match('/^CERO\b/u', $precioEscritoNormalizado) === 1;
+
+    if ($precioEscrito === '' || ($totalFinal > 0 && $precioEscritoEsCero)) {
+        $precioEscrito = app(\App\Services\Ordenes\OrdenServicioService::class)
+            ->resolvePrecioEscrito('', (float) $totalFinal, $moneda);
+    }
 @endphp
 
 {{-- BLOQUE: TOTALES + FIRMA --}}
 <div class="totales-firma-block">
     <div class="totales-panel">
         <table class="tabla-totales">
+            <colgroup>
+                <col style="width:82%;">
+                <col style="width:18%;">
+            </colgroup>
             <tr>
-                <th style="width:84%;">Costo operativo / envío:</th>
-                <td style="width:16%;">{{ $simboloMoneda }}{{ number_format($costoEnvio, 2) }}</td>
+                <th>Costo operativo / envío:</th>
+                <td>{{ $fmt($costoEnvio) }}</td>
             </tr>
 
             <tr>
                 <th>Total materiales:</th>
-                <td>{{ $simboloMoneda }}{{ number_format($materialBruto, 2) }}</td>
+                <td>{{ $fmt($materialBruto) }}</td>
             </tr>
 
             @if($extrasTotal > 0)
                 <tr>
                     <th>Total materiales extra:</th>
-                    <td>{{ $simboloMoneda }}{{ number_format((float)$extrasTotal, 2) }}</td>
+                    <td>{{ $fmt($extrasTotal) }}</td>
                 </tr>
             @endif
 
             <tr>
                 <th>Costo del servicio:</th>
-                <td>{{ $simboloMoneda }}{{ number_format($costoServicio, 2) }}</td>
+                <td>{{ $fmt($costoServicio) }}</td>
             </tr>
 
             <tr>
                 <th>Base gravable (Mat. + Extra + Serv.):</th>
-                <td>{{ $simboloMoneda }}{{ number_format($baseGravable, 2) }}</td>
+                <td>{{ $fmt($baseGravable) }}</td>
             </tr>
 
             <tr>
                 <th>IVA (16%):</th>
-                <td>{{ $simboloMoneda }}{{ number_format($iva, 2) }}</td>
+                <td>{{ $fmt($iva) }}</td>
             </tr>
 
             <tr>
                 <th>Total final (incluye envío):</th>
-                <td><strong>{{ $simboloMoneda }}{{ number_format($totalFinal, 2) }}</strong></td>
+                <td><strong>{{ $fmt($totalFinal) }}</strong></td>
             </tr>
 
             @if($precioEscrito !== '')
@@ -573,11 +619,11 @@
             @if($anticipoOrden > 0 || $pctMostrar > 0)
                 <tr>
                     <th>Anticipo ({{ number_format($pctMostrar, 2) }}%):</th>
-                    <td><strong>{{ $simboloMoneda }}{{ number_format($anticipoOrden, 2) }}</strong></td>
+                    <td><strong>{{ $fmt($anticipoOrden) }}</strong></td>
                 </tr>
                 <tr>
                     <th>Saldo pendiente:</th>
-                    <td><strong>{{ $simboloMoneda }}{{ number_format($saldoPendiente, 2) }}</strong></td>
+                    <td><strong>{{ $fmt($saldoPendiente) }}</strong></td>
                 </tr>
             @endif
 
@@ -586,9 +632,9 @@
                     <td colspan="2" class="muted">
                         Nota: TC al registrar: 1 USD = {{ number_format($tcInfo, 4) }} MXN
                         @if($totalFinalMXN !== null)
-                            | Total aprox. MXN: <strong>MXN ${{ number_format($totalFinalMXN, 2) }}</strong>
+                            | Total aprox. MXN: <strong>{{ $fmtMxn($totalFinalMXN) }}</strong>
                             @if($saldoMXN !== null && ($anticipoOrden > 0 || $pctMostrar > 0))
-                                | Saldo aprox. MXN: <strong>MXN ${{ number_format($saldoMXN, 2) }}</strong>
+                                | Saldo aprox. MXN: <strong>{{ $fmtMxn($saldoMXN) }}</strong>
                             @endif
                         @endif
                     </td>
@@ -598,7 +644,7 @@
             @if(abs(((float)($orden->impuestos ?? 0)) - $ivaCalc) >= 0.02)
                 <tr>
                     <td colspan="2" class="muted">
-                        * IVA recalculado en PDF (incluye materiales extra). IVA guardado en BD: {{ $simboloMoneda }}{{ number_format((float)($orden->impuestos ?? 0), 2) }}
+                        * IVA recalculado en PDF (incluye materiales extra). IVA guardado en BD: {{ $fmt((float)($orden->impuestos ?? 0)) }}
                     </td>
                 </tr>
             @endif

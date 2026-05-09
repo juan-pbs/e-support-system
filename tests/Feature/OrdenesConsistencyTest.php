@@ -169,6 +169,117 @@ it('genera el precio escrito en la orden cuando no se captura manualmente', func
         ->and($orden->precio_escrito)->toContain('M.N.');
 });
 
+it('renderiza el pdf de la orden con importes alineados como cotizacion y regenera la cantidad en letra invalida', function () {
+    $cliente = crearCliente([
+        'codigo_cliente' => 'CLI-ORD-PDF',
+        'correo_electronico' => 'orden-pdf@example.com',
+    ]);
+
+    $orden = crearOrden([
+        'cliente' => $cliente,
+        'precio' => 0,
+        'costo_operativo' => 0,
+        'impuestos' => 1680,
+        'precio_escrito' => 'CERO PESOS 00/100 M.N.',
+        'servicio' => 'Instalacion de camaras',
+    ]);
+
+    $productos = collect([
+        (object) [
+            'nombre_producto' => 'CAMARA IP',
+            'descripcion' => 'Camara principal de prueba',
+            'cantidad' => 5,
+            'precio_unitario' => 2100,
+            'total' => 10500,
+            'ns_asignados' => [],
+        ],
+        (object) [
+            'nombre_producto' => 'BOBINA DE CABLE',
+            'descripcion' => 'Cableado estructurado',
+            'cantidad' => 1,
+            'precio_unitario' => 5500,
+            'total' => 5500,
+            'ns_asignados' => [],
+        ],
+    ]);
+
+    $html = view('pdf.orden_servicio', [
+        'orden' => $orden,
+        'cliente' => $cliente,
+        'productos' => $productos,
+        'extras' => collect(),
+        'firma' => [],
+        'firma_base64' => null,
+    ])->render();
+
+    expect($html)
+        ->toContain('<col style="width:57%;">')
+        ->toContain('<col style="width:16%;">')
+        ->toContain('$2,100.00 MXN')
+        ->toContain('$10,500.00 MXN')
+        ->toContain('Cantidad en letra: <strong>')
+        ->not->toContain('MXN $2,100.00')
+        ->not->toContain('Cantidad en letra: <strong>CERO PESOS 00/100 M.N.</strong>');
+});
+
+it('renderiza el acta con formato monetario consistente y corrige la cantidad en letra heredada', function () {
+    $cliente = crearCliente([
+        'codigo_cliente' => 'CLI-ACTA-PDF',
+        'correo_electronico' => 'acta-pdf@example.com',
+    ]);
+
+    $orden = crearOrden([
+        'cliente' => $cliente,
+        'precio' => 200,
+        'costo_operativo' => 20,
+        'impuestos' => 32,
+        'precio_escrito' => 'CERO PESOS 00/100 M.N.',
+        'servicio' => 'Servicio de prueba',
+        'descripcion_servicio' => 'Configuracion final',
+    ]);
+
+    DetalleOrdenProducto::create([
+        'id_orden_servicio' => $orden->id_orden_servicio,
+        'nombre_producto' => 'Bomba de prueba',
+        'cantidad' => 2,
+        'precio_unitario' => 50,
+        'total' => 100,
+    ]);
+
+    $detalles = DetalleOrdenProducto::with('series')
+        ->where('id_orden_servicio', $orden->id_orden_servicio)
+        ->get();
+
+    $html = view('pdf.acta_conformidad', [
+        'orden' => $orden->fresh(),
+        'cliente' => $cliente,
+        'acta' => [
+            'responsable' => 'Cliente Demo',
+            'puesto' => 'Administrador',
+            'fecha' => now()->toDateString(),
+            'hora' => '10:30',
+            'trabajo_realizado' => 'Prueba de acta',
+            'conforme' => 'si',
+            'observaciones' => 'Sin observaciones',
+            'cantidad_escrita' => 'CERO PESOS 00/100 M.N.',
+        ],
+        'tecnicos' => collect(),
+        'detalles' => $detalles,
+        'extras' => collect(),
+        'cotizacion' => null,
+        'firma_cliente_src' => null,
+        'firma_empresa_src' => null,
+        'draft' => false,
+    ])->render();
+
+    expect($html)
+        ->toContain('$50.00 MXN')
+        ->toContain('$100.00 MXN')
+        ->toContain('Cantidad en letra: <strong>')
+        ->not->toContain('MXN $50.00')
+        ->not->toContain('Cantidad en letra: <strong>CERO PESOS 00/100 M.N.</strong>');
+});
+
 it('permite editar una orden ligada a cotizacion aunque el formulario no envie cotizacion_id', function () {
     $gerente = User::factory()->create([
         'puesto' => 'gerente',

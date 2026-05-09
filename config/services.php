@@ -35,11 +35,7 @@ return [
         ],
     ],
     'exchange_rate' => [
-    'key' => env('EXCHANGE_RATE_API_KEY'),
-
-],
-'google_maps' => [
-    'key' => env('GOOGLE_MAPS_API_KEY'),
-],
+        'key' => env('EXCHANGE_RATE_API_KEY'),
+    ],
 
 ];
