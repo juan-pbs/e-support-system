@@ -33,7 +33,9 @@ class CatalogoProductoController extends Controller
     /** Listado con filtros */
     public function index(Request $request)
     {
+        $this->purgeExpiredTrash();
         $this->syncCategoriasDesdeProductos();
+        $papelera = $request->boolean('papelera');
 
         $subStock = '(SELECT COALESCE(SUM(paquetes_restantes * COALESCE(piezas_por_paquete,1) + COALESCE(piezas_sueltas,0)),0)
                       FROM inventario WHERE inventario.codigo_producto = productos.codigo_producto)';
@@ -66,6 +68,10 @@ class CatalogoProductoController extends Controller
             ]))
             ->groupBy($prodCols);
 
+        if ($papelera) {
+            $query->onlyTrashed();
+        }
+
         // ✅ Si viene producto_id, filtrar por ID (autocompletado)
         if ($request->filled('producto_id')) {
             $query->where('productos.codigo_producto', (int) $request->producto_id);
@@ -87,17 +93,24 @@ class CatalogoProductoController extends Controller
         }
 
         // ✅ Mantengo tu lógica: si NO marcas inactivos, solo activos; si marcas, solo inactivos
-        if (!$request->boolean('inactivos')) {
-            $query->where('productos.activo', true);
-        } else {
-            $query->where('productos.activo', false);
+        if (! $papelera) {
+            if (!$request->boolean('inactivos')) {
+                $query->where('productos.activo', true);
+            } else {
+                $query->where('productos.activo', false);
+            }
         }
 
         if ($request->boolean('stock_bajo')) {
             $query->whereRaw("$subStock <= COALESCE(productos.stock_seguridad,0)");
         }
 
-        $productos  = $query->orderByDesc('productos.created_at')->paginate(12)->withQueryString();
+        $perPage = (int) $request->input('per_page', 12);
+        if (! in_array($perPage, [12, 24, 48, 96], true)) {
+            $perPage = 12;
+        }
+
+        $productos  = $query->orderByDesc('productos.created_at')->paginate($perPage)->withQueryString();
         $productos->getCollection()->transform(function ($producto) {
             $codigo = (int) ($producto->codigo_producto ?? 0);
             $disponible = 0;
@@ -119,7 +132,7 @@ class CatalogoProductoController extends Controller
             ->orderBy('nombre')
             ->pluck('nombre');
 
-        return view('gerencia.catalogo.index', compact('productos', 'categorias') + $this->catalogoCategoriasFormData());
+        return view('gerencia.catalogo.index', compact('productos', 'categorias', 'papelera') + $this->catalogoCategoriasFormData());
     }
 
     public function crear()
@@ -315,22 +328,93 @@ class CatalogoProductoController extends Controller
     {
         $p = Producto::findOrFail($id);
 
-        if ($p->activo) {
-            return back()->with('error', 'Desactiva el producto antes de eliminarlo.');
-        }
-
-        $stock = DB::table('inventario')
-            ->where('codigo_producto', $p->codigo_producto)
-            ->selectRaw('COALESCE(SUM(paquetes_restantes * COALESCE(piezas_por_paquete,1) + COALESCE(piezas_sueltas,0)),0) as s')
-            ->value('s');
-
-        if ($stock > 0) {
-            return back()->with('error', 'No se puede eliminar: existen movimientos en inventario.');
-        }
-
+        $p->activo = false;
+        $p->deleted_by = auth()->id();
+        $p->save();
         $p->delete();
 
-        return redirect()->route('catalogo.index')->with('success', 'Producto eliminado.');
+        return redirect()->route('catalogo.index')->with('success', 'Producto enviado a papelera. Se puede recuperar durante 20 dias.');
+    }
+
+    public function restaurar($id)
+    {
+        $producto = Producto::onlyTrashed()->findOrFail($id);
+
+        if ($producto->deleted_at && $producto->deleted_at->lt(now()->subDays(20))) {
+            $producto->forceDelete();
+
+            return redirect()->route('catalogo.index', ['papelera' => 1])
+                ->with('error', 'El producto ya supero los 20 dias en papelera y fue eliminado permanentemente.');
+        }
+
+        $producto->restore();
+        $producto->deleted_by = null;
+        $producto->activo = true;
+        $producto->save();
+
+        return redirect()->route('catalogo.index', ['papelera' => 1])->with('success', 'Producto recuperado.');
+    }
+
+    public function bulkAction(Request $request)
+    {
+        abort_unless($this->isSystemUser($request), 403);
+
+        $data = $request->validate([
+            'action' => ['required', Rule::in(['desactivar', 'eliminar', 'restaurar'])],
+            'productos' => ['required', 'array', 'min:1'],
+            'productos.*' => ['integer'],
+        ], [
+            'productos.required' => 'Selecciona al menos un producto.',
+        ]);
+
+        $ids = collect($data['productos'])
+            ->map(fn ($id) => (int) $id)
+            ->filter()
+            ->unique()
+            ->values();
+
+        if ($ids->isEmpty()) {
+            return back()->with('error', 'Selecciona al menos un producto.');
+        }
+
+        if ($data['action'] === 'restaurar') {
+            $productos = Producto::onlyTrashed()->whereIn('codigo_producto', $ids)->get();
+            $restaurados = 0;
+
+            foreach ($productos as $producto) {
+                if ($producto->deleted_at && $producto->deleted_at->lt(now()->subDays(20))) {
+                    $producto->forceDelete();
+                    continue;
+                }
+
+                $producto->restore();
+                $producto->deleted_by = null;
+                $producto->activo = true;
+                $producto->save();
+                $restaurados++;
+            }
+
+            return back()->with('success', "Productos recuperados: {$restaurados}.");
+        }
+
+        $productos = Producto::query()
+            ->whereIn('codigo_producto', $ids)
+            ->get();
+
+        if ($data['action'] === 'desactivar') {
+            Producto::whereIn('codigo_producto', $productos->pluck('codigo_producto'))->update(['activo' => false]);
+
+            return back()->with('success', 'Productos desactivados: ' . $productos->count() . '.');
+        }
+
+        foreach ($productos as $producto) {
+            $producto->activo = false;
+            $producto->deleted_by = auth()->id();
+            $producto->save();
+            $producto->delete();
+        }
+
+        return back()->with('success', 'Productos enviados a papelera: ' . $productos->count() . '.');
     }
 
     public function guardarCategoria(Request $request)
@@ -445,6 +529,28 @@ class CatalogoProductoController extends Controller
         foreach ($categorias as $categoria) {
             $this->ensureCategoriaExiste($categoria);
         }
+    }
+
+    private function purgeExpiredTrash(): void
+    {
+        if (! Schema::hasColumn('productos', 'deleted_at')) {
+            return;
+        }
+
+        Producto::onlyTrashed()
+            ->where('deleted_at', '<', now()->subDays(20))
+            ->chunkById(100, function ($productos) {
+                foreach ($productos as $producto) {
+                    $producto->forceDelete();
+                }
+            }, 'codigo_producto');
+    }
+
+    private function isSystemUser(Request $request): bool
+    {
+        $user = $request->user();
+
+        return $user && method_exists($user, 'isSystem') && $user->isSystem();
     }
 
     private function catalogoCategoriasFormData(): array

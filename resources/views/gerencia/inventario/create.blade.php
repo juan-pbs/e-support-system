@@ -118,17 +118,6 @@
                     </select>
                 </div>
 
-                <div>
-                    <label class="block text-sm font-medium">Forma de ingreso *</label>
-                    <select name="forma_ingreso" id="forma-ingreso" class="border rounded px-3 py-2 w-full">
-                        <option value="recibido_almacen" @selected(old('forma_ingreso', 'recibido_almacen') === 'recibido_almacen')>Recibido en almacén</option>
-                        <option value="recoleccion_programada" @selected(old('forma_ingreso') === 'recoleccion_programada')>Recolección programada</option>
-                    </select>
-                    <p class="mt-1 text-xs text-gray-500">
-                        Si programas recolección, no se suma stock hasta que logística complete y gerencia confirme la recepción.
-                    </p>
-                </div>
-
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
                         <label class="block text-sm font-medium">Costo *</label>
@@ -211,58 +200,6 @@
                     </div>
                 </div>
 
-                <div id="bloque-logistica" class="hidden rounded-2xl border border-blue-200 bg-blue-50 p-4">
-                    <h3 class="text-sm font-semibold text-blue-900">Programación logística</h3>
-                    <p class="mt-1 text-xs text-blue-800">
-                        Esta entrada se convertirá en una recolección para técnico y quedará pendiente de confirmación administrativa.
-                    </p>
-
-                    <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">Jornada abierta</label>
-                            <select name="jornada_logistica_id" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2">
-                                <option value="">Asignar después</option>
-                                @foreach(($jornadasAbiertas ?? []) as $jornada)
-                                    <option value="{{ $jornada->id }}" @selected(old('jornada_logistica_id') == $jornada->id)>
-                                        {{ $jornada->folio }}{{ $jornada->nombre ? ' — ' . $jornada->nombre : '' }}
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
-
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">Técnico asignado</label>
-                            <select name="tecnico_logistica_id" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2">
-                                <option value="">Asignar después</option>
-                                @foreach(($tecnicos ?? []) as $tecnico)
-                                    <option value="{{ $tecnico->id }}" @selected(old('tecnico_logistica_id') == $tecnico->id)>
-                                        {{ $tecnico->name }}
-                                    </option>
-                                @endforeach
-                            </select>
-                        </div>
-
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">Fecha programada</label>
-                            <input type="date" name="fecha_programada" value="{{ old('fecha_programada', now()->toDateString()) }}"
-                                class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2">
-                        </div>
-
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">Hora estimada</label>
-                            <input type="time" name="hora_programada" value="{{ old('hora_programada') }}"
-                                class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2">
-                        </div>
-
-                        <div class="md:col-span-2">
-                            <label class="block text-sm font-medium text-gray-700">Observaciones logísticas</label>
-                            <textarea name="observaciones_logistica" rows="2"
-                                class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2"
-                                placeholder="Ej. recoger en bodega, llamar antes de llegar, acceso por rampa">{{ old('observaciones_logistica') }}</textarea>
-                        </div>
-                    </div>
-                </div>
-
                 <div class="pt-2">
                     <button class="px-5 py-2 rounded bg-green-600 text-white hover:bg-green-700">
                         Guardar entrada
@@ -315,23 +252,14 @@
     }
   }
 
-  function toggleFormaIngreso() {
-    const forma = document.getElementById('forma-ingreso')?.value || 'recibido_almacen';
-    const bloque = document.getElementById('bloque-logistica');
-    if (!bloque) return;
-    bloque.classList.toggle('hidden', forma !== 'recoleccion_programada');
-  }
-
   document.addEventListener('change', (e) => {
     if (e.target?.name === 'tipo_control') toggleBloques(e.target.value);
-    if (e.target?.name === 'forma_ingreso') toggleFormaIngreso();
   });
 
   document.addEventListener('DOMContentLoaded', () => {
     // ✅ toma el radio que Blade dejó checked (ya viene del último tipo_control)
     const checked = document.querySelector('input[name="tipo_control"]:checked');
     toggleBloques(checked ? checked.value : 'PIEZAS');
-    toggleFormaIngreso();
   });
 })();
 </script>

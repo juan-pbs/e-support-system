@@ -1,9 +1,7 @@
 <?php
 
 use App\Http\Controllers\Shared\Actas\ActaConformidadController;
-use App\Http\Controllers\Shared\GoogleCalendarController;
 use App\Http\Controllers\Shared\Seguimiento\SeguimientoServiciosController;
-use App\Http\Controllers\Tecnico\LogisticaTecnicoController;
 use App\Http\Controllers\Tecnico\ServicioTecnicoController;
 use App\Http\Controllers\Tecnico\TecnicoController;
 use Illuminate\Support\Facades\Route;
@@ -23,17 +21,6 @@ Route::prefix('tecnico')->middleware(['auth', 'tecnico'])->group(function () {
 
     Route::get('/servicios', [ServicioTecnicoController::class, 'index'])
         ->name('tecnico.servicios');
-
-    Route::prefix('logistica')->name('tecnico.logistica.')->group(function () {
-        Route::get('/', [LogisticaTecnicoController::class, 'index'])->name('index');
-        Route::get('/{movimiento}', [LogisticaTecnicoController::class, 'show'])->name('show');
-        Route::post('/{movimiento}/estado', [LogisticaTecnicoController::class, 'cambiarEstado'])->name('estado');
-        Route::post('/{movimiento}/completar', [LogisticaTecnicoController::class, 'completar'])->name('completar');
-    });
-
-    Route::prefix('google-calendar')->name('tecnico.google-calendar.')->group(function () {
-        Route::get('/', [GoogleCalendarController::class, 'tecnicoIndex'])->name('index');
-    });
 
     Route::get('/detalles/{orden?}', [ServicioTecnicoController::class, 'detalles'])
         ->name('tecnico.detalles');

@@ -77,33 +77,11 @@ class Cliente extends Model
         return $this->hasOne(CreditoCliente::class, 'clave_cliente', 'clave_cliente');
     }
 
-    public function direccionesLogisticas()
-    {
-        return $this->hasMany(ClienteDireccionLogistica::class, 'clave_cliente', 'clave_cliente')
-            ->orderByDesc('predeterminada')
-            ->orderBy('alias');
-    }
-
-    public function direccionLogisticaPrincipal()
-    {
-        return $this->hasOne(ClienteDireccionLogistica::class, 'clave_cliente', 'clave_cliente')
-            ->where('predeterminada', true);
-    }
-
     /**
      * Relación con pagos de crédito
      */
     public function pagos()
     {
         return $this->hasMany(PagoCredito::class, 'clave_cliente', 'clave_cliente');
-    }
-
-    public function getDireccionLogisticaResumenAttribute(): ?string
-    {
-        $direccion = $this->relationLoaded('direccionesLogisticas')
-            ? $this->direccionesLogisticas->firstWhere('predeterminada', true) ?? $this->direccionesLogisticas->first()
-            : $this->direccionesLogisticas()->where('predeterminada', true)->first() ?? $this->direccionesLogisticas()->first();
-
-        return $direccion?->direccion_formateada;
     }
 }

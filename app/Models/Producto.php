@@ -3,9 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Producto extends Model
 {
+    use SoftDeletes;
+
     protected $table = 'productos';
     protected $primaryKey = 'codigo_producto';
     public $incrementing = true;
@@ -25,11 +28,13 @@ class Producto extends Model
         'stock_total',
         'stock_paquetes',
         'stock_piezas_sueltas',
+        'deleted_by',
     ];
 
     protected $casts = [
         'activo' => 'boolean',
         'stock_seguridad' => 'integer',
+        'deleted_at' => 'datetime',
     ];
 
     public function inventario()

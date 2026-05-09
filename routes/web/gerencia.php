@@ -11,8 +11,6 @@ use App\Http\Controllers\Gerencia\Inventario\CargaRapidaInventarioController;
 use App\Http\Controllers\Gerencia\Inventario\CargaRapidaProductosController;
 use App\Http\Controllers\Gerencia\Inventario\InventarioController;
 use App\Http\Controllers\Gerencia\Inventario\SalidaInventarioController;
-use App\Http\Controllers\Gerencia\Logistica\AddressLookupController;
-use App\Http\Controllers\Gerencia\Logistica\LogisticaController;
 use App\Http\Controllers\Gerencia\Ordenes\OrdenServicioController;
 use App\Http\Controllers\Gerencia\Ordenes\OrdenServicioPdfController;
 use App\Http\Controllers\Gerencia\Proveedores\ProveedorController;
@@ -20,7 +18,6 @@ use App\Http\Controllers\Gerencia\Reportes\ReporteController;
 use App\Http\Controllers\Sistema\MantenimientoController;
 use App\Http\Controllers\Sistema\UsuariosConectadosController;
 use App\Http\Controllers\Shared\Actas\ActaConformidadController;
-use App\Http\Controllers\Shared\GoogleCalendarController;
 use App\Http\Controllers\Shared\Seguimiento\SeguimientoServiciosController;
 use App\Models\Inventario;
 use App\Models\OrdenServicio;
@@ -69,10 +66,12 @@ Route::middleware(['auth', 'gerente'])->group(function () {
         Route::get('/ver/{id}', [InventarioController::class, 'show'])->name('inventario.ver');
         Route::get('/editar/{id}', [InventarioController::class, 'editar'])->name('inventario.editar');
         Route::put('/{id}/actualizar', [InventarioController::class, 'actualizar'])->name('inventario.actualizar');
+        Route::delete('/eliminar-masivo', [InventarioController::class, 'eliminarMasivo'])->name('inventario.eliminar_masivo');
         Route::delete('/{id}/eliminar', [InventarioController::class, 'eliminar'])->name('inventario.eliminar');
 
         Route::get('/salidas', [SalidaInventarioController::class, 'index'])->name('inventario.salidas');
         Route::post('/salidas', [SalidaInventarioController::class, 'store'])->name('inventario.salidas.store');
+        Route::put('/salidas/{id}/cantidad', [SalidaInventarioController::class, 'updateCantidad'])->name('inventario.salidas.update_cantidad');
         Route::get('/salidas/series', [SalidaInventarioController::class, 'seriesPorProducto'])->name('inventario.salidas.series');
 
         Route::get('/carga-rapida', [CargaRapidaInventarioController::class, 'index'])->name('inventario.carga_rapida.index');
@@ -82,20 +81,6 @@ Route::middleware(['auth', 'gerente'])->group(function () {
 
         Route::get('/carga-rapida-productos', [CargaRapidaProductosController::class, 'index'])->name('cargaRapidaProd.index');
         Route::post('/carga-rapida-productos', [CargaRapidaProductosController::class, 'procesar'])->name('cargaRapidaProd.procesar');
-    });
-
-    Route::prefix('logistica')->name('logistica.')->group(function () {
-        Route::get('/', [LogisticaController::class, 'index'])->name('index');
-        Route::get('/direcciones/search', [AddressLookupController::class, 'search'])->name('direcciones.search');
-        Route::get('/direcciones/reverse', [AddressLookupController::class, 'reverse'])->name('direcciones.reverse');
-        Route::post('/jornadas', [LogisticaController::class, 'storeJornada'])->name('jornadas.store');
-        Route::post('/jornadas/{jornada}/cerrar', [LogisticaController::class, 'closeJornada'])->name('jornadas.close');
-        Route::put('/movimientos/{movimiento}', [LogisticaController::class, 'updateMovimiento'])->name('movimientos.update');
-        Route::post('/movimientos/{movimiento}/confirmar-recepcion', [LogisticaController::class, 'confirmarRecepcion'])->name('movimientos.confirmarRecepcion');
-    });
-
-    Route::prefix('integraciones/google-calendar')->name('gerente.google-calendar.')->group(function () {
-        Route::get('/', [GoogleCalendarController::class, 'gerenteIndex'])->name('index');
     });
 
     Route::prefix('catalogo')->group(function () {
@@ -122,6 +107,8 @@ Route::middleware(['auth', 'gerente'])->group(function () {
 
         Route::put('/producto/activar/{id}', [CatalogoProductoController::class, 'activar'])->name('producto.activar');
         Route::delete('/producto/eliminar/{id}', [CatalogoProductoController::class, 'eliminar'])->name('producto.eliminar');
+        Route::put('/producto/restaurar/{id}', [CatalogoProductoController::class, 'restaurar'])->name('producto.restaurar');
+        Route::post('/productos/accion-masiva', [CatalogoProductoController::class, 'bulkAction'])->name('catalogo.productos.bulk');
         Route::put('/producto/desactivar/{id}', [CatalogoProductoController::class, 'desactivar'])->name('producto.desactivar');
         Route::get('/producto/editar/{id}', [CatalogoProductoController::class, 'editar'])->name('producto.editar');
         Route::put('/producto/actualizar/{id}', [CatalogoProductoController::class, 'actualizar'])->name('producto.actualizar');

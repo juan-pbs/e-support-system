@@ -5,11 +5,8 @@ namespace App\Http\Controllers\Gerencia\Inventario;
 use App\Http\Controllers\Controller;
 
 use App\Models\Inventario;
-use App\Models\JornadaLogistica;
 use App\Models\Producto;
 use App\Models\Proveedor;
-use App\Models\User;
-use App\Services\Logistica\LogisticaService;
 use App\Services\Ordenes\OrdenServicioService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -19,10 +16,7 @@ use Carbon\Carbon;
 
 class InventarioController extends Controller
 {
-    public function __construct(
-        private OrdenServicioService $ordenService,
-        private LogisticaService $logistica
-    ) {}
+    public function __construct(private OrdenServicioService $ordenService) {}
 
     public function index(Request $request)
     {
@@ -66,18 +60,13 @@ class InventarioController extends Controller
         }
 
         $proveedores = Proveedor::orderBy('nombre')->get(['clave_proveedor', 'nombre', 'rfc']);
-        $jornadasAbiertas = JornadaLogistica::query()->where('estado', 'abierta')->latest('opened_at')->get(['id', 'folio', 'nombre']);
-        $tecnicos = User::query()->where('puesto', 'tecnico')->orderBy('name')->get(['id', 'name']);
-
-        return view('gerencia.inventario.create', compact('proveedores', 'jornadasAbiertas', 'tecnicos'));
+        return view('gerencia.inventario.create', compact('proveedores'));
     }
 
     public function entradaPorProducto($codigo_producto)
     {
         $producto = Producto::findOrFail($codigo_producto);
         $proveedores = Proveedor::orderBy('nombre')->get(['clave_proveedor', 'nombre', 'rfc']);
-        $jornadasAbiertas = JornadaLogistica::query()->where('estado', 'abierta')->latest('opened_at')->get(['id', 'folio', 'nombre']);
-        $tecnicos = User::query()->where('puesto', 'tecnico')->orderBy('name')->get(['id', 'name']);
 
         $stock = [
             'total'    => (int) ($producto->stock_total ?? 0),
@@ -107,7 +96,7 @@ class InventarioController extends Controller
 
         return view(
             'gerencia.inventario.create',
-            compact('producto', 'proveedores', 'stock', 'series', 'ultimoTipoControl', 'jornadasAbiertas', 'tecnicos')
+            compact('producto', 'proveedores', 'stock', 'series', 'ultimoTipoControl')
         );
     }
 
@@ -134,36 +123,22 @@ class InventarioController extends Controller
     {
         $request->validate([
             'codigo_producto' => ['required', 'exists:productos,codigo_producto'],
-            'clave_proveedor' => ['nullable', 'exists:proveedores,clave_proveedor', 'required_if:forma_ingreso,recoleccion_programada'],
+            'clave_proveedor' => ['nullable', 'exists:proveedores,clave_proveedor'],
             'costo'           => ['required', 'numeric', 'min:0'],
             'precio'          => ['nullable', 'numeric', 'min:0'],
             'tipo_control'    => ['required', Rule::in(['PIEZAS', 'PAQUETES', 'SERIE'])],
-            'forma_ingreso'   => ['nullable', Rule::in(['recibido_almacen', 'recoleccion_programada'])],
 
             'cantidad_ingresada' => ['required_if:tipo_control,PIEZAS,PAQUETES', 'integer', 'min:1'],
             'piezas_por_paquete' => ['required_if:tipo_control,PAQUETES', 'integer', 'min:1'],
             'numeros_serie'      => ['required_if:tipo_control,SERIE', 'string'],
 
             'fecha_caducidad'    => ['nullable', 'date'],
-            'jornada_logistica_id' => ['nullable', 'integer', 'exists:jornadas_logisticas,id'],
-            'tecnico_logistica_id' => ['nullable', 'integer', 'exists:users,id'],
-            'fecha_programada' => ['nullable', 'date'],
-            'hora_programada' => ['nullable', 'date_format:H:i'],
-            'observaciones_logistica' => ['nullable', 'string', 'max:2000'],
         ], [
             'cantidad_ingresada.required_if' => 'La cantidad es obligatoria.',
             'cantidad_ingresada.min'         => 'La cantidad debe ser mayor a cero.',
             'piezas_por_paquete.required_if' => 'Piezas por paquete es obligatorio.',
             'numeros_serie.required_if'      => 'Debes capturar al menos un número de serie.',
         ]);
-
-        if (($request->input('forma_ingreso') ?: 'recibido_almacen') === 'recoleccion_programada') {
-            $this->logistica->programarRecoleccionInventario($request->all(), $request->user());
-
-            return redirect()
-                ->route('inventario')
-                ->with('success', 'Se programó la recolección logística. El stock se actualizará cuando el gerente confirme la recepción.');
-        }
 
         $codigoProducto = (int) $request->codigo_producto;
 
@@ -190,9 +165,6 @@ class InventarioController extends Controller
                 'fecha_entrada'   => $fechaEntrada,
                 'hora_entrada'    => $horaEntrada,
                 'fecha_caducidad' => $request->fecha_caducidad ?: null,
-                'forma_ingreso'   => 'recibido_almacen',
-                'estado_recepcion' => 'recibido',
-                'movimiento_logistico_id' => null,
             ];
 
             if ($tipo === 'SERIE') {
@@ -453,17 +425,60 @@ class InventarioController extends Controller
     public function eliminar($id)
     {
         $e = Inventario::findOrFail($id);
-        $producto = $e->codigo_producto;
-        $e->delete();
+        $this->eliminarEntradaInventario($e);
 
-        $this->recalcularStockProducto($producto);
+        return redirect()->route('inventario')->with('success', 'Inventario eliminado.');
+    }
 
-        return redirect()->route('inventario')->with('success', 'Entrada eliminada.');
+    public function eliminarMasivo(Request $request)
+    {
+        if (! $this->isSystemUser($request)) {
+            abort(403);
+        }
+
+        $data = $request->validate([
+            'entradas' => ['required', 'array', 'min:1'],
+            'entradas.*' => ['integer', 'exists:inventario,id'],
+        ]);
+
+        $entradas = Inventario::whereIn('id', $data['entradas'])->get();
+
+        foreach ($entradas as $entrada) {
+            $this->eliminarEntradaInventario($entrada);
+        }
+
+        return redirect()->route('inventario')->with('success', 'Inventario seleccionado eliminado.');
     }
 
     private function recalcularStockProducto($codigoProducto)
     {
         $this->ordenService->refreshProductStockTotals((int) $codigoProducto);
+    }
+
+    private function eliminarEntradaInventario(Inventario $entrada): void
+    {
+        $producto = $entrada->codigo_producto;
+
+        DB::transaction(function () use ($entrada) {
+            DB::table('numeros_serie')->where('inventario_id', $entrada->id)->delete();
+            $entrada->delete();
+        });
+
+        if (Inventario::where('codigo_producto', $producto)->exists()) {
+            $this->recalcularStockProducto($producto);
+            return;
+        }
+
+        Producto::whereKey($producto)->update([
+            'stock_total' => 0,
+            'stock_paquetes' => 0,
+            'stock_piezas_sueltas' => 0,
+        ]);
+    }
+
+    private function isSystemUser(Request $request): bool
+    {
+        return $request->user() && method_exists($request->user(), 'isSystem') && $request->user()->isSystem();
     }
 
     private function parseSeries(string $raw)

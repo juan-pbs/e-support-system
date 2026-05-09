@@ -27,9 +27,6 @@ class Inventario extends Model
         'fecha_caducidad',
         'codigo_producto',
         'clave_proveedor',
-        'forma_ingreso',
-        'estado_recepcion',
-        'movimiento_logistico_id',
     ];
 
     /**
@@ -37,7 +34,7 @@ class Inventario extends Model
      */
     public function producto()
     {
-        return $this->belongsTo(Producto::class, 'codigo_producto', 'codigo_producto');
+        return $this->belongsTo(Producto::class, 'codigo_producto', 'codigo_producto')->withTrashed();
     }
 
     /**
@@ -54,11 +51,6 @@ class Inventario extends Model
     public function numerosSerie()
     {
         return $this->hasMany(NumeroSerie::class);
-    }
-
-    public function movimientoLogistico()
-    {
-        return $this->belongsTo(MovimientoLogistico::class, 'movimiento_logistico_id');
     }
 
     /**

@@ -18,32 +18,14 @@ class Proveedor extends Model
         'rfc',
         'alias',
         'direccion',
-        'direccion_logistica',
-        'direccion_logistica_place_id',
-        'direccion_logistica_latitud',
-        'direccion_logistica_longitud',
-        'direccion_logistica_referencia',
-        'direccion_logistica_verificada_en_mapa',
-        'direccion_logistica_metodo',
         'contacto',
         'telefono',
         'correo',
-    ];
-
-    protected $casts = [
-        'direccion_logistica_latitud' => 'float',
-        'direccion_logistica_longitud' => 'float',
-        'direccion_logistica_verificada_en_mapa' => 'boolean',
     ];
 
     // Si aún usas la relación a productos por pivote, déjala; si no, puedes quitarla.
     public function productos()
     {
         return $this->belongsToMany(Producto::class, 'producto_proveedor', 'clave_proveedor', 'codigo_producto');
-    }
-
-    public function movimientosLogisticos()
-    {
-        return $this->hasMany(MovimientoLogistico::class, 'clave_proveedor', 'clave_proveedor');
     }
 }

@@ -9,7 +9,21 @@
         openDetail:false, detail:{},
         abrirDetalle(p){ this.detail=p; this.openDetail=true; },
         cerrarDetalle(){ this.openDetail=false; },
+        selected: [],
+        selectionMode: false,
+        viewMode: 'cards',
+        toggleSelectionMode(){ this.selectionMode = !this.selectionMode; this.selected = []; },
+        toggleAll(ids){ this.selected = this.selected.length === ids.length ? [] : ids; },
+        toggleProduct(id){
+            this.selected = this.selected.includes(id)
+                ? this.selected.filter(item => item !== id)
+                : [...this.selected, id];
+        },
      }">
+    @php
+        $isSystem = auth()->user() && method_exists(auth()->user(), 'isSystem') && auth()->user()->isSystem();
+        $productIdsOnPage = $productos->pluck('codigo_producto')->map(fn($id) => (int) $id)->values();
+    @endphp
 
     <div class="mb-6 flex flex-col items-start gap-3 sm:flex-row sm:items-center">
         <x-boton-volver />
@@ -72,6 +86,18 @@
                 </div>
 
                 <div class="w-full md:w-1/4 flex flex-col sm:flex-row sm:items-end gap-2">
+                    @if($isSystem)
+                        <div class="w-full sm:w-28">
+                            <label class="block text-xs font-medium text-gray-700 mb-1">Mostrar</label>
+                            <select name="per_page" class="w-full border px-2 py-2 rounded-lg text-sm">
+                                @foreach([12, 24, 48, 96] as $option)
+                                    <option value="{{ $option }}" @selected((int) request('per_page', 12) === $option)>
+                                        {{ $option }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                    @endif
                     <label class="inline-flex items-center text-sm gap-2">
                         <input type="checkbox" name="stock_bajo" value="1" {{ request('stock_bajo')?'checked':'' }}>
                         <span>Stock bajo</span>
@@ -79,6 +105,10 @@
                     <label class="inline-flex items-center text-sm gap-2">
                         <input type="checkbox" name="inactivos" value="1" {{ request('inactivos')?'checked':'' }}>
                         <span>Ver inactivos</span>
+                    </label>
+                    <label class="inline-flex items-center text-sm gap-2">
+                        <input type="checkbox" name="papelera" value="1" {{ !empty($papelera)?'checked':'' }}>
+                        <span>Papelera</span>
                     </label>
                     <button class="w-full sm:w-auto sm:ml-auto bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">Aplicar</button>
                 </div>
@@ -88,6 +118,17 @@
 
     {{-- Acciones principales --}}
     <div class="grid grid-cols-1 sm:flex sm:justify-end mb-4 gap-2">
+        @if(!empty($papelera))
+            <a href="{{ route('catalogo.index') }}"
+               class="bg-gray-100 hover:bg-gray-200 text-gray-800 px-4 py-2 rounded-lg flex items-center justify-center gap-2">
+                Volver al catálogo
+            </a>
+        @else
+            <a href="{{ route('catalogo.index', ['papelera' => 1]) }}"
+               class="bg-gray-100 hover:bg-gray-200 text-gray-800 px-4 py-2 rounded-lg flex items-center justify-center gap-2">
+                Papelera
+            </a>
+        @endif
         <a href="{{ route('producto.crear') }}"
            class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2">
             <i class="fas fa-plus"></i> Añadir producto
@@ -98,11 +139,85 @@
         </a>
     </div>
 
+    @if($isSystem)
+        <form id="bulk-product-form" method="POST" action="{{ route('catalogo.productos.bulk') }}"
+              class="mb-4 rounded-xl border border-gray-200 bg-white p-3">
+            @csrf
+            <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div class="flex flex-wrap gap-2">
+                    <button type="button"
+                            class="text-sm px-3 py-2 rounded-lg border"
+                            :class="viewMode === 'cards' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-300 hover:bg-gray-50'"
+                            @click="viewMode = 'cards'">
+                        Tarjetas
+                    </button>
+                    <button type="button"
+                            class="text-sm px-3 py-2 rounded-lg border"
+                            :class="viewMode === 'compact' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-300 hover:bg-gray-50'"
+                            @click="viewMode = 'compact'">
+                        Tarjetas compactas
+                    </button>
+                    <button type="button"
+                            class="text-sm px-3 py-2 rounded-lg border"
+                            :class="viewMode === 'list' ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-300 hover:bg-gray-50'"
+                            @click="viewMode = 'list'">
+                        Lista
+                    </button>
+                    <button type="button"
+                            class="text-sm px-3 py-2 rounded-lg border"
+                            :class="selectionMode ? 'border-blue-500 bg-blue-50 text-blue-700' : 'border-gray-300 hover:bg-gray-50'"
+                            @click="toggleSelectionMode()">
+                        Seleccion multiple
+                    </button>
+                </div>
+                <div class="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <button type="button"
+                        x-show="selectionMode"
+                        class="text-sm px-3 py-2 rounded-lg border border-gray-300 hover:bg-gray-50"
+                        @click="toggleAll(@js($productIdsOnPage))">
+                    Seleccionar página
+                </button>
+                <span x-show="selectionMode" class="text-sm text-gray-600"><span x-text="selected.length"></span> seleccionados</span>
+            </div>
+            <template x-for="id in selected" :key="id">
+                <input type="hidden" name="productos[]" :value="id">
+            </template>
+            <div x-show="selectionMode" class="flex flex-wrap gap-2">
+                @if(!empty($papelera))
+                    <button name="action" value="restaurar" class="px-3 py-2 rounded-lg bg-green-600 hover:bg-green-700 text-white text-sm">
+                        Recuperar seleccionados
+                    </button>
+                @else
+                    <button name="action" value="desactivar" class="px-3 py-2 rounded-lg bg-yellow-600 hover:bg-yellow-700 text-white text-sm">
+                        Desactivar seleccionados
+                    </button>
+                    <button name="action" value="eliminar" class="px-3 py-2 rounded-lg bg-red-600 hover:bg-red-700 text-white text-sm">
+                        Enviar a papelera
+                    </button>
+                @endif
+            </div>
+            </div>
+            <p x-show="selectionMode" class="mt-2 text-xs text-gray-500">
+                Con seleccion multiple activa, cualquier clic sobre el producto lo selecciona.
+            </p>
+        </form>
+    @endif
+
     {{-- Grid --}}
-    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+    <div :class="viewMode === 'list'
+            ? 'space-y-2'
+            : (viewMode === 'compact'
+                ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3'
+                : 'grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6')">
         @forelse($productos as $p)
             <div class="bg-white rounded-xl overflow-hidden border border-gray-200 h-full flex flex-col"
-                 @click="abrirDetalle({
+                 :class="[
+                    viewMode === 'compact' ? 'rounded-lg' : '',
+                    viewMode === 'list' ? 'min-h-0 flex-row items-stretch' : '',
+                    selectionMode ? 'cursor-pointer select-none hover:border-blue-300 hover:bg-blue-50/40' : '',
+                    selected.includes({{ (int) $p->codigo_producto }}) ? 'border-blue-500 ring-2 ring-blue-100 bg-blue-50' : ''
+                 ]"
+                 @click="selectionMode ? toggleProduct({{ (int) $p->codigo_producto }}) : abrirDetalle({
                     nombre: @js($p->nombre),
                     numero_parte: @js($p->numero_parte),
                     categoria: @js($p->categoria),
@@ -120,17 +235,26 @@
                  })">
 
                 <div class="relative">
+                    @if($isSystem)
+                        <label x-show="selectionMode" class="absolute right-2 top-2 z-10 rounded bg-white/90 px-2 py-1 shadow" @click.stop>
+                            <input type="checkbox" class="rounded border-gray-300"
+                                   :value="{{ (int) $p->codigo_producto }}"
+                                   x-model.number="selected">
+                        </label>
+                    @endif
                     <img src="{{ $p->imagen ? asset($p->imagen) : asset('images/imagen.png') }}"
-                         alt="Imagen {{ $p->nombre }}" class="w-full h-44 object-cover bg-gray-100">
+                         alt="Imagen {{ $p->nombre }}" class="w-full object-cover bg-gray-100"
+                         :class="viewMode === 'compact' ? 'h-24' : (viewMode === 'list' ? 'h-24 w-28 shrink-0' : 'h-44')">
                     <span class="absolute top-2 left-2 text-xs px-2 py-1 rounded
                         {{ $p->activo ? 'bg-green-100 text-green-800' : 'bg-gray-200 text-gray-700' }}">
                         {{ $p->activo ? 'Activo' : 'Inactivo' }}
                     </span>
                 </div>
 
-                <div class="p-4 flex-1 flex flex-col gap-2">
+                <div class="p-4 flex-1 flex flex-col gap-2"
+                     :class="viewMode === 'compact' ? 'p-2 gap-1' : (viewMode === 'list' ? 'p-3 gap-1' : 'p-4 gap-2')">
                     <div class="flex items-start justify-between gap-2">
-                        <h3 class="text base font-semibold line-clamp-2">{{ $p->nombre }}</h3>
+                        <h3 class="text base font-semibold line-clamp-2" :class="viewMode === 'compact' ? 'text-xs' : 'text-base'">{{ $p->nombre }}</h3>
                         @if($p->numero_parte)
                             <span class="text-xs bg-gray-100 text-gray-700 px-2 py-1 rounded">
                                 {{ $p->numero_parte }}
@@ -138,7 +262,7 @@
                         @endif
                     </div>
 
-                    <div class="text-xs text-gray-600 grid grid-cols-2 gap-x-3 gap-y-1">
+                    <div class="text-xs text-gray-600 grid grid-cols-2 gap-x-3 gap-y-1" :class="viewMode === 'compact' ? 'gap-x-1' : ''">
                         <div><span class="text-gray-500">Cat.:</span> {{ $p->categoria ?? '—' }}</div>
                         <div><span class="text-gray-500">U.:</span> {{ strtoupper($p->unidad ?? '—') }}</div>
                         <div class="col-span-2">
@@ -153,23 +277,27 @@
                         </div>
                     @endif
 
-                    <div class="grid grid-cols-3 gap-2 text-center text-xs mt-2">
-                        <div class="bg-gray-50 rounded-lg p-2">
+                    <div class="grid grid-cols-3 gap-2 text-center text-xs mt-2" :class="viewMode === 'compact' ? 'gap-1 mt-1' : ''">
+                        <div class="bg-gray-50 rounded-lg p-2" :class="viewMode === 'compact' ? 'p-1' : ''">
                             <div class="font-semibold">{{ (int)($p->stock_disponible ?? 0) }}</div>
                             <div class="text-gray-500">Disponible</div>
                         </div>
-                        <div class="bg-gray-50 rounded-lg p-2">
+                        <div class="bg-gray-50 rounded-lg p-2" :class="viewMode === 'compact' ? 'p-1' : ''">
                             <div class="font-semibold">{{ (int)($p->stock_fisico ?? $p->stock_total ?? 0) }}</div>
                             <div class="text-gray-500">Físico</div>
                         </div>
-                        <div class="bg-gray-50 rounded-lg p-2">
+                        <div class="bg-gray-50 rounded-lg p-2" :class="viewMode === 'compact' ? 'p-1' : ''">
                             <div class="font-semibold">{{ $p->stock_seguridad ?? 0 }}</div>
                             <div class="text-gray-500">Mínimo</div>
                         </div>
                     </div>
 
-                    <div class="mt-auto pt-3 flex flex-wrap items-center justify-between gap-2">
+                    <div class="mt-auto pt-3 flex flex-wrap items-center justify-between gap-2"
+                         x-show="!selectionMode"
+                         :class="viewMode === 'compact' ? 'pt-1 gap-1' : ''"
+                         @click.stop>
                         <div class="flex flex-wrap gap-2">
+                            @if(empty($papelera))
                             <a href="{{ route('producto.editar', $p->codigo_producto) }}"
                                class="text-sm bg-blue-600 hover:bg-blue-700 text-white px-3 py-1.5 rounded-lg"
                                @click.stop>
@@ -181,9 +309,17 @@
                                @click.stop>
                                 Agregar inventario
                             </a>
+                            @endif
                         </div>
 
-                        @if($p->activo)
+                        @if(!empty($papelera))
+                            <button
+                                class="text-sm bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg"
+                                @click.stop="abrirConfirm('Recuperar producto','Se restaurará «{{ $p->nombre }}».',
+                                        '{{ route('producto.restaurar', $p->codigo_producto) }}','PUT')">
+                                Recuperar
+                            </button>
+                        @elseif($p->activo)
                             <button
                                 class="text-sm bg-yellow-600 hover:bg-yellow-700 text-white px-3 py-1.5 rounded-lg"
                                 @click.stop="abrirConfirm('Desactivar producto','Se desactivará «{{ $p->nombre }}».',
@@ -200,7 +336,7 @@
                                 </button>
                                 <button
                                     class="text-sm bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg"
-                                    @click.stop="abrirConfirm('Eliminar producto','Esta acción no se puede deshacer.',
+                                    @click.stop="abrirConfirm('Enviar a papelera','Podrás recuperar este producto durante 20 días.',
                                             '{{ route('producto.eliminar', $p->codigo_producto) }}','DELETE')">
                                     Eliminar
                                 </button>

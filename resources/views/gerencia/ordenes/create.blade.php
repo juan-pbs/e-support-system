@@ -44,26 +44,8 @@ $clientesSearchList = collect($clientes ?? [])->map(function($c){
         'clave_cliente' => (string) $c->clave_cliente,
         'label' => $label,
         'ubicacion' => (string) ($c->ubicacion ?? ''),
-        'direcciones' => collect($c->direccionesLogisticas ?? [])->map(fn($d) => [
-            'id' => (string) $d->id,
-            'alias' => (string) $d->alias,
-            'direccion_formateada' => (string) $d->direccion_formateada,
-            'latitud' => $d->latitud,
-            'longitud' => $d->longitud,
-            'predeterminada' => (bool) $d->predeterminada,
-            'verificada_en_mapa' => (bool) $d->verificada_en_mapa,
-        ])->values(),
     ];
 })->values();
-
-$clientesCatalog = $clientesSearchList
-    ->mapWithKeys(fn ($cliente) => [
-        (string) ($cliente['clave_cliente'] ?? '') => [
-            'ubicacion' => (string) ($cliente['ubicacion'] ?? ''),
-            'direcciones' => $cliente['direcciones'] ?? [],
-        ],
-    ])
-    ->all();
 @endphp
 
 <style>[x-cloak]{display:none!important}</style>
@@ -81,9 +63,7 @@ $clientesCatalog = $clientesSearchList
         @js(data_get($cotizacion ?? null, 'cliente.clave_cliente') ?? old('id_cliente')),
         @js(old('tipo_orden', data_get($cotizacion ?? null, 'tipo_orden', 'servicio_simple'))),
         @js((bool) old('sin_tecnico', false)),
-        @js($clientesSearchList),
-        @js(old('cliente_direccion_id')),
-        @js((bool) old('requiere_logistica', false))
+        @js($clientesSearchList)
      )"
      x-init="init()">
 
@@ -215,7 +195,7 @@ $clientesCatalog = $clientesSearchList
                     @php
                         $tiposOrdenOpts = $tiposOrden ?? ['compra','servicio_simple','servicio_proyecto'];
                         $labels = [
-                            'compra' => 'Entrega venta',
+                            'compra' => 'Compra',
                             'servicio_simple' => 'Servicio simple',
                             'servicio_proyecto' => 'Servicio proyecto',
                         ];
@@ -237,43 +217,6 @@ $clientesCatalog = $clientesSearchList
                     </select>
                 </div>
 
-                <div class="md:col-span-3 rounded-xl border border-blue-200 bg-blue-50 p-4" x-show="tipoOrden === 'compra'" x-cloak>
-                    <div class="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                        <div>
-                            <h3 class="text-sm font-semibold text-blue-900">Entrega logística</h3>
-                            <p class="text-xs text-blue-800">Cuando se activa, esta orden podrá entrar al módulo de logística y al mapa del técnico.</p>
-                        </div>
-                        <label class="inline-flex items-center gap-2 text-sm font-medium text-blue-900">
-                            <input type="checkbox" name="requiere_logistica" value="1" x-model="requiereLogistica" class="rounded border-blue-300 text-blue-600 focus:ring-blue-500">
-                            <span>Programar entrega</span>
-                        </label>
-                    </div>
-
-                    <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-2">
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Dirección del cliente</label>
-                            <select name="cliente_direccion_id"
-                                    x-model="clienteDireccionId"
-                                    :disabled="!requiereLogistica || !direccionesClienteDisponibles.length"
-                                    class="w-full rounded-lg border-gray-300 focus:ring-2 focus:ring-blue-500"
-                                    :class="(!requiereLogistica || !direccionesClienteDisponibles.length) ? 'bg-gray-100 opacity-60 cursor-not-allowed' : ''">
-                                <option value="">Selecciona una dirección</option>
-                                <template x-for="direccion in direccionesClienteDisponibles" :key="direccion.id">
-                                    <option :value="direccion.id" x-text="`${direccion.alias} — ${direccion.direccion_formateada}`"></option>
-                                </template>
-                            </select>
-                            <p class="mt-1 text-xs text-gray-500" x-show="idCliente && !direccionesClienteDisponibles.length">
-                                Este cliente aún no tiene direcciones logísticas registradas.
-                            </p>
-                        </div>
-
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700 mb-1">Resumen de la dirección</label>
-                            <div class="min-h-[48px] rounded-lg border border-blue-100 bg-white px-4 py-3 text-sm text-gray-700" x-text="direccionClienteTexto()"></div>
-                        </div>
-                    </div>
-                </div>
-
                 {{-- Técnicos --}}
                 <div class="md:col-span-3">
                     <label class="block text-sm font-medium text-gray-700 mb-1">Técnicos</label>
@@ -286,7 +229,7 @@ $clientesCatalog = $clientesSearchList
                                x-model="sinTecnico"
                                @change="if(sinTecnico) clearTecnicos()"
                                class="rounded border-gray-300">
-                        <span>No requiere técnico</span>
+                        <span>No requiere técnico (es una compra)</span>
                     </label>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1057,7 +1000,11 @@ const availableProducts = {
   @endforeach
 };
 
-const clientesCatalog = @js($clientesCatalog);
+const clientesCatalog = {
+  @foreach(($clientes ?? []) as $c)
+    [@json((string)$c->clave_cliente)]: @json(['ubicacion' => $c->ubicacion]),
+  @endforeach
+};
 </script>
 
 <script>
@@ -1508,16 +1455,13 @@ const clientesCatalog = @js($clientesCatalog);
     return 'tok_' + Math.random().toString(16).slice(2) + '_' + Date.now();
   }
 
-  function formOrdenServicio(prefillProductos, monedaInicial, clienteInicial, tipoOrdenInicial, sinTecnicoInicial, clientesList, direccionInicial, requiereLogisticaInicial) {
+  function formOrdenServicio(prefillProductos, monedaInicial, clienteInicial, tipoOrdenInicial, sinTecnicoInicial, clientesList) {
     return {
       productos: [],
       tipoOrden: tipoOrdenInicial || 'servicio_simple',
       moneda: monedaInicial || 'MXN',
       monedaBase: monedaInicial || 'MXN',
       idCliente: clienteInicial || '',
-      clienteDireccionId: direccionInicial || '',
-      requiereLogistica: !!requiereLogisticaInicial,
-      direccionesClienteDisponibles: [],
       ubicacionCliente: '',
       tipoPago: OLD_TIPO_PAGO || 'efectivo',
       sinTecnico: !!sinTecnicoInicial,
@@ -1575,7 +1519,6 @@ const clientesCatalog = @js($clientesCatalog);
         this.costoServicio   = parseFloat(inServ?.value || '0') || 0;
         this.costoOperativo  = parseFloat(inOp?.value || '0') || 0;
 
-        this.updateDireccionesCliente();
         this.updateUbicacionCliente();
 
         if (Array.isArray(prefillProductos) && prefillProductos.length) {
@@ -1584,9 +1527,13 @@ const clientesCatalog = @js($clientesCatalog);
 
         this.syncClienteSearchFromId();
 
+        if (this.tipoOrden === 'compra') {
+          this.sinTecnico = true;
+          this.clearTecnicos();
+        }
+
         if (typeof this.$watch === 'function') {
           this.$watch('idCliente', () => {
-            this.updateDireccionesCliente();
             this.updateUbicacionCliente();
             this.syncClienteSearchFromId();
             if (this.tipoPago === 'credito_cliente') this.loadCredito();
@@ -1604,11 +1551,10 @@ const clientesCatalog = @js($clientesCatalog);
           });
 
           this.$watch('tipoOrden', (val) => {
-            if (val !== 'compra') {
-              this.requiereLogistica = false;
-              this.clienteDireccionId = '';
+            if (val === 'compra') {
+              this.sinTecnico = true;
+              this.clearTecnicos();
             }
-            this.updateUbicacionCliente();
           });
 
           this.$watch('anticipoModo', () => this.calc());
@@ -1641,16 +1587,13 @@ const clientesCatalog = @js($clientesCatalog);
         this.idCliente = String(c.clave_cliente || '');
         this.clienteSearch = c.label || '';
         this.showClienteList = false;
-        this.updateDireccionesCliente();
         this.updateUbicacionCliente();
         if (this.tipoPago === 'credito_cliente') this.loadCredito();
       },
 
       clearCliente() {
         this.idCliente = '';
-        this.clienteDireccionId = '';
         this.clienteSearch = '';
-        this.direccionesClienteDisponibles = [];
         this.ubicacionCliente = '';
         this.showClienteList = false;
         this.credito.exists = false;
@@ -1664,44 +1607,6 @@ const clientesCatalog = @js($clientesCatalog);
         if (found && !this.clienteSearch) {
           this.clienteSearch = found.label || '';
         }
-      },
-
-      buildProductoPayload(p) {
-        const serials = Array.isArray(p?.ns_asignados)
-          ? p.ns_asignados.map(ns => String(ns).trim()).filter(Boolean)
-          : [];
-
-        return {
-          codigo_producto: p?.codigo_producto ?? '',
-          nombre_producto: p?.nombre_producto || p?.descripcion || 'Producto',
-          descripcion: p?.descripcion || '',
-          cantidad: serials.length ? serials.length : this.cantidadFrom(p || {}),
-          precio: this.precioFrom(p || {}),
-          ns_asignados: serials,
-        };
-      },
-
-      syncProductosFormData(fd) {
-        const keysToDelete = Array.from(new Set(
-          Array.from(fd.keys()).filter(key => key === 'productos_present' || key.startsWith('productos['))
-        ));
-
-        keysToDelete.forEach(key => fd.delete(key));
-        fd.append('productos_present', '1');
-
-        this.productos.forEach((p, idx) => {
-          const item = this.buildProductoPayload(p);
-
-          fd.append(`productos[${idx}][codigo_producto]`, item.codigo_producto === null ? '' : String(item.codigo_producto));
-          fd.append(`productos[${idx}][nombre_producto]`, item.nombre_producto);
-          fd.append(`productos[${idx}][descripcion]`, item.descripcion);
-          fd.append(`productos[${idx}][cantidad]`, String(item.cantidad ?? 0));
-          fd.append(`productos[${idx}][precio]`, String(item.precio ?? 0));
-
-          item.ns_asignados.forEach(ns => {
-            fd.append(`productos[${idx}][ns_asignados][]`, ns);
-          });
-        });
       },
 
       async loadExchangeRate() {
@@ -1722,39 +1627,10 @@ const clientesCatalog = @js($clientesCatalog);
 
       updateUbicacionCliente() {
         if (this.idCliente && clientesCatalog[this.idCliente]) {
-          const selected = this.direccionesClienteDisponibles.find(d => String(d.id) === String(this.clienteDireccionId));
-          this.ubicacionCliente = selected?.direccion_formateada || clientesCatalog[this.idCliente].ubicacion || '';
+          this.ubicacionCliente = clientesCatalog[this.idCliente].ubicacion || '';
         } else {
           this.ubicacionCliente = '';
         }
-      },
-
-      updateDireccionesCliente() {
-        if (this.idCliente && clientesCatalog[this.idCliente]) {
-          this.direccionesClienteDisponibles = Array.isArray(clientesCatalog[this.idCliente].direcciones)
-            ? clientesCatalog[this.idCliente].direcciones.slice()
-            : [];
-
-          const existe = this.direccionesClienteDisponibles.some(d => String(d.id) === String(this.clienteDireccionId));
-          if (!existe) {
-            const principal = this.direccionesClienteDisponibles.find(d => d.predeterminada) || this.direccionesClienteDisponibles[0];
-            this.clienteDireccionId = principal ? String(principal.id) : '';
-          }
-        } else {
-          this.direccionesClienteDisponibles = [];
-          this.clienteDireccionId = '';
-        }
-      },
-
-      direccionClienteTexto() {
-        const selected = this.direccionesClienteDisponibles.find(d => String(d.id) === String(this.clienteDireccionId));
-        if (!selected) {
-          return this.idCliente
-            ? 'Selecciona una dirección logística para esta entrega.'
-            : 'Primero selecciona un cliente.';
-        }
-
-        return `${selected.alias} — ${selected.direccion_formateada}`;
       },
 
       normalizarProducto(p) {
@@ -2093,7 +1969,6 @@ const clientesCatalog = @js($clientesCatalog);
         this.previewLoading = true;
 
         const fd = new FormData(form);
-        this.syncProductosFormData(fd);
 
         try {
           const r = await fetch(PREVIEW_URL, {
@@ -2126,7 +2001,7 @@ const clientesCatalog = @js($clientesCatalog);
       },
 
       applyPreviewAnnotated(items) {
-        if (!Array.isArray(items)) return;
+        if (!Array.isArray(items) || !items.length) return;
         this.productos = items.map(i => this.normalizarProducto(i));
         this.calc();
       },
@@ -2136,7 +2011,6 @@ const clientesCatalog = @js($clientesCatalog);
         if (!form) return;
 
         const fd = new FormData(form);
-        this.syncProductosFormData(fd);
 
         try {
           const r = await fetch(SAVE_URL, {

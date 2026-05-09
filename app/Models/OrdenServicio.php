@@ -20,9 +20,7 @@ class OrdenServicio extends Model
     protected $fillable = [
         'id_cotizacion',
         'id_cliente',
-        'cliente_direccion_id',
         'id_tecnico',
-        'requiere_logistica',
         'fecha_orden',
         'estado',
         'prioridad',
@@ -67,7 +65,6 @@ class OrdenServicio extends Model
 
     protected $casts = [
         'fecha_orden'           => 'date',
-        'requiere_logistica'    => 'boolean',
         'precio'                => 'float',
         'costo_operativo'       => 'float',
         'impuestos'             => 'float',
@@ -96,11 +93,6 @@ class OrdenServicio extends Model
     public function cliente()
     {
         return $this->belongsTo(Cliente::class, 'id_cliente', 'clave_cliente');
-    }
-
-    public function direccionCliente()
-    {
-        return $this->belongsTo(ClienteDireccionLogistica::class, 'cliente_direccion_id');
     }
 
     public function tecnico()
@@ -138,11 +130,6 @@ class OrdenServicio extends Model
     {
         return $this->hasMany(SeguimientoImagen::class, 'id_orden_servicio', 'id_orden_servicio')
             ->orderBy('orden');
-    }
-
-    public function movimientosLogisticos()
-    {
-        return $this->hasMany(MovimientoLogistico::class, 'orden_servicio_id', 'id_orden_servicio');
     }
 
     /* ============================
@@ -376,17 +363,6 @@ class OrdenServicio extends Model
     {
         $id = (int) ($this->attributes[$this->primaryKey] ?? 0);
         return 'ORD-' . str_pad((string) $id, 5, '0', STR_PAD_LEFT);
-    }
-
-    public function getTipoOrdenLabelAttribute(): string
-    {
-        return match ((string) $this->tipo_orden) {
-            'compra', 'entrega_venta' => 'Entrega venta',
-            'servicio_simple' => 'Servicio simple',
-            'servicio_proyecto' => 'Servicio proyecto',
-            'salida_manual' => 'Salida manual',
-            default => ucfirst(str_replace('_', ' ', (string) $this->tipo_orden)),
-        };
     }
 }
  

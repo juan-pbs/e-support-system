@@ -36,8 +36,6 @@ it('descuenta inventario fisico en una salida manual sin duplicar el descuento e
         'numero_serie' => null,
         'fecha_entrada' => now()->toDateString(),
         'hora_entrada' => now()->format('H:i:s'),
-        'forma_ingreso' => 'recibido_almacen',
-        'estado_recepcion' => 'recibido',
     ]);
 
     $stockService = app(OrdenServicioService::class);
@@ -69,6 +67,163 @@ it('descuenta inventario fisico en una salida manual sin duplicar el descuento e
         ->and((int) $detalle->cantidad)->toBe(2)
         ->and($orden->tipo_orden)->toBe('salida_manual');
 });
+
+it('permite al rol sistema eliminar inventario directo sin registrar salida', function () {
+    Carbon::setTestNow('2026-05-08 10:00:00');
+
+    $sistema = User::factory()->create([
+        'puesto' => 'sistema',
+    ]);
+
+    $producto = crearProductoSalidaManual([
+        'numero_parte' => 'DEL-INV-001',
+    ]);
+
+    $entrada = Inventario::query()->create([
+        'codigo_producto' => $producto->codigo_producto,
+        'clave_proveedor' => null,
+        'costo' => 100,
+        'precio' => 150,
+        'tipo_control' => 'PIEZAS',
+        'cantidad_ingresada' => 7,
+        'piezas_por_paquete' => null,
+        'paquetes_restantes' => 0,
+        'piezas_sueltas' => 7,
+        'numero_serie' => null,
+        'fecha_entrada' => now()->subDays(3)->toDateString(),
+        'hora_entrada' => now()->format('H:i:s'),
+    ]);
+
+    app(OrdenServicioService::class)->refreshProductStockTotals($producto->codigo_producto);
+
+    $this
+        ->actingAs($sistema)
+        ->delete(route('inventario.eliminar', $entrada->id))
+        ->assertRedirect(route('inventario'));
+
+    expect(Inventario::query()->whereKey($entrada->id)->exists())->toBeFalse()
+        ->and((int) $producto->fresh()->stock_total)->toBe(0)
+        ->and(OrdenServicio::query()->where('tipo_orden', 'salida_manual')->exists())->toBeFalse();
+});
+
+it('permite al rol sistema usar seleccion multiple y eliminar inventario masivo', function () {
+    Carbon::setTestNow('2026-05-08 10:00:00');
+
+    $sistema = User::factory()->create([
+        'puesto' => 'sistema',
+    ]);
+
+    $producto = crearProductoSalidaManual([
+        'numero_parte' => 'BULK-INV-001',
+    ]);
+
+    $entradas = collect([4, 6])->map(fn (int $cantidad) => Inventario::query()->create([
+        'codigo_producto' => $producto->codigo_producto,
+        'clave_proveedor' => null,
+        'costo' => 100,
+        'precio' => 150,
+        'tipo_control' => 'PIEZAS',
+        'cantidad_ingresada' => $cantidad,
+        'piezas_por_paquete' => null,
+        'paquetes_restantes' => 0,
+        'piezas_sueltas' => $cantidad,
+        'numero_serie' => null,
+        'fecha_entrada' => now()->subDays(3)->toDateString(),
+        'hora_entrada' => now()->format('H:i:s'),
+    ]));
+
+    app(OrdenServicioService::class)->refreshProductStockTotals($producto->codigo_producto);
+
+    $this
+        ->actingAs($sistema)
+        ->get(route('inventario'))
+        ->assertOk()
+        ->assertSee('Vista lista compacta')
+        ->assertSee('Seleccion multiple')
+        ->assertSee(route('inventario.eliminar_masivo'), false);
+
+    $this
+        ->actingAs($sistema)
+        ->delete(route('inventario.eliminar_masivo'), [
+            'entradas' => $entradas->pluck('id')->all(),
+        ])
+        ->assertRedirect(route('inventario'));
+
+    expect(Inventario::query()->whereIn('id', $entradas->pluck('id'))->exists())->toBeFalse()
+        ->and((int) $producto->fresh()->stock_total)->toBe(0)
+        ->and(OrdenServicio::query()->where('tipo_orden', 'salida_manual')->exists())->toBeFalse();
+});
+
+it('permite a sistema admin y gerente editar la cantidad de una salida manual sin series', function (string $rol) {
+    Carbon::setTestNow('2026-05-08 10:00:00');
+
+    $usuario = User::factory()->create([
+        'puesto' => $rol,
+    ]);
+
+    $cliente = crearClienteSalidaManual();
+    $producto = crearProductoSalidaManual([
+        'numero_parte' => 'EDIT-SAL-' . strtoupper($rol),
+    ]);
+
+    Inventario::query()->create([
+        'codigo_producto' => $producto->codigo_producto,
+        'clave_proveedor' => null,
+        'costo' => 100,
+        'precio' => 150,
+        'tipo_control' => 'PIEZAS',
+        'cantidad_ingresada' => 8,
+        'piezas_por_paquete' => null,
+        'paquetes_restantes' => 0,
+        'piezas_sueltas' => 8,
+        'numero_serie' => null,
+        'fecha_entrada' => now()->toDateString(),
+        'hora_entrada' => now()->format('H:i:s'),
+    ]);
+
+    app(OrdenServicioService::class)->refreshProductStockTotals($producto->codigo_producto);
+
+    $this
+        ->actingAs($usuario)
+        ->post(route('inventario.salidas.store'), [
+            'codigo_producto' => $producto->codigo_producto,
+            'id_cliente' => $cliente->clave_cliente,
+            'moneda' => 'MXN',
+            'cantidad' => 3,
+            'precio_unitario' => 150,
+        ])
+        ->assertRedirect(route('inventario.salidas'));
+
+    $detalle = DetalleOrdenProducto::query()->firstOrFail();
+
+    $this
+        ->actingAs($usuario)
+        ->put(route('inventario.salidas.update_cantidad', $detalle->id_orden_producto), [
+            'cantidad' => 5,
+        ])
+        ->assertRedirect(route('inventario.salidas'));
+
+    $detalle->refresh();
+    app(OrdenServicioService::class)->refreshProductStockTotals($producto->codigo_producto);
+
+    expect((int) $detalle->cantidad)->toBe(5)
+        ->and((float) $detalle->total)->toBe(750.0)
+        ->and((int) $producto->fresh()->stock_total)->toBe(3);
+
+    $this
+        ->actingAs($usuario)
+        ->put(route('inventario.salidas.update_cantidad', $detalle->id_orden_producto), [
+            'cantidad' => 2,
+        ])
+        ->assertRedirect(route('inventario.salidas'));
+
+    $detalle->refresh();
+    app(OrdenServicioService::class)->refreshProductStockTotals($producto->codigo_producto);
+
+    expect((int) $detalle->cantidad)->toBe(2)
+        ->and((float) $detalle->total)->toBe(300.0)
+        ->and((int) $producto->fresh()->stock_total)->toBe(6);
+})->with(['sistema', 'admin', 'gerente']);
 
 function crearClienteSalidaManual(array $attributes = []): Cliente
 {

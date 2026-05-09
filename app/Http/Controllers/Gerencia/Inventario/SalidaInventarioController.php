@@ -275,6 +275,58 @@ class SalidaInventarioController extends Controller
         }
     }
 
+    public function updateCantidad(Request $request, int $id)
+    {
+        abort_unless($this->canEditSalidaQuantity($request), 403);
+
+        $validated = $request->validate([
+            'cantidad' => ['required', 'integer', 'min:1'],
+        ]);
+
+        try {
+            DB::transaction(function () use ($id, $validated) {
+                $detalle = DetalleOrdenProducto::with(['orden', 'series'])
+                    ->lockForUpdate()
+                    ->findOrFail($id);
+
+                if (($detalle->orden?->tipo_orden ?? null) !== 'salida_manual') {
+                    throw new \RuntimeException('Solo se puede editar la cantidad de salidas manuales.');
+                }
+
+                if ($detalle->series()->exists() || $this->productHasSerials((int) $detalle->codigo_producto)) {
+                    throw new \RuntimeException('Las salidas con numero de serie no permiten editar cantidad libre.');
+                }
+
+                $cantidadAnterior = (int) $detalle->cantidad;
+                $cantidadNueva = (int) $validated['cantidad'];
+                $diferencia = $cantidadNueva - $cantidadAnterior;
+                $codigoProducto = (int) $detalle->codigo_producto;
+
+                if ($diferencia > 0) {
+                    $stockActual = (float) $this->ordenService->calculateAvailableForProduct($codigoProducto);
+
+                    if ($stockActual < $diferencia) {
+                        throw new \RuntimeException('Stock insuficiente para aumentar la cantidad de la salida.');
+                    }
+
+                    $this->consumeNonSerialInventory($codigoProducto, (float) $diferencia);
+                } elseif ($diferencia < 0) {
+                    $this->returnNonSerialInventory($detalle, abs($diferencia));
+                }
+
+                $detalle->cantidad = $cantidadNueva;
+                $detalle->total = round($cantidadNueva * (float) $detalle->precio_unitario, 2);
+                $detalle->save();
+
+                $this->ordenService->refreshProductStockTotals($codigoProducto);
+            });
+
+            return redirect()->route('inventario.salidas')->with('success', 'Cantidad de salida actualizada.');
+        } catch (\Throwable $e) {
+            return back()->with('error', $e->getMessage() ?: 'No se pudo actualizar la cantidad de la salida.');
+        }
+    }
+
     /**
      * Devuelve series disponibles para un producto (modal).
      */
@@ -353,6 +405,43 @@ class SalidaInventarioController extends Controller
         if ($restante > 0.00001) {
             throw new \RuntimeException('Stock físico insuficiente para realizar la salida.');
         }
+    }
+
+    private function returnNonSerialInventory(DetalleOrdenProducto $detalle, int $qty): void
+    {
+        if ($qty <= 0) {
+            return;
+        }
+
+        Inventario::create([
+            'codigo_producto' => $detalle->codigo_producto,
+            'clave_proveedor' => null,
+            'costo' => 0,
+            'precio' => (float) ($detalle->precio_unitario ?? 0),
+            'tipo_control' => 'PIEZAS',
+            'cantidad_ingresada' => $qty,
+            'piezas_por_paquete' => null,
+            'paquetes_restantes' => 0,
+            'piezas_sueltas' => $qty,
+            'numero_serie' => null,
+            'fecha_entrada' => now()->toDateString(),
+            'hora_entrada' => now()->format('H:i:s'),
+        ]);
+    }
+
+    private function canEditSalidaQuantity(Request $request): bool
+    {
+        $user = $request->user();
+
+        if (! $user) {
+            return false;
+        }
+
+        if (method_exists($user, 'hasAnyRole')) {
+            return $user->hasAnyRole(['sistema', 'admin', 'gerente']);
+        }
+
+        return in_array(strtolower(trim((string) ($user->puesto ?? ''))), ['sistema', 'admin', 'gerente'], true);
     }
 
     private function consumeSerialInventory(int $codigoProducto, array $series): void
