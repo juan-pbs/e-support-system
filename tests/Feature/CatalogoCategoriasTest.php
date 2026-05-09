@@ -114,6 +114,34 @@ it('muestra controles de vista seleccion multiple y paginacion para rol sistema'
     expect($response->viewData('productos')->perPage())->toBe(24);
 });
 
+it('solo permite al rol sistema cambiar cuantos productos aparecen por pagina', function () {
+    $gerente = User::factory()->create([
+        'puesto' => 'gerente',
+    ]);
+
+    Producto::query()->create([
+        'nombre' => 'Producto paginacion gerente',
+        'numero_parte' => 'PAGE-GER-001',
+        'categoria' => 'General',
+        'clave_prodserv' => '43222600',
+        'unidad' => 'PZA',
+        'stock_seguridad' => 0,
+        'descripcion' => 'Producto para paginacion',
+        'activo' => true,
+        'stock_total' => 0,
+        'stock_paquetes' => 0,
+        'stock_piezas_sueltas' => 0,
+    ]);
+
+    $response = $this
+        ->actingAs($gerente)
+        ->get(route('catalogo.index', ['per_page' => 96]))
+        ->assertOk()
+        ->assertDontSee('name="per_page"', false);
+
+    expect($response->viewData('productos')->perPage())->toBe(12);
+});
+
 it('permite recuperar productos de papelera antes de 20 dias y purga vencidos', function () {
     $sistema = User::factory()->create([
         'puesto' => 'sistema',

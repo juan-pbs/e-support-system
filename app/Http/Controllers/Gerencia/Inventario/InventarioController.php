@@ -267,6 +267,8 @@ class InventarioController extends Controller
 
         if (($entrada->tipo_control ?? '') === 'SERIE') {
             $rules['numeros_serie'] = ['required', 'string'];
+        } else {
+            $rules['cantidad_ingresada'] = ['required', 'integer', 'min:1'];
         }
 
         $request->validate($rules);
@@ -281,7 +283,9 @@ class InventarioController extends Controller
                 $entrada->costo = $nuevoCosto;
                 $entrada->precio = $nuevoPrecio;
                 $entrada->fecha_caducidad = $nuevaCad;
+                $this->aplicarCantidadEditada($entrada, (int) $request->cantidad_ingresada, $this->isSystemUser($request));
                 $entrada->save();
+                $this->recalcularStockProducto($entrada->codigo_producto);
                 return;
             }
 
@@ -479,6 +483,55 @@ class InventarioController extends Controller
     private function isSystemUser(Request $request): bool
     {
         return $request->user() && method_exists($request->user(), 'isSystem') && $request->user()->isSystem();
+    }
+
+    private function aplicarCantidadEditada(Inventario $entrada, int $nuevaCantidad, bool $edicionLibre): void
+    {
+        $tipo = strtoupper((string) ($entrada->tipo_control ?? 'PIEZAS'));
+        $piezasPorPaquete = max((int) ($entrada->piezas_por_paquete ?? 0), 0);
+        $cantidadAnterior = max((int) ($entrada->cantidad_ingresada ?? 0), 0);
+
+        $totalAnterior = $tipo === 'PAQUETES'
+            ? $cantidadAnterior * max($piezasPorPaquete, 1)
+            : $cantidadAnterior;
+
+        $totalDisponible = $this->piezasDisponiblesEntrada($entrada);
+        $totalConsumido = max($totalAnterior - $totalDisponible, 0);
+
+        $nuevoTotal = $tipo === 'PAQUETES'
+            ? $nuevaCantidad * max($piezasPorPaquete, 1)
+            : $nuevaCantidad;
+
+        if (! $edicionLibre && $nuevoTotal < $totalConsumido) {
+            throw ValidationException::withMessages([
+                'cantidad_ingresada' => 'La cantidad no puede ser menor a las piezas que ya fueron usadas en salidas.',
+            ]);
+        }
+
+        $nuevoDisponible = $edicionLibre
+            ? $nuevoTotal
+            : max($nuevoTotal - $totalConsumido, 0);
+
+        $entrada->cantidad_ingresada = $nuevaCantidad;
+
+        if ($tipo === 'PAQUETES') {
+            $ppp = max($piezasPorPaquete, 1);
+            $entrada->paquetes_restantes = (int) floor($nuevoDisponible / $ppp);
+            $entrada->piezas_sueltas = (int) ($nuevoDisponible % $ppp);
+            return;
+        }
+
+        $entrada->paquetes_restantes = 0;
+        $entrada->piezas_sueltas = $nuevoDisponible;
+    }
+
+    private function piezasDisponiblesEntrada(Inventario $entrada): int
+    {
+        $paquetes = max((int) ($entrada->paquetes_restantes ?? 0), 0);
+        $piezasPorPaquete = max((int) ($entrada->piezas_por_paquete ?? 0), 0);
+        $sueltas = max((int) ($entrada->piezas_sueltas ?? 0), 0);
+
+        return ($paquetes * $piezasPorPaquete) + $sueltas;
     }
 
     private function parseSeries(string $raw)

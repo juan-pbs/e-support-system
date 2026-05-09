@@ -105,7 +105,10 @@ class CatalogoProductoController extends Controller
             $query->whereRaw("$subStock <= COALESCE(productos.stock_seguridad,0)");
         }
 
-        $perPage = (int) $request->input('per_page', 12);
+        $perPage = $this->isSystemUser($request)
+            ? (int) $request->input('per_page', 12)
+            : 12;
+
         if (! in_array($perPage, [12, 24, 48, 96], true)) {
             $perPage = 12;
         }

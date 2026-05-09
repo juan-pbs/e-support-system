@@ -225,6 +225,142 @@ it('permite a sistema admin y gerente editar la cantidad de una salida manual si
         ->and((int) $producto->fresh()->stock_total)->toBe(6);
 })->with(['sistema', 'admin', 'gerente']);
 
+it('permite al rol sistema editar libremente la cantidad de una entrada de inventario', function () {
+    Carbon::setTestNow('2026-05-08 10:00:00');
+
+    $sistema = User::factory()->create([
+        'puesto' => 'sistema',
+    ]);
+
+    $producto = crearProductoSalidaManual([
+        'numero_parte' => 'EDIT-ENT-SIS',
+    ]);
+
+    $entrada = Inventario::query()->create([
+        'codigo_producto' => $producto->codigo_producto,
+        'clave_proveedor' => null,
+        'costo' => 100,
+        'precio' => 150,
+        'tipo_control' => 'PIEZAS',
+        'cantidad_ingresada' => 10,
+        'piezas_por_paquete' => null,
+        'paquetes_restantes' => 0,
+        'piezas_sueltas' => 6,
+        'numero_serie' => null,
+        'fecha_entrada' => now()->toDateString(),
+        'hora_entrada' => now()->format('H:i:s'),
+    ]);
+
+    app(OrdenServicioService::class)->refreshProductStockTotals($producto->codigo_producto);
+
+    $this
+        ->actingAs($sistema)
+        ->put(route('inventario.actualizar', $entrada->id), [
+            'cantidad_ingresada' => 3,
+            'costo' => 120,
+            'precio' => 180,
+            'fecha_caducidad' => null,
+        ])
+        ->assertRedirect(route('inventario'));
+
+    $entrada->refresh();
+
+    expect((int) $entrada->cantidad_ingresada)->toBe(3)
+        ->and((int) $entrada->piezas_sueltas)->toBe(3)
+        ->and((int) $producto->fresh()->stock_total)->toBe(3);
+});
+
+it('impide a roles no sistema reducir una entrada por debajo de lo ya consumido', function () {
+    Carbon::setTestNow('2026-05-08 10:00:00');
+
+    $gerente = User::factory()->create([
+        'puesto' => 'gerente',
+    ]);
+
+    $producto = crearProductoSalidaManual([
+        'numero_parte' => 'EDIT-ENT-GER',
+    ]);
+
+    $entrada = Inventario::query()->create([
+        'codigo_producto' => $producto->codigo_producto,
+        'clave_proveedor' => null,
+        'costo' => 100,
+        'precio' => 150,
+        'tipo_control' => 'PIEZAS',
+        'cantidad_ingresada' => 10,
+        'piezas_por_paquete' => null,
+        'paquetes_restantes' => 0,
+        'piezas_sueltas' => 6,
+        'numero_serie' => null,
+        'fecha_entrada' => now()->toDateString(),
+        'hora_entrada' => now()->format('H:i:s'),
+    ]);
+
+    app(OrdenServicioService::class)->refreshProductStockTotals($producto->codigo_producto);
+
+    $this
+        ->actingAs($gerente)
+        ->from(route('inventario.editar', $entrada->id))
+        ->put(route('inventario.actualizar', $entrada->id), [
+            'cantidad_ingresada' => 3,
+            'costo' => 120,
+            'precio' => 180,
+            'fecha_caducidad' => null,
+        ])
+        ->assertSessionHasErrors('cantidad_ingresada');
+
+    $entrada->refresh();
+
+    expect((int) $entrada->cantidad_ingresada)->toBe(10)
+        ->and((int) $entrada->piezas_sueltas)->toBe(6)
+        ->and((int) $producto->fresh()->stock_total)->toBe(6);
+});
+
+it('permite a roles no sistema ajustar una entrada respetando el consumo existente', function () {
+    Carbon::setTestNow('2026-05-08 10:00:00');
+
+    $admin = User::factory()->create([
+        'puesto' => 'admin',
+    ]);
+
+    $producto = crearProductoSalidaManual([
+        'numero_parte' => 'EDIT-ENT-ADM',
+    ]);
+
+    $entrada = Inventario::query()->create([
+        'codigo_producto' => $producto->codigo_producto,
+        'clave_proveedor' => null,
+        'costo' => 100,
+        'precio' => 150,
+        'tipo_control' => 'PIEZAS',
+        'cantidad_ingresada' => 10,
+        'piezas_por_paquete' => null,
+        'paquetes_restantes' => 0,
+        'piezas_sueltas' => 6,
+        'numero_serie' => null,
+        'fecha_entrada' => now()->toDateString(),
+        'hora_entrada' => now()->format('H:i:s'),
+    ]);
+
+    app(OrdenServicioService::class)->refreshProductStockTotals($producto->codigo_producto);
+
+    $this
+        ->actingAs($admin)
+        ->put(route('inventario.actualizar', $entrada->id), [
+            'cantidad_ingresada' => 8,
+            'costo' => 120,
+            'precio' => 180,
+            'fecha_caducidad' => null,
+        ])
+        ->assertRedirect(route('inventario'));
+
+    $entrada->refresh();
+
+    expect((int) $entrada->cantidad_ingresada)->toBe(8)
+        ->and((int) $entrada->piezas_sueltas)->toBe(4)
+        ->and((int) $producto->fresh()->stock_total)->toBe(4);
+});
+
 function crearClienteSalidaManual(array $attributes = []): Cliente
 {
     static $seq = 1;
