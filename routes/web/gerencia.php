@@ -69,10 +69,12 @@ Route::middleware(['auth', 'gerente'])->group(function () {
         Route::get('/ver/{id}', [InventarioController::class, 'show'])->name('inventario.ver');
         Route::get('/editar/{id}', [InventarioController::class, 'editar'])->name('inventario.editar');
         Route::put('/{id}/actualizar', [InventarioController::class, 'actualizar'])->name('inventario.actualizar');
+        Route::delete('/eliminar-masivo', [InventarioController::class, 'eliminarMasivo'])->name('inventario.eliminar_masivo');
         Route::delete('/{id}/eliminar', [InventarioController::class, 'eliminar'])->name('inventario.eliminar');
 
         Route::get('/salidas', [SalidaInventarioController::class, 'index'])->name('inventario.salidas');
         Route::post('/salidas', [SalidaInventarioController::class, 'store'])->name('inventario.salidas.store');
+        Route::put('/salidas/{id}/cantidad', [SalidaInventarioController::class, 'updateCantidad'])->name('inventario.salidas.update_cantidad');
         Route::get('/salidas/series', [SalidaInventarioController::class, 'seriesPorProducto'])->name('inventario.salidas.series');
 
         Route::get('/carga-rapida', [CargaRapidaInventarioController::class, 'index'])->name('inventario.carga_rapida.index');
@@ -122,6 +124,8 @@ Route::middleware(['auth', 'gerente'])->group(function () {
 
         Route::put('/producto/activar/{id}', [CatalogoProductoController::class, 'activar'])->name('producto.activar');
         Route::delete('/producto/eliminar/{id}', [CatalogoProductoController::class, 'eliminar'])->name('producto.eliminar');
+        Route::put('/producto/restaurar/{id}', [CatalogoProductoController::class, 'restaurar'])->name('producto.restaurar');
+        Route::post('/productos/accion-masiva', [CatalogoProductoController::class, 'bulkAction'])->name('catalogo.productos.bulk');
         Route::put('/producto/desactivar/{id}', [CatalogoProductoController::class, 'desactivar'])->name('producto.desactivar');
         Route::get('/producto/editar/{id}', [CatalogoProductoController::class, 'editar'])->name('producto.editar');
         Route::put('/producto/actualizar/{id}', [CatalogoProductoController::class, 'actualizar'])->name('producto.actualizar');

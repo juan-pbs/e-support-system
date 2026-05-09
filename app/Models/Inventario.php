@@ -37,7 +37,7 @@ class Inventario extends Model
      */
     public function producto()
     {
-        return $this->belongsTo(Producto::class, 'codigo_producto', 'codigo_producto');
+        return $this->belongsTo(Producto::class, 'codigo_producto', 'codigo_producto')->withTrashed();
     }
 
     /**

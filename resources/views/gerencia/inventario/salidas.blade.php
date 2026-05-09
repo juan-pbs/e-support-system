@@ -42,6 +42,8 @@
         || old('cantidad') !== null
         || old('precio_unitario') !== null
         || old('tasa_cambio') !== null;
+    $canEditSalidaQuantity = auth()->user() && method_exists(auth()->user(), 'hasAnyRole')
+        && auth()->user()->hasAnyRole(['sistema', 'admin', 'gerente']);
 @endphp
 
 <style>[x-cloak]{display:none !important}</style>
@@ -172,6 +174,8 @@
                     'series'           => $series,
                     'imagen'           => $img,
                     'es_manual'        => $esManual,
+                    'can_edit_quantity'=> $canEditSalidaQuantity && $esManual && empty($series),
+                    'edit_url'         => route('inventario.salidas.update_cantidad', $item->id_detalle),
                 ];
             @endphp
 
@@ -248,6 +252,17 @@
                 </div>
 
                 <div class="mt-4">
+                    @if($payload['can_edit_quantity'])
+                        <button
+                            type="button"
+                            @click="openEditFromTarget($event)"
+                            data-payload='@json($payload, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP|JSON_UNESCAPED_UNICODE)'
+                            class="mb-2 w-full bg-amber-500 hover:bg-amber-600 text-white px-3 py-2 rounded-lg flex items-center justify-center gap-2"
+                            title="Editar cantidad"
+                        >
+                            Editar cantidad
+                        </button>
+                    @endif
                     <button
                         type="button"
                         @click="openFromTarget($event)"
@@ -319,10 +334,12 @@
                             'cotizacion'       => $item->id_cotizacion,
                             'cliente'          => $item->cliente_nombre,
                             'empresa'          => $item->nombre_empresa,
-                            'series'           => $series,
-                            'imagen'           => $img,
-                            'es_manual'        => $esManual,
-                        ];
+                    'series'           => $series,
+                    'imagen'           => $img,
+                    'es_manual'        => $esManual,
+                    'can_edit_quantity'=> $canEditSalidaQuantity && $esManual && empty($series),
+                    'edit_url'         => route('inventario.salidas.update_cantidad', $item->id_detalle),
+                ];
                     @endphp
 
                     <tr class="border-t">
@@ -363,6 +380,17 @@
                         <td class="px-4 py-2">{{ \Illuminate\Support\Carbon::parse($item->fecha_salida)->format('Y-m-d') }}</td>
 
                         <td class="px-4 py-2">
+                            @if($payload['can_edit_quantity'])
+                                <button
+                                    type="button"
+                                    @click="openEditFromTarget($event)"
+                                    data-payload='@json($payload, JSON_HEX_TAG|JSON_HEX_APOS|JSON_HEX_QUOT|JSON_HEX_AMP|JSON_UNESCAPED_UNICODE)'
+                                    class="bg-amber-500 hover:bg-amber-600 text-white px-2 py-1 rounded mr-1"
+                                    title="Editar cantidad"
+                                >
+                                    Editar
+                                </button>
+                            @endif
                             <button
                                 type="button"
                                 @click="openFromTarget($event)"
@@ -450,6 +478,53 @@
                     Cerrar
                 </button>
             </div>
+        </div>
+    </div>
+
+    {{-- ========================= --}}
+    {{-- MODAL: EDITAR CANTIDAD --}}
+    {{-- ========================= --}}
+    <div x-show="showEditModal" x-cloak class="fixed inset-0 z-50 bg-black/50 p-4 flex items-center justify-center">
+        <div @click.outside="showEditModal = false"
+             class="bg-white rounded-xl w-full max-w-md shadow-lg p-5">
+            <h2 class="text-xl font-bold mb-4">Editar cantidad de salida</h2>
+
+            <div class="mb-4 text-sm text-gray-700">
+                <div class="font-semibold" x-text="editSelected.nombre_producto || 'Producto'"></div>
+                <div class="text-xs text-gray-500">
+                    Cantidad actual: <span x-text="Number(editSelected.cantidad || 0).toFixed(2)"></span>
+                </div>
+            </div>
+
+            <form :action="editAction" method="POST" class="space-y-4">
+                @csrf
+                @method('PUT')
+                <div>
+                    <label class="block text-sm font-medium text-gray-700 mb-1">Nueva cantidad</label>
+                    <input type="number"
+                           name="cantidad"
+                           min="1"
+                           step="1"
+                           x-model="editQuantity"
+                           required
+                           class="w-full border rounded-lg px-4 py-2 focus:ring-2 focus:ring-blue-500">
+                    <p class="text-xs text-gray-500 mt-1">
+                        Si reduces la cantidad, la diferencia vuelve al inventario. Si aumentas, se consume stock disponible.
+                    </p>
+                </div>
+
+                <div class="flex justify-end gap-2">
+                    <button type="button"
+                            @click="showEditModal = false"
+                            class="bg-gray-600 hover:bg-gray-700 text-white px-4 py-2 rounded-lg">
+                        Cancelar
+                    </button>
+                    <button type="submit"
+                            class="bg-amber-500 hover:bg-amber-600 text-white px-4 py-2 rounded-lg">
+                        Guardar cantidad
+                    </button>
+                </div>
+            </form>
         </div>
     </div>
 
@@ -697,7 +772,11 @@ function salidasUI(config = {}) {
   return {
     showModal: false,
     showCreateModal: !!config.openCreate,
+    showEditModal: false,
     selected: {},
+    editSelected: {},
+    editQuantity: 1,
+    editAction: '',
     productoSeleccionado: config.productoId || config.producto || '',
     productosAll: Array.isArray(config.productos) ? config.productos : [],
     productosFiltrados: [],
@@ -728,6 +807,14 @@ function salidasUI(config = {}) {
 
     open(item) { this.selected = item; this.showModal = true; },
 
+    openEdit(item) {
+      if (!item || !item.can_edit_quantity) return;
+      this.editSelected = item;
+      this.editQuantity = Math.max(parseInt(item.cantidad || 1, 10), 1);
+      this.editAction = item.edit_url || '';
+      this.showEditModal = true;
+    },
+
     openFromTarget(e) {
       try {
         const raw = e.currentTarget.dataset.payload || '{}';
@@ -735,6 +822,16 @@ function salidasUI(config = {}) {
         this.open(data);
       } catch (err) {
         console.error('No se pudo abrir el modal:', err);
+      }
+    },
+
+    openEditFromTarget(e) {
+      try {
+        const raw = e.currentTarget.dataset.payload || '{}';
+        const data = JSON.parse(raw);
+        this.openEdit(data);
+      } catch (err) {
+        console.error('No se pudo abrir el modal de edicion:', err);
       }
     },
 

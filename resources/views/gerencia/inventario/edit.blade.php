@@ -66,7 +66,38 @@
             @csrf
             @method('PUT')
 
+            @php
+                $esSistema = auth()->user() && method_exists(auth()->user(), 'isSystem') && auth()->user()->isSystem();
+                $tipoControl = strtoupper((string) ($entrada->tipo_control ?? ''));
+                $cantidadLabel = $tipoControl === 'PAQUETES' ? 'Cantidad ingresada (paquetes)' : 'Cantidad ingresada';
+            @endphp
+
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                @if($tipoControl !== 'SERIE')
+                    {{-- Cantidad --}}
+                    <div>
+                        <label class="block text-sm font-semibold text-gray-700 mb-1">
+                            {{ $cantidadLabel }} <span class="text-red-600">*</span>
+                        </label>
+                        <input
+                            type="number"
+                            name="cantidad_ingresada"
+                            step="1"
+                            min="1"
+                            value="{{ old('cantidad_ingresada', $entrada->cantidad_ingresada) }}"
+                            class="w-full border border-gray-300 px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-200"
+                            required
+                        >
+                        <p class="text-xs text-gray-500 mt-1">
+                            @if($esSistema)
+                                Ajuste libre del inventario disponible de esta entrada.
+                            @else
+                                No puede quedar por debajo de lo ya usado en salidas.
+                            @endif
+                        </p>
+                    </div>
+                @endif
+
                 {{-- Costo --}}
                 <div>
                     <label class="block text-sm font-semibold text-gray-700 mb-1">
