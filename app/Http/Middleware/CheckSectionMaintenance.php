@@ -29,7 +29,7 @@ class CheckSectionMaintenance
 
         foreach ($sections as $section) {
             foreach ((array) $section->paths as $pattern) {
-                if ($request->is($pattern)) {
+                if ($this->matches($request, (string) $pattern)) {
                     return response()->view('errors.section-maintenance', [
                         'section' => $section,
                     ], 503);
@@ -38,6 +38,15 @@ class CheckSectionMaintenance
         }
 
         return $next($request);
+    }
+
+    private function matches(Request $request, string $pattern): bool
+    {
+        if (str_starts_with($pattern, 'route:')) {
+            return $request->routeIs(substr($pattern, 6));
+        }
+
+        return $request->is($pattern);
     }
 
     private function shouldBypass(Request $request): bool

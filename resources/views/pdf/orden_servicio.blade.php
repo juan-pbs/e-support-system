@@ -163,6 +163,22 @@
         tfoot{ display:table-footer-group; }
         tr, img{ page-break-inside:avoid; }
         @include('pdf.partials.corporate-theme')
+
+        @page { margin: 20px 35px; }
+
+        .panel-orden,
+        .totales-panel {
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+        }
+
+        .tabla-orden th,
+        .tabla-orden td,
+        .tabla-totales th,
+        .tabla-totales td {
+            padding-left: 12px !important;
+            padding-right: 12px !important;
+        }
 </style>
 </head>
 <body>

@@ -7,8 +7,8 @@
 
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
-    <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    <link rel="icon" href="/images/ico.png" type="image/x-icon" />
+    <link rel="icon" href="{{ asset('images/ico.png') }}" type="image/png">
+    <link rel="shortcut icon" href="{{ asset('images/ico.png') }}" type="image/png">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
     <style>
@@ -150,14 +150,13 @@
     </div>
 
     <div class="flex-1 flex flex-col min-h-0">
-        <header class="header-gradient text-white p-3 sm:p-4 flex-shrink-0">
+        <header class="header-gradient text-white px-4 py-3 sm:px-5 sm:py-4 flex-shrink-0">
             <div class="flex items-center justify-between">
-                <div class="flex items-center gap-2 sm:gap-4 min-w-0">
+                <div class="flex items-center gap-3 sm:gap-4 min-w-0">
                     <button id="open-sidebar"
                             class="text-white hover:bg-white hover:bg-opacity-20 p-2 rounded-full">
                         <i data-lucide="menu" class="w-5 h-5"></i>
                     </button>
-
                     <div class="flex flex-col min-w-0">
                         <h1 class="text-sm sm:text-lg font-semibold truncate">
                             @yield('title', 'Panel Tecnico')
@@ -239,5 +238,6 @@
 
 @yield('scripts')
 @stack('scripts')
+<script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
 </body>
 </html>

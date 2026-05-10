@@ -32,8 +32,8 @@
                             <p class="mt-2 text-sm text-gray-600">Tu cuenta ya está enlazada y lista para sincronizar órdenes asignadas.</p>
                             <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
                                 <div class="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-                                    <div class="text-xs font-semibold uppercase tracking-wide text-emerald-700">Correo Google</div>
-                                    <div class="mt-1 text-sm font-medium text-emerald-900">{{ $account->google_email ?: 'Sin correo detectado' }}</div>
+                                    <div class="text-xs font-semibold uppercase tracking-wide text-emerald-700">Correo del empleado</div>
+                                    <div class="mt-1 text-sm font-medium text-emerald-900">{{ $account->google_email ?: ($employeeEmail ?? 'Sin correo registrado') }}</div>
                                 </div>
                                 <div class="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3">
                                     <div class="text-xs font-semibold uppercase tracking-wide text-blue-700">Sincronización</div>
@@ -41,7 +41,7 @@
                                 </div>
                             </div>
                         @else
-                            <p class="mt-2 text-sm text-gray-600">Conecta tu cuenta para que las órdenes asignadas se envíen a Google Calendar automáticamente.</p>
+                            <p class="mt-2 text-sm text-gray-600">Conecta Google Calendar usando el correo registrado del empleado: <span class="font-medium text-gray-800">{{ $employeeEmail ?? 'sin correo' }}</span>.</p>
                         @endif
                     </div>
 
@@ -85,7 +85,7 @@
                 <div class="mt-4 grid grid-cols-1 gap-4 md:grid-cols-3">
                     <div class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-4">
                         <div class="text-sm font-semibold text-gray-900">1. Conexión</div>
-                        <p class="mt-2 text-sm text-gray-600">Cada técnico conecta su propia cuenta de Google para que las órdenes se creen en su calendario principal.</p>
+                        <p class="mt-2 text-sm text-gray-600">Cada técnico usa el correo registrado en empleados para conectar su calendario y recibir sus órdenes automáticamente.</p>
                     </div>
                     <div class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-4">
                         <div class="text-sm font-semibold text-gray-900">2. Asignación automática</div>
@@ -112,7 +112,7 @@
                             <thead>
                                 <tr class="border-b border-gray-200 text-left text-gray-500">
                                     <th class="px-3 py-2 font-medium">Técnico</th>
-                                    <th class="px-3 py-2 font-medium">Correo Google</th>
+                                    <th class="px-3 py-2 font-medium">Correo empleado</th>
                                     <th class="px-3 py-2 font-medium">Conexión</th>
                                     <th class="px-3 py-2 font-medium">Sync auto</th>
                                     <th class="px-3 py-2 font-medium">Órdenes asignadas</th>
@@ -125,7 +125,7 @@
                                             <div class="font-medium text-gray-900">{{ $row['name'] }}</div>
                                             <div class="text-xs text-gray-500">{{ $row['email'] }}</div>
                                         </td>
-                                        <td class="px-3 py-3 text-gray-700">{{ $row['google_email'] ?: 'Sin conectar' }}</td>
+                                        <td class="px-3 py-3 text-gray-700">{{ $row['calendar_email'] ?: 'Sin correo' }}</td>
                                         <td class="px-3 py-3">
                                             <span class="rounded-full px-3 py-1 text-xs font-semibold {{ $row['connected'] ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700' }}">
                                                 {{ $row['connected'] ? 'Conectado' : 'Pendiente' }}

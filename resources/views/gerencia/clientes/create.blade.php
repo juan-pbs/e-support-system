@@ -13,6 +13,10 @@
     if (!$backUrl || $backUrl === $currentUrl) {
         $backUrl = url()->previous();
     }
+
+    $clienteDireccionesIniciales = collect(old('direcciones_logisticas', [
+        ['alias' => 'Principal', 'predeterminada' => true],
+    ]))->values()->all();
 @endphp
 
 <div class="relative mb-10">
@@ -22,14 +26,11 @@
 
 <div class="max-w-7xl mx-auto">
     <form action="{{ route('clientes.store') }}" method="POST" enctype="multipart/form-data"
-        class="bg-white border border-gray-200 shadow-xl rounded-xl p-6 space-y-5"
-        x-data="clienteDireccionesManager(@js(collect(old('direcciones_logisticas', [['alias' => 'Principal', 'predeterminada' => true]]))->values()->all()))"
-        x-init="init()">
+        class="bg-white border border-gray-200 shadow-xl rounded-xl p-6 space-y-5">
         @csrf
 
         {{-- 🔥 Para regresar al origen al Guardar (si tu controller lo respeta) --}}
         <input type="hidden" name="redirect_to" value="{{ $backUrl }}">
-        <input type="hidden" name="ubicacion" x-model="ubicacionResumen">
         <!-- Código cliente -->
         <div>
             <label class="block text-sm font-medium text-gray-700 mb-2">Código cliente</label>
@@ -99,7 +100,10 @@
                 @enderror
             </div>
 
-            <div class="sm:col-span-2 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div class="sm:col-span-2 rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                 x-data="window.clienteDireccionesManager(window.clienteDireccionesIniciales || [])"
+                 x-init="init()">
+                <input type="hidden" name="ubicacion" x-model="ubicacionResumen">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <label class="block text-sm font-medium text-gray-700">Direcciones logísticas</label>
@@ -234,11 +238,14 @@
         </div>
     </form>
 </div>
-@endsection
 
 @include('partials.logistica.address-picker-modal')
+@endsection
+
 @push('scripts')
 <script>
+    window.clienteDireccionesIniciales = @json($clienteDireccionesIniciales);
+
     // ✅ Back real con fallback
     function goBackSafe(fallbackUrl) {
         const ref = document.referrer || '';
@@ -277,7 +284,7 @@
             },
             makeDireccion(item = {}, fallbackPrimary = false) {
                 return {
-                    uid: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()),
+                    uid: this.makeUid(),
                     id: item.id || '',
                     alias: item.alias || '',
                     direccion_formateada: item.direccion_formateada || '',
@@ -290,8 +297,18 @@
                     metodo_verificacion: item.metodo_verificacion || '',
                 };
             },
+            makeUid() {
+                if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+                    return window.crypto.randomUUID();
+                }
+
+                return `dir-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+            },
             addDireccion() {
-                this.direcciones.push(this.makeDireccion({ alias: '', predeterminada: false }, false));
+                this.direcciones.push(this.makeDireccion({
+                    alias: `Direccion ${this.direcciones.length + 1}`,
+                    predeterminada: false,
+                }, false));
             },
             removeDireccion(index) {
                 this.direcciones.splice(index, 1);
@@ -311,10 +328,24 @@
                 if (!direccion || !window.LogisticaAddressPicker) return;
 
                 window.LogisticaAddressPicker.open(direccion, (payload) => {
-                    Object.assign(direccion, payload);
+                    const normalized = this.normalizePickerPayload(payload);
+                    Object.assign(direccion, payload, normalized);
                     direccion.verificada_en_mapa = true;
                     this.syncUbicacion();
                 });
+            },
+            normalizePickerPayload(payload = {}) {
+                const placeId = payload.place_id || payload.placeId || '';
+                const latitud = payload.latitud ?? payload.lat ?? '';
+                const longitud = payload.longitud ?? payload.lng ?? payload.lon ?? '';
+
+                return {
+                    direccion_formateada: payload.direccion_formateada || payload.formatted_address || payload.address || '',
+                    place_id: placeId,
+                    latitud,
+                    longitud,
+                    metodo_verificacion: payload.metodo_verificacion || payload.metodo || payload.method || (placeId ? 'autocomplete' : 'mapa'),
+                };
             },
             syncUbicacion() {
                 const principal = this.direcciones.find(d => d.predeterminada) || this.direcciones[0];
@@ -322,5 +353,10 @@
             },
         };
     }
+
+    window.clienteDireccionesManager = clienteDireccionesManager;
+    document.addEventListener('alpine:init', () => {
+        window.Alpine.data('clienteDireccionesManager', clienteDireccionesManager);
+    });
 </script>
 @endpush

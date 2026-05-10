@@ -242,6 +242,22 @@
     tr, img { page-break-inside: avoid; }
     .totales-panel,.tabla-totales,.totales-firmas-block > .section:first-child,.table-bordered th:nth-child(2),.table-bordered td:nth-child(2),.table-bordered th:nth-child(3),.table-bordered td:nth-child(3),.tabla-seccion th:nth-child(3),.tabla-seccion td:nth-child(3),.tabla-seccion th:nth-child(4),.tabla-seccion td:nth-child(4){display:none;}
       @include('pdf.partials.corporate-theme')
+
+      @page { margin: 20px 35px; }
+
+      .panel-acta,
+      .totales-panel {
+        padding-left: 0 !important;
+        padding-right: 0 !important;
+      }
+
+      .tabla-acta th,
+      .tabla-acta td,
+      .tabla-totales th,
+      .tabla-totales td {
+        padding-left: 12px !important;
+        padding-right: 12px !important;
+      }
 </style>
 </head>
 <body>

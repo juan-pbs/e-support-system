@@ -65,7 +65,7 @@ class InventarioController extends Controller
             return $this->entradaPorProducto($request->codigo_producto);
         }
 
-        $proveedores = Proveedor::orderBy('nombre')->get(['clave_proveedor', 'nombre', 'rfc']);
+        $proveedores = $this->proveedoresParaEntrada();
         $jornadasAbiertas = JornadaLogistica::query()->where('estado', 'abierta')->latest('opened_at')->get(['id', 'folio', 'nombre']);
         $tecnicos = User::query()->where('puesto', 'tecnico')->orderBy('name')->get(['id', 'name']);
 
@@ -75,7 +75,7 @@ class InventarioController extends Controller
     public function entradaPorProducto($codigo_producto)
     {
         $producto = Producto::findOrFail($codigo_producto);
-        $proveedores = Proveedor::orderBy('nombre')->get(['clave_proveedor', 'nombre', 'rfc']);
+        $proveedores = $this->proveedoresParaEntrada();
         $jornadasAbiertas = JornadaLogistica::query()->where('estado', 'abierta')->latest('opened_at')->get(['id', 'folio', 'nombre']);
         $tecnicos = User::query()->where('puesto', 'tecnico')->orderBy('name')->get(['id', 'name']);
 
@@ -128,6 +128,22 @@ class InventarioController extends Controller
             });
 
         return response()->json($res);
+    }
+
+    protected function proveedoresParaEntrada()
+    {
+        return Proveedor::query()
+            ->orderBy('nombre')
+            ->get([
+                'clave_proveedor',
+                'nombre',
+                'rfc',
+                'direccion_logistica',
+                'direccion_logistica_place_id',
+                'direccion_logistica_latitud',
+                'direccion_logistica_longitud',
+                'direccion_logistica_verificada_en_mapa',
+            ]);
     }
 
     public function registrarEntrada(Request $request)

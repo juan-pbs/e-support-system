@@ -1,6 +1,18 @@
 @extends('layouts.sidebar-navigation')
 
 @section('content')
+@php
+    $proveedorDireccionInicial = [
+        'direccion_logistica' => old('direccion_logistica', $proveedor->direccion_logistica ?: $proveedor->direccion),
+        'direccion_logistica_place_id' => old('direccion_logistica_place_id', $proveedor->direccion_logistica_place_id),
+        'direccion_logistica_latitud' => old('direccion_logistica_latitud', $proveedor->direccion_logistica_latitud),
+        'direccion_logistica_longitud' => old('direccion_logistica_longitud', $proveedor->direccion_logistica_longitud),
+        'direccion_logistica_referencia' => old('direccion_logistica_referencia', $proveedor->direccion_logistica_referencia),
+        'direccion_logistica_verificada_en_mapa' => old('direccion_logistica_verificada_en_mapa', $proveedor->direccion_logistica_verificada_en_mapa),
+        'direccion_logistica_metodo' => old('direccion_logistica_metodo', $proveedor->direccion_logistica_metodo),
+    ];
+@endphp
+
 <div class="relative mb-10">
     <h2 class="text-xl sm:text-2xl font-bold text-black-600 text-center">Editar emisor (Proveedor)</h2>
     <x-boton-volver />
@@ -24,18 +36,13 @@
     @endif
 
     <form action="{{ route('proveedores.actualizar', $proveedor->clave_proveedor) }}" method="POST" class="bg-white border border-gray-200 shadow-xl rounded-xl p-6 space-y-5"
-          x-data="proveedorDireccionManager(@js([
-            'direccion_logistica' => old('direccion_logistica', $proveedor->direccion_logistica ?: $proveedor->direccion),
-            'direccion_logistica_place_id' => old('direccion_logistica_place_id', $proveedor->direccion_logistica_place_id),
-            'direccion_logistica_latitud' => old('direccion_logistica_latitud', $proveedor->direccion_logistica_latitud),
-            'direccion_logistica_longitud' => old('direccion_logistica_longitud', $proveedor->direccion_logistica_longitud),
-            'direccion_logistica_referencia' => old('direccion_logistica_referencia', $proveedor->direccion_logistica_referencia),
-            'direccion_logistica_verificada_en_mapa' => old('direccion_logistica_verificada_en_mapa', $proveedor->direccion_logistica_verificada_en_mapa),
-            'direccion_logistica_metodo' => old('direccion_logistica_metodo', $proveedor->direccion_logistica_metodo),
-          ]))"
+          x-data="window.proveedorDireccionManager(window.proveedorDireccionInicial || {})"
           x-init="init()">
         @csrf
         @method('PUT')
+        @if(!empty($redirectTo))
+            <input type="hidden" name="redirect_to" value="{{ $redirectTo }}">
+        @endif
         <input type="hidden" name="direccion" x-model="direccion_formateada">
         <input type="hidden" name="direccion_logistica" x-model="direccion_formateada">
         <input type="hidden" name="direccion_logistica_place_id" x-model="place_id">
@@ -126,16 +133,19 @@
         </div>
 
         <div class="flex justify-end gap-3 pt-4">
-            <a href="{{ route('proveedores.index') }}" class="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100">Cancelar</a>
+            <a href="{{ $redirectTo ?? route('proveedores.index') }}" class="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100">Cancelar</a>
             <button type="submit" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white">Actualizar</button>
         </div>
     </form>
 </div>
-@endsection
 
 @include('partials.logistica.address-picker-modal')
+@endsection
+
 @push('scripts')
 <script>
+window.proveedorDireccionInicial = @json($proveedorDireccionInicial);
+
 function proveedorDireccionManager(initial) {
     return {
         direccion_formateada: '',
@@ -179,5 +189,7 @@ function proveedorDireccionManager(initial) {
         },
     };
 }
+
+window.proveedorDireccionManager = proveedorDireccionManager;
 </script>
 @endpush

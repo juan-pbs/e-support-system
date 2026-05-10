@@ -124,10 +124,16 @@ class ProveedorController extends Controller
     }
 
     /** === FORMULARIO DE EDICIÓN === */
-    public function editar($id)
+    public function editar(Request $request, $id)
     {
+        if ($request->filled('redirect')) {
+            session()->put('proveedor_redirect_to', $request->redirect);
+        }
+
         $proveedor = Proveedor::findOrFail($id);
-        return view('gerencia.proveedores.edit', compact('proveedor'));
+        $redirectTo = $request->input('redirect') ?: session('proveedor_redirect_to');
+
+        return view('gerencia.proveedores.edit', compact('proveedor', 'redirectTo'));
     }
 
     /** === ACTUALIZAR === */
@@ -138,7 +144,9 @@ class ProveedorController extends Controller
 
         $proveedor->update($payload);
 
-        return redirect()->route('proveedores.index')->with('success', 'Proveedor actualizado correctamente.');
+        $redirect = $request->input('redirect_to') ?: session()->pull('proveedor_redirect_to');
+
+        return redirect($redirect ?: route('proveedores.index'))->with('success', 'Proveedor actualizado correctamente.');
     }
 
     /** === ELIMINAR === */
@@ -197,13 +205,13 @@ class ProveedorController extends Controller
             'nombre'    => 'required|string|max:255',
             'rfc'       => ['required', 'string', 'max:20', "regex:$rfcRegex", $rfcRule],
             'alias'     => 'nullable|string|max:60',
-            'direccion_logistica' => 'required|string|max:255',
-            'direccion_logistica_place_id' => 'required|string|max:255',
-            'direccion_logistica_latitud' => 'required|numeric',
-            'direccion_logistica_longitud' => 'required|numeric',
+            'direccion_logistica' => 'nullable|string|max:255',
+            'direccion_logistica_place_id' => 'nullable|string|max:255',
+            'direccion_logistica_latitud' => 'nullable|numeric',
+            'direccion_logistica_longitud' => 'nullable|numeric',
             'direccion_logistica_referencia' => 'nullable|string|max:1000',
-            'direccion_logistica_verificada_en_mapa' => 'accepted',
-            'direccion_logistica_metodo' => 'required|in:autocomplete,mapa',
+            'direccion_logistica_verificada_en_mapa' => 'nullable',
+            'direccion_logistica_metodo' => 'nullable|in:autocomplete,mapa',
             'contacto'  => 'nullable|string|max:255',
             'telefono'  => 'required|digits_between:7,20',
             'correo'    => 'nullable|email|max:255',
@@ -216,21 +224,49 @@ class ProveedorController extends Controller
             'direccion_logistica_metodo.required' => 'Selecciona la dirección del proveedor usando el mapa o el buscador.',
         ]);
 
+        $tieneDireccionLogistica = $this->tieneDireccionLogistica($validated);
+
+        if ($tieneDireccionLogistica) {
+            $request->validate([
+                'direccion_logistica' => 'required|string|max:255',
+                'direccion_logistica_place_id' => 'required|string|max:255',
+                'direccion_logistica_latitud' => 'required|numeric',
+                'direccion_logistica_longitud' => 'required|numeric',
+                'direccion_logistica_verificada_en_mapa' => 'accepted',
+                'direccion_logistica_metodo' => 'required|in:autocomplete,mapa',
+            ], [
+                'direccion_logistica.required' => 'Selecciona la direccion del proveedor desde el mapa.',
+                'direccion_logistica_place_id.required' => 'La direccion del proveedor debe quedar vinculada a un punto real.',
+                'direccion_logistica_latitud.required' => 'La direccion del proveedor debe incluir coordenadas validas.',
+                'direccion_logistica_longitud.required' => 'La direccion del proveedor debe incluir coordenadas validas.',
+                'direccion_logistica_verificada_en_mapa.accepted' => 'La direccion del proveedor debe quedar verificada en mapa.',
+                'direccion_logistica_metodo.required' => 'Selecciona la direccion del proveedor usando el mapa o el buscador.',
+            ]);
+        }
+
         return [
             'nombre' => $validated['nombre'],
             'rfc' => $validated['rfc'],
             'alias' => $validated['alias'] ?? null,
-            'direccion' => $validated['direccion_logistica'],
-            'direccion_logistica' => $validated['direccion_logistica'],
-            'direccion_logistica_place_id' => $validated['direccion_logistica_place_id'],
-            'direccion_logistica_latitud' => $validated['direccion_logistica_latitud'],
-            'direccion_logistica_longitud' => $validated['direccion_logistica_longitud'],
-            'direccion_logistica_referencia' => trim((string) ($validated['direccion_logistica_referencia'] ?? '')) ?: null,
-            'direccion_logistica_verificada_en_mapa' => true,
-            'direccion_logistica_metodo' => $validated['direccion_logistica_metodo'],
+            'direccion' => $tieneDireccionLogistica ? $validated['direccion_logistica'] : null,
+            'direccion_logistica' => $tieneDireccionLogistica ? $validated['direccion_logistica'] : null,
+            'direccion_logistica_place_id' => $tieneDireccionLogistica ? ($validated['direccion_logistica_place_id'] ?? null) : null,
+            'direccion_logistica_latitud' => $tieneDireccionLogistica ? $validated['direccion_logistica_latitud'] : null,
+            'direccion_logistica_longitud' => $tieneDireccionLogistica ? $validated['direccion_logistica_longitud'] : null,
+            'direccion_logistica_referencia' => $tieneDireccionLogistica ? (trim((string) ($validated['direccion_logistica_referencia'] ?? '')) ?: null) : null,
+            'direccion_logistica_verificada_en_mapa' => $tieneDireccionLogistica,
+            'direccion_logistica_metodo' => $tieneDireccionLogistica ? $validated['direccion_logistica_metodo'] : null,
             'contacto' => trim((string) ($validated['contacto'] ?? '')) ?: null,
             'telefono' => $validated['telefono'],
             'correo' => $validated['correo'] ?? null,
         ];
+    }
+
+    private function tieneDireccionLogistica(array $validated): bool
+    {
+        return trim((string) ($validated['direccion_logistica'] ?? '')) !== ''
+            || trim((string) ($validated['direccion_logistica_place_id'] ?? '')) !== ''
+            || ($validated['direccion_logistica_latitud'] ?? null) !== null
+            || ($validated['direccion_logistica_longitud'] ?? null) !== null;
     }
 }

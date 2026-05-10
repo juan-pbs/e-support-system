@@ -95,7 +95,7 @@
 
       <!-- Filtros: estado, prioridad, moneda, tecnico, cliente + leyenda de prioridades -->
       <div class="flex flex-col gap-4">
-        <div class="grid grid-cols-1 md:grid-cols-5 gap-3 md:items-end">
+        <div class="grid grid-cols-1 md:grid-cols-6 gap-3 md:items-end">
           <!-- Estado -->
           <div>
             <label class="block mb-2 text-sm font-medium text-gray-700">Estado</label>
@@ -162,6 +162,10 @@
             >
           </div>
 
+          <ul id="technicianFilterResults"
+              class="z-50 w-full bg-white border rounded-lg mt-1 hidden shadow text-sm max-h-56 overflow-y-auto">
+          </ul>
+
           <!-- Cliente -->
           <div>
             <label class="block mb-2 text-sm font-medium text-gray-700">Cliente</label>
@@ -178,6 +182,13 @@
                   class="absolute z-50 w-full bg-white border rounded-lg mt-1 hidden shadow text-sm max-h-56 overflow-y-auto">
               </ul>
             </div>
+          </div>
+
+          <div>
+            <button id="searchFiltersBtn" type="button"
+                    class="w-full rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">
+              Buscar
+            </button>
           </div>
         </div>
 
@@ -562,6 +573,8 @@ const FORM_HEADERS = {
 
 const baseOrden = "{{ url('/ordenes') }}";
 const baseApi   = "{{ url('/api/ordenes') }}";
+const baseClienteEdit = "{{ url('/clientes/editar') }}";
+const emailActasEnabled = @json($emailActasEnabled ?? true);
 
 const tableBody        = document.getElementById("serviceTableBody");
 const summary          = document.getElementById("serviceSummary");
@@ -569,6 +582,7 @@ const statusFilter     = document.getElementById("statusFilter");
 const priorityFilter   = document.getElementById("priorityFilter");
 const currencyFilter   = document.getElementById("currencyFilter");
 const technicianFilter = document.getElementById("technicianFilter");
+const technicianFilterResults = document.getElementById("technicianFilterResults");
 const clientFilter     = document.getElementById("clientFilter");
 const clientFilterId   = document.getElementById("clientFilterId");
 const clientFilterResults = document.getElementById("clientFilterResults");
@@ -580,10 +594,17 @@ const singleDateWrap   = document.getElementById("singleDateWrap");
 const fromDateWrap     = document.getElementById("fromDateWrap");
 const toDateWrap       = document.getElementById("toDateWrap");
 const clearDateFilterBtn = document.getElementById("clearDateFilterBtn");
+const searchFiltersBtn = document.getElementById("searchFiltersBtn");
 const refreshBtn       = document.getElementById("refreshBtn");
 const loadingState     = document.getElementById("loadingState");
 const emptyState       = document.getElementById("emptyState");
 const errorState       = document.getElementById("errorState");
+
+if (technicianFilter && technicianFilterResults) {
+  technicianFilter.parentElement?.classList.add('relative');
+  technicianFilter.parentElement?.appendChild(technicianFilterResults);
+  technicianFilterResults.classList.add('absolute');
+}
 
 /* ✅ wrappers para data (tabla/cards) */
 const dataWrap  = document.getElementById("serviceDataWrap");
@@ -611,6 +632,7 @@ let currentQuincenaMonth = null; // 1-12
 let currentQuincenaHalf  = 1;    // 1 = 1–15, 2 = 16–fin
 let currentQuincenaStart = null;
 let currentQuincenaEnd   = null;
+let lastSeguimientoRows = [];
 
 function syncDateFilterControls() {
   const mode = dateModeFilter?.value || 'all';
@@ -898,12 +920,32 @@ function renderActaBtn(item) {
 
   if (actaEstado === 'firmada') {
     const pdf = `${baseOrden}/${item.id}/acta/pdf`;
+    const hasEmail = !!(item.clientEmail || item.clienteCorreo);
+    const clientId = item.clientId || item.clienteId;
+    const canEmail = emailActasEnabled && hasEmail;
+    const emailUrl = `${baseOrden}/${item.id}/acta/enviar-correo`;
+    const emailAction = !hasEmail && clientId
+      ? `<a href="${baseClienteEdit}/${clientId}?redirect=${encodeURIComponent(window.location.href)}"
+            class="px-3 py-1.5 rounded-md text-xs whitespace-nowrap bg-amber-500 hover:bg-amber-600 text-white">
+            Agregar correo
+         </a>`
+      : `<form method="POST" action="${emailUrl}" onsubmit="return confirm('Enviar el acta firmada por correo al cliente?')">
+          <input type="hidden" name="_token" value="${csrf}">
+          <button type="submit"
+                  class="px-3 py-1.5 rounded-md text-xs whitespace-nowrap ${canEmail ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'bg-gray-200 text-gray-500 cursor-not-allowed'}"
+                  ${canEmail ? '' : 'disabled'}>
+            Correo acta
+          </button>
+        </form>`;
     return `
-      <button type="button"
-              onclick='openPdfModal(${JSON.stringify(pdf)})'
-              class="px-3 py-1.5 rounded-md bg-gray-700 hover:bg-gray-800 text-white text-xs whitespace-nowrap">
-        Acta (PDF)
-      </button>
+      <div class="flex flex-col gap-2 sm:flex-row sm:justify-center">
+        <button type="button"
+                onclick='openPdfModal(${JSON.stringify(pdf)})'
+                class="px-3 py-1.5 rounded-md bg-gray-700 hover:bg-gray-800 text-white text-xs whitespace-nowrap">
+          Acta (PDF)
+        </button>
+        ${emailAction}
+      </div>
     `;
   }
 
@@ -959,11 +1001,31 @@ function renderActaBtnCard(item) {
 
   if (actaEstado === 'firmada') {
     const pdf = `${baseOrden}/${item.id}/acta/pdf`;
-    return `<button type="button"
-              class="w-full px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-900 text-white text-sm font-medium"
-              onclick='openPdfModal(${JSON.stringify(pdf)})'>
-              Ver acta (PDF)
-            </button>`;
+    const hasEmail = !!(item.clientEmail || item.clienteCorreo);
+    const clientId = item.clientId || item.clienteId;
+    const canEmail = emailActasEnabled && hasEmail;
+    const emailUrl = `${baseOrden}/${item.id}/acta/enviar-correo`;
+    const emailAction = !hasEmail && clientId
+      ? `<a href="${baseClienteEdit}/${clientId}?redirect=${encodeURIComponent(window.location.href)}"
+            class="w-full px-3 py-2 rounded-lg bg-amber-500 hover:bg-amber-600 text-white text-sm text-center font-medium">
+            Agregar correo
+         </a>`
+      : `<form method="POST" action="${emailUrl}" onsubmit="return confirm('Enviar el acta firmada por correo al cliente?')">
+          <input type="hidden" name="_token" value="${csrf}">
+          <button type="submit"
+            class="w-full px-3 py-2 rounded-lg text-sm font-medium ${canEmail ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'bg-gray-200 text-gray-500 cursor-not-allowed'}"
+            ${canEmail ? '' : 'disabled'}>
+            Enviar acta por correo
+          </button>
+        </form>`;
+    return `<div class="grid grid-cols-1 gap-2">
+              <button type="button"
+                class="w-full px-3 py-2 rounded-lg bg-gray-800 hover:bg-gray-900 text-white text-sm font-medium"
+                onclick='openPdfModal(${JSON.stringify(pdf)})'>
+                Ver acta (PDF)
+              </button>
+              ${emailAction}
+            </div>`;
   }
 
   const vista = `${baseOrden}/${item.id}/acta`;
@@ -1247,6 +1309,7 @@ async function updateView() {
   try {
     showOnly('loading');
     const data = await fetchSeguimiento();
+    lastSeguimientoRows = data.rows || [];
     renderTable(data.rows || []);
     renderSummary(data.summary || { total:0, enProceso:0, finalizados:0, facturadas:0, totalFacturado:0, monedaResumen: 'MXN' });
   } catch (e) {
@@ -1260,6 +1323,43 @@ function debounce(fn, ms=300) {
 }
 
 let clientAutocompleteReq = 0;
+
+function hideTechnicianSuggestions() {
+  if (!technicianFilterResults) return;
+  technicianFilterResults.innerHTML = '';
+  technicianFilterResults.classList.add('hidden');
+}
+
+function renderTechnicianSuggestions(term = '') {
+  if (!technicianFilterResults) return;
+
+  const needle = (term || '').trim().toLowerCase();
+  const names = [...new Set((lastSeguimientoRows || [])
+    .map(item => (item.technician || '').trim())
+    .filter(name => name && name !== '—')
+  )].filter(name => !needle || name.toLowerCase().includes(needle)).slice(0, 10);
+
+  technicianFilterResults.innerHTML = '';
+
+  if (!names.length || needle.length < 2) {
+    hideTechnicianSuggestions();
+    return;
+  }
+
+  names.forEach(name => {
+    const li = document.createElement('li');
+    li.textContent = name;
+    li.className = 'px-4 py-2 cursor-pointer hover:bg-blue-100';
+    li.addEventListener('click', () => {
+      if (technicianFilter) technicianFilter.value = name;
+      hideTechnicianSuggestions();
+      updateView();
+    });
+    technicianFilterResults.appendChild(li);
+  });
+
+  technicianFilterResults.classList.remove('hidden');
+}
 
 function hideClientSuggestions() {
   if (!clientFilterResults) return;
@@ -1316,7 +1416,13 @@ async function loadClientSuggestions(term) {
 statusFilter    && statusFilter.addEventListener("change", debounce(updateView, 50));
 priorityFilter  && priorityFilter.addEventListener("change", debounce(updateView, 50));
 currencyFilter  && currencyFilter.addEventListener("change", debounce(updateView, 50));
-technicianFilter&& technicianFilter.addEventListener("input", debounce(updateView, 300));
+technicianFilter&& technicianFilter.addEventListener("input", debounce(() => {
+  renderTechnicianSuggestions(technicianFilter.value.trim());
+  updateView();
+}, 300));
+technicianFilter&& technicianFilter.addEventListener("focus", () => {
+  renderTechnicianSuggestions(technicianFilter.value.trim());
+});
 clientFilter    && clientFilter.addEventListener("input", debounce(() => {
   if (clientFilterId) clientFilterId.value = '';
   const term = clientFilter.value.trim();
@@ -1327,6 +1433,10 @@ clientFilter    && clientFilter.addEventListener("focus", () => {
   loadClientSuggestions(clientFilter.value.trim());
 });
 document.addEventListener('click', (e) => {
+  if (technicianFilter && technicianFilterResults && !technicianFilter.contains(e.target) && !technicianFilterResults.contains(e.target)) {
+    hideTechnicianSuggestions();
+  }
+
   if (!clientFilter || !clientFilterResults) return;
   if (!clientFilter.contains(e.target) && !clientFilterResults.contains(e.target)) {
     hideClientSuggestions();
@@ -1337,6 +1447,7 @@ singleDateFilter&& singleDateFilter.addEventListener("change", updateView);
 fromDateFilter  && fromDateFilter.addEventListener("change", updateView);
 toDateFilter    && toDateFilter.addEventListener("change", updateView);
 clearDateFilterBtn?.addEventListener('click', () => { clearDateFilters(); updateView(); });
+searchFiltersBtn?.addEventListener('click', () => updateView());
 
 prevQuincenaBtn?.addEventListener('click', () => { moveQuincena(-1); updateView(); });
 nextQuincenaBtn?.addEventListener('click', () => { moveQuincena(1);  updateView(); });

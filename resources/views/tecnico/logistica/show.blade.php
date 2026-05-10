@@ -52,7 +52,7 @@
                     <span class="rounded-full {{ $movimiento->tipo === 'recoleccion' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700' }} px-3 py-1 text-xs font-semibold">
                         {{ $movimiento->tipo_label }}
                     </span>
-                    @if (is_null($movimiento->tecnico_id) && $movimiento->tipo === 'recoleccion' && $movimiento->origen_tipo === 'inventario_programado')
+                    @if (is_null($movimiento->tecnico_id) && in_array($movimiento->estado, ['pendiente', 'asignado'], true) && (($movimiento->tipo === 'recoleccion' && $movimiento->origen_tipo === 'inventario_programado') || ($movimiento->tipo === 'entrega' && $movimiento->origen_tipo === 'orden_servicio')))
                         <span class="rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-700">
                             Disponible para tomar
                         </span>

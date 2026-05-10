@@ -259,6 +259,13 @@ $clientesCatalog = $clientesSearchList
                             <p class="mt-1 text-xs text-gray-500" x-show="idCliente && !direccionesClienteDisponibles.length">
                                 Este cliente aún no tiene direcciones logísticas registradas.
                             </p>
+                            <button type="button"
+                                    x-show="idCliente && !direccionesClienteDisponibles.length"
+                                    x-cloak
+                                    @click="goAgregarDireccionCliente()"
+                                    class="mt-2 inline-flex rounded-lg bg-amber-500 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-600">
+                                Agregar dirección
+                            </button>
                         </div>
 
                         <div>
@@ -1584,6 +1591,7 @@ const clientesCatalog = @js($clientesCatalog);
         }
 
         this.syncClienteSearchFromId();
+        this.restoreDraftIfAny();
 
         if (typeof this.$watch === 'function') {
           this.$watch('idCliente', () => {
@@ -1665,6 +1673,91 @@ const clientesCatalog = @js($clientesCatalog);
         if (found && !this.clienteSearch) {
           this.clienteSearch = found.label || '';
         }
+      },
+
+      draftKey() {
+        return `orden-servicio:draft:${window.location.pathname}`;
+      },
+
+      setFieldValue(name, value) {
+        const form = document.getElementById('ordenForm');
+        if (!form) return;
+        const escapedName = window.CSS?.escape ? CSS.escape(name) : String(name).replace(/"/g, '\\"');
+        form.querySelectorAll(`[name="${escapedName}"]`).forEach((field) => {
+          if (field.type === 'radio' || field.type === 'checkbox') {
+            field.checked = Array.isArray(value) ? value.includes(field.value) : String(value) === field.value;
+            return;
+          }
+          field.value = Array.isArray(value) ? (value[0] || '') : (value || '');
+          field.dispatchEvent(new Event('input', { bubbles: true }));
+          field.dispatchEvent(new Event('change', { bubbles: true }));
+        });
+      },
+
+      saveDraftForClienteDireccion() {
+        const form = document.getElementById('ordenForm');
+        if (!form) return;
+
+        const fd = new FormData(form);
+        this.syncProductosFormData(fd);
+
+        const fields = {};
+        fd.forEach((value, key) => {
+          if (key === '_token') return;
+          if (fields[key] === undefined) {
+            fields[key] = value;
+            return;
+          }
+          if (!Array.isArray(fields[key])) fields[key] = [fields[key]];
+          fields[key].push(value);
+        });
+
+        sessionStorage.setItem(this.draftKey(), JSON.stringify({
+          fields,
+          productos: this.productos,
+          clienteSearch: this.clienteSearch,
+          savedAt: new Date().toISOString(),
+        }));
+      },
+
+      restoreDraftIfAny() {
+        const raw = sessionStorage.getItem(this.draftKey());
+        if (!raw) return;
+
+        let draft = null;
+        try {
+          draft = JSON.parse(raw);
+        } catch (e) {
+          sessionStorage.removeItem(this.draftKey());
+          return;
+        }
+
+        const fields = draft?.fields || {};
+        Object.entries(fields).forEach(([name, value]) => this.setFieldValue(name, value));
+
+        if (fields.id_cliente) this.idCliente = String(Array.isArray(fields.id_cliente) ? fields.id_cliente[0] : fields.id_cliente);
+        if (fields.cliente_direccion_id) this.clienteDireccionId = String(Array.isArray(fields.cliente_direccion_id) ? fields.cliente_direccion_id[0] : fields.cliente_direccion_id);
+        if (fields.tipo_orden) this.tipoOrden = String(Array.isArray(fields.tipo_orden) ? fields.tipo_orden[0] : fields.tipo_orden);
+        if (fields.tipo_pago) this.tipoPago = String(Array.isArray(fields.tipo_pago) ? fields.tipo_pago[0] : fields.tipo_pago);
+        if (fields.moneda) this.moneda = String(Array.isArray(fields.moneda) ? fields.moneda[0] : fields.moneda);
+        this.requiereLogistica = fields.requiere_logistica === '1' || fields.requiere_logistica === 1 || fields.requiere_logistica === true;
+
+        if (Array.isArray(draft?.productos)) {
+          this.productos = draft.productos.map(p => this.normalizarProducto(p));
+        }
+        if (draft?.clienteSearch) this.clienteSearch = draft.clienteSearch;
+
+        this.updateDireccionesCliente();
+        this.updateUbicacionCliente();
+        this.syncClienteSearchFromId();
+        this.calc();
+        sessionStorage.removeItem(this.draftKey());
+      },
+
+      goAgregarDireccionCliente() {
+        if (!this.idCliente) return;
+        this.saveDraftForClienteDireccion();
+        window.location.href = `/clientes/editar/${encodeURIComponent(this.idCliente)}?redirect=${encodeURIComponent(window.location.href)}`;
       },
 
       buildProductoPayload(p) {

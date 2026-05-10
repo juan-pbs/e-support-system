@@ -83,7 +83,7 @@ class GoogleCalendarService
             'user_id' => $user->id,
         ]);
 
-        $account->google_email = (string) ($profile['email'] ?? $account->google_email);
+        $account->google_email = (string) ($user->email ?: ($profile['email'] ?? $account->google_email));
         $account->google_sub = (string) ($profile['sub'] ?? $account->google_sub);
         $account->calendar_id = $account->calendar_id ?: 'primary';
         $account->access_token = (string) ($tokenPayload['access_token'] ?? $account->access_token);
@@ -150,11 +150,24 @@ class GoogleCalendarService
             return 0;
         }
 
+        $this->purgeFinalizedOrderEvents($user);
+
         $orders = OrdenServicio::query()
             ->with(['cliente.direccionesLogisticas', 'direccionCliente', 'tecnico', 'tecnicos'])
             ->where(function ($query) use ($user) {
                 $query->where('id_tecnico', $user->id)
                     ->orWhereHas('tecnicos', fn ($q) => $q->where('users.id', $user->id));
+            })
+            ->where(function ($query) {
+                $query->whereNull('acta_estado')
+                    ->orWhere('acta_estado', '<>', 'firmada');
+            })
+            ->where(function ($query) {
+                $query->whereNull('estado')
+                    ->orWhere(function ($estadoQuery) {
+                        $estadoQuery->where('estado', 'not like', '%Complet%')
+                            ->where('estado', 'not like', '%Final%');
+                    });
             })
             ->get();
 
@@ -165,6 +178,24 @@ class GoogleCalendarService
         return $orders->count();
     }
 
+    public function syncConnectedTechnicians(): int
+    {
+        if (!$this->isConfigured()) {
+            return 0;
+        }
+
+        return User::query()
+            ->where('puesto', 'tecnico')
+            ->whereHas('googleCalendarAccount', function ($query) {
+                $query->where('sync_enabled', true)
+                    ->whereNotNull('access_token')
+                    ->whereNull('disconnected_at');
+            })
+            ->with('googleCalendarAccount')
+            ->get()
+            ->sum(fn (User $tecnico) => $this->syncAssignedOrdersForUser($tecnico));
+    }
+
     public function syncOrderAssignments(OrdenServicio $orden): void
     {
         if (!$this->isConfigured()) {
@@ -172,6 +203,11 @@ class GoogleCalendarService
         }
 
         $orden->loadMissing(['cliente.direccionesLogisticas', 'direccionCliente', 'tecnico', 'tecnicos']);
+
+        if ($this->orderIsFinalizedForCalendar($orden)) {
+            $this->removeOrderFromCalendars($orden);
+            return;
+        }
 
         $assignedUsers = $this->assignedUsersForOrder($orden)->keyBy('id');
         $existingEvents = GoogleCalendarOrderEvent::query()
@@ -209,6 +245,30 @@ class GoogleCalendarService
         foreach ($events as $event) {
             $this->deleteCalendarEventMapping($event);
         }
+    }
+
+    public function purgeFinalizedOrderEvents(?User $user = null): int
+    {
+        if (!$this->isConfigured()) {
+            return 0;
+        }
+
+        $events = GoogleCalendarOrderEvent::query()
+            ->with(['account', 'orden'])
+            ->when($user, fn ($query) => $query->where('user_id', $user->id))
+            ->whereHas('orden', function ($query) {
+                $query
+                    ->where('acta_estado', 'firmada')
+                    ->orWhere('estado', 'like', '%Complet%')
+                    ->orWhere('estado', 'like', '%Final%');
+            })
+            ->get();
+
+        foreach ($events as $event) {
+            $this->deleteCalendarEventMapping($event);
+        }
+
+        return $events->count();
     }
 
     protected function upsertCalendarEvent(OrdenServicio $orden, User $user, GoogleCalendarAccount $account): void
@@ -369,6 +429,16 @@ class GoogleCalendarService
             'baja' => '2',
             default => '1',
         };
+    }
+
+    protected function orderIsFinalizedForCalendar(OrdenServicio $orden): bool
+    {
+        $actaEstado = Str::lower(trim((string) ($orden->acta_estado ?? '')));
+        $estado = Str::lower(trim((string) ($orden->estado ?? $orden->estatus ?? '')));
+
+        return $actaEstado === 'firmada'
+            || str_contains($estado, 'complet')
+            || str_contains($estado, 'final');
     }
 
     protected function assignedUsersForOrder(OrdenServicio $orden): Collection

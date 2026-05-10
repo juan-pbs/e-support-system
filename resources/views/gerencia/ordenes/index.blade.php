@@ -142,7 +142,7 @@
                 <div class="flex gap-2">
                     <button type="submit"
                             class="flex-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold px-4 py-2">
-                        Filtrar
+                        Buscar
                     </button>
                     <a href="{{ route('ordenes.index') }}"
                        class="rounded-lg border px-4 py-2 text-gray-700 hover:bg-gray-50">
@@ -272,6 +272,23 @@
                         <span class="font-semibold">PDF</span>
                     </button>
 
+                    @if($orden->cliente && empty($orden->cliente->correo_electronico))
+                        <a href="{{ route('clientes.edit', ['id' => $orden->cliente->clave_cliente, 'redirect' => url()->full()]) }}"
+                           class="w-full px-3 py-2 rounded-lg inline-flex items-center justify-center gap-2 bg-amber-500 hover:bg-amber-600 text-white">
+                            <span class="font-semibold">Agregar correo</span>
+                        </a>
+                    @else
+                        <form method="POST" action="{{ route('ordenes.enviarCorreo', ['id' => $oid]) }}">
+                            @csrf
+                            <button type="submit"
+                                    class="w-full px-3 py-2 rounded-lg inline-flex items-center justify-center gap-2 {{ $emailOrdenesEnabled ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'bg-gray-200 text-gray-500 cursor-not-allowed' }}"
+                                    @disabled(! $emailOrdenesEnabled)
+                                    onclick="return confirm('Enviar la orden {{ $folio }} por correo al cliente?')">
+                                <span class="font-semibold">Correo</span>
+                            </button>
+                        </form>
+                    @endif
+
                     <button type="button"
                             class="bg-red-600 hover:bg-red-700 text-white px-3 py-2 rounded-lg inline-flex items-center justify-center gap-2"
                             data-action="open-delete"
@@ -304,6 +321,7 @@
                     <th class="px-3 py-3 text-center w-24">Notas</th>
                     <th class="px-3 py-3 text-center w-28">Editar</th>
                     <th class="px-3 py-3 text-center w-28">PDF</th>
+                    <th class="px-3 py-3 text-center w-28">Correo</th>
                     <th class="px-3 py-3 text-center w-32">Eliminar</th>
                 </tr>
             </thead>
@@ -393,6 +411,24 @@
                         </td>
 
                         <td class="px-3 py-3 text-center">
+                            @if($orden->cliente && empty($orden->cliente->correo_electronico))
+                                <a href="{{ route('clientes.edit', ['id' => $orden->cliente->clave_cliente, 'redirect' => url()->full()]) }}"
+                                   class="px-3 py-1.5 rounded-md text-sm whitespace-nowrap bg-amber-500 hover:bg-amber-600 text-white">
+                                    Agregar correo
+                                </a>
+                            @else
+                                <form method="POST" action="{{ route('ordenes.enviarCorreo', ['id' => $oid]) }}"
+                                      onsubmit="return confirm('Enviar la orden {{ $folio }} por correo al cliente?')">
+                                    @csrf
+                                    <button class="px-3 py-1.5 rounded-md text-sm whitespace-nowrap {{ $emailOrdenesEnabled ? 'bg-indigo-600 hover:bg-indigo-700 text-white' : 'bg-gray-200 text-gray-500 cursor-not-allowed' }}"
+                                            @disabled(! $emailOrdenesEnabled)>
+                                        Correo
+                                    </button>
+                                </form>
+                            @endif
+                        </td>
+
+                        <td class="px-3 py-3 text-center">
                             <button type="button"
                                     class="px-3 py-1.5 rounded-md bg-red-600 hover:bg-red-700 text-white text-sm whitespace-nowrap"
                                     data-action="open-delete"
@@ -405,7 +441,7 @@
                     </tr>
                 @empty
                     <tr>
-                        <td class="px-4 py-6 text-center text-gray-500" colspan="11">
+                        <td class="px-4 py-6 text-center text-gray-500" colspan="12">
                             {{ $emptyOrdersMessage }}
                         </td>
                     </tr>
@@ -459,22 +495,24 @@
 </div>
 {{-- MODAL PDF --}}
 <x-pdf-js-viewer />
-<div id="pdfModal" class="hidden fixed inset-0 z-40 bg-black/50">
-  <div class="absolute inset-0 flex items-center justify-center p-2 sm:p-4">
-    <div class="w-full max-w-5xl h-[94vh] sm:h-auto bg-white rounded-xl shadow-xl overflow-hidden flex flex-col">
+<div id="pdfModal" class="fixed inset-0 z-50 hidden">
+  <div id="pdfModalBackdrop" class="absolute inset-0 bg-black/50"></div>
+
+  <div class="relative mx-auto w-full max-w-5xl h-[94vh] sm:h-[92vh] mt-2 md:mt-8 px-2 sm:px-3">
+    <div class="bg-white rounded-xl shadow-lg h-full flex flex-col overflow-hidden">
       <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 px-4 py-3 border-b">
-        <h3 id="pdfModalTitle" class="font-semibold text-gray-800 leading-tight break-words">PDF</h3>
+        <h3 id="pdfModalTitle" class="font-semibold text-gray-800 text-sm md:text-base leading-tight break-words">Ver PDF</h3>
         <div class="flex items-center gap-2">
-          <a id="pdfDownloadBtn" href="#" target="_blank"
-             class="inline-flex items-center gap-2 px-3 py-1.5 rounded-md border text-sm hover:bg-gray-50 whitespace-nowrap">
+          <a id="pdfDownloadBtn" href="#" target="_blank" rel="noopener"
+             class="inline-flex px-3 py-1.5 text-xs rounded bg-gray-100 hover:bg-gray-200 whitespace-nowrap">
              Descargar
           </a>
-          <button type="button" class="px-3 py-1.5 rounded-md bg-gray-800 text-white text-sm whitespace-nowrap" data-action="close-pdf">
+          <button type="button" class="px-3 py-1.5 text-sm rounded bg-gray-800 text-white hover:bg-black whitespace-nowrap" data-action="close-pdf">
             Cerrar
           </button>
         </div>
       </div>
-      <div id="pdfCanvasViewer" class="flex-1 h-[75vh] bg-gray-100 overflow-auto p-3"></div>
+      <div id="pdfCanvasViewer" class="flex-1 bg-gray-100 overflow-auto p-3"></div>
     </div>
   </div>
 </div>
@@ -602,6 +640,7 @@
   const pdfCanvasViewer = document.getElementById('pdfCanvasViewer');
   const pdfTitle = document.getElementById('pdfModalTitle');
   const pdfDownloadBtn = document.getElementById('pdfDownloadBtn');
+  const pdfModalBackdrop = document.getElementById('pdfModalBackdrop');
   const exportModal = document.getElementById('exportModal');
   const exportDesde = document.getElementById('exportDesde');
   const exportHasta = document.getElementById('exportHasta');
@@ -625,15 +664,24 @@
     pdfTitle.textContent = customTitle || `PDF — ${folio}`;
     pdfDownloadBtn.href = downloadUrl || viewUrl;
 
+    const sep = viewUrl.includes('?') ? '&' : '?';
+    const renderUrl = viewUrl + sep + 'ts=' + Date.now();
+
     pdfModal.classList.remove('hidden');
-    window.eSupportPdfViewer?.renderUrl(viewUrl, pdfCanvasViewer);
+    document.body.classList.add('overflow-hidden');
+    window.eSupportPdfViewer?.renderUrl(renderUrl, pdfCanvasViewer);
   });
+
+  function closePdfModal() {
+    pdfModal.classList.add('hidden');
+    document.body.classList.remove('overflow-hidden');
+    window.eSupportPdfViewer?.clear(pdfCanvasViewer);
+  }
 
   document.addEventListener('click', (e)=>{
     const btn = e.target.closest('[data-action="close-pdf"]');
     if (!btn) return;
-    pdfModal.classList.add('hidden');
-    window.eSupportPdfViewer?.clear(pdfCanvasViewer);
+    closePdfModal();
   });
 
   document.addEventListener('click', (e)=>{
@@ -689,13 +737,20 @@
     deleteModal.classList.add('hidden');
   });
 
-  [pdfModal, deleteModal, exportModal, document.getElementById('notesModal')].forEach(modal=>{
+  pdfModalBackdrop?.addEventListener('click', closePdfModal);
+
+  [deleteModal, exportModal, document.getElementById('notesModal')].forEach(modal=>{
     modal?.addEventListener('click', (e)=>{
       if (e.target === modal) {
         modal.classList.add('hidden');
-        if (modal === pdfModal) window.eSupportPdfViewer?.clear(pdfCanvasViewer);
       }
     });
+  });
+
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && !pdfModal.classList.contains('hidden')) {
+      closePdfModal();
+    }
   });
 
   // Auto-hide alerts

@@ -22,12 +22,21 @@ class LogisticaTecnicoController extends Controller
                 $query->where('tecnico_id', $user->id)
                     ->orWhere(function ($subquery) {
                         $subquery->whereNull('tecnico_id')
-                            ->where('tipo', 'recoleccion')
-                            ->where('origen_tipo', 'inventario_programado')
+                            ->where(function ($available) {
+                                $available
+                                    ->where(function ($recoleccion) {
+                                        $recoleccion->where('tipo', 'recoleccion')
+                                            ->where('origen_tipo', 'inventario_programado');
+                                    })
+                                    ->orWhere(function ($entrega) {
+                                        $entrega->where('tipo', 'entrega')
+                                            ->where('origen_tipo', 'orden_servicio');
+                                    });
+                            })
                             ->whereIn('estado', ['pendiente', 'asignado']);
                     });
             })
-            ->orderByRaw("CASE WHEN tecnico_id IS NULL AND tipo = 'recoleccion' AND origen_tipo = 'inventario_programado' THEN 0 ELSE 1 END")
+            ->orderByRaw("CASE WHEN tecnico_id IS NULL AND ((tipo = 'recoleccion' AND origen_tipo = 'inventario_programado') OR (tipo = 'entrega' AND origen_tipo = 'orden_servicio')) THEN 0 ELSE 1 END")
             ->latest('fecha_programada')
             ->latest('id')
             ->paginate(12)

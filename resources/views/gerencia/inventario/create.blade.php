@@ -100,22 +100,39 @@
 
             {{-- POST SOLO CUANDO YA HAY PRODUCTO --}}
             @if(isset($producto))
-            <form method="POST" action="{{ route('entrada.store') }}" class="space-y-4">
+            <form method="POST" action="{{ route('entrada.store') }}" class="space-y-4" id="inventario-entrada-form">
                 @csrf
 
                 <input type="hidden" name="codigo_producto" value="{{ $producto->codigo_producto }}">
 
                 <div>
                     <label class="block text-sm font-medium">Proveedor (opcional)</label>
-                    <select name="clave_proveedor" class="border rounded px-3 py-2 w-full">
+                    <select name="clave_proveedor" id="clave-proveedor" class="border rounded px-3 py-2 w-full">
                         <option value="">Sin proveedor</option>
                         @foreach(($proveedores ?? []) as $prov)
+                            @php
+                                $proveedorTieneDireccion = filled($prov->direccion_logistica)
+                                    && filled($prov->direccion_logistica_place_id)
+                                    && !is_null($prov->direccion_logistica_latitud)
+                                    && !is_null($prov->direccion_logistica_longitud)
+                                    && (bool) $prov->direccion_logistica_verificada_en_mapa;
+                            @endphp
                             <option value="{{ $prov->clave_proveedor }}"
+                                data-tiene-direccion="{{ $proveedorTieneDireccion ? '1' : '0' }}"
+                                data-edit-url="{{ route('proveedores.editar', ['id' => $prov->clave_proveedor, 'redirect' => route('inventario.entrada', $producto->codigo_producto)]) }}"
                                 {{ old('clave_proveedor') == $prov->clave_proveedor ? 'selected' : '' }}>
                                 {{ $prov->nombre }} @if($prov->rfc) ({{ $prov->rfc }}) @endif
                             </option>
                         @endforeach
                     </select>
+                    <div id="proveedor-sin-direccion" class="mt-3 hidden rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                        <div class="font-semibold">Este proveedor no tiene dirección logística validada.</div>
+                        <p class="mt-1 text-xs">Para programar una recolección necesitas completar su ubicación. Se guardará esta captura en el navegador antes de salir.</p>
+                        <button type="button" id="editar-proveedor-direccion"
+                            class="mt-3 inline-flex rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700">
+                            Editar proveedor
+                        </button>
+                    </div>
                 </div>
 
                 <div>
@@ -281,6 +298,8 @@
 {{-- ✅ Script: alternar bloques + required dinámico (sin forzar PIEZAS) --}}
 <script>
 (function () {
+  const draftKey = @isset($producto) @json('inventario:entrada:draft:' . $producto->codigo_producto) @else null @endisset;
+
   function setDisabled(containerId, disabled) {
     const el = document.getElementById(containerId);
     if (!el) return;
@@ -322,16 +341,102 @@
     bloque.classList.toggle('hidden', forma !== 'recoleccion_programada');
   }
 
+  function saveDraft() {
+    if (!draftKey) return;
+
+    const form = document.getElementById('inventario-entrada-form');
+    if (!form) return;
+
+    const draft = {};
+    form.querySelectorAll('input[name], select[name], textarea[name]').forEach((field) => {
+      if (field.name === '_token') return;
+      if (field.disabled) return;
+      if ((field.type === 'radio' || field.type === 'checkbox') && !field.checked) return;
+
+      if (draft[field.name] === undefined) {
+        draft[field.name] = field.value;
+        return;
+      }
+
+      if (!Array.isArray(draft[field.name])) {
+        draft[field.name] = [draft[field.name]];
+      }
+
+      draft[field.name].push(field.value);
+    });
+
+    sessionStorage.setItem(draftKey, JSON.stringify(draft));
+  }
+
+  function restoreDraft() {
+    if (!draftKey) return;
+
+    const form = document.getElementById('inventario-entrada-form');
+    const raw = sessionStorage.getItem(draftKey);
+    if (!form || !raw) return;
+
+    let draft = {};
+    try {
+      draft = JSON.parse(raw) || {};
+    } catch (e) {
+      sessionStorage.removeItem(draftKey);
+      return;
+    }
+
+    Object.entries(draft).forEach(([name, value]) => {
+      const escapedName = window.CSS?.escape ? CSS.escape(name) : name.replace(/"/g, '\\"');
+      const fields = form.querySelectorAll(`[name="${escapedName}"]`);
+      fields.forEach((field) => {
+        if (field.type === 'radio' || field.type === 'checkbox') {
+          field.checked = Array.isArray(value) ? value.includes(field.value) : field.value === String(value);
+          return;
+        }
+
+        field.value = Array.isArray(value) ? (value[0] || '') : (value || '');
+      });
+    });
+  }
+
+  function clearDraft() {
+    if (draftKey) sessionStorage.removeItem(draftKey);
+  }
+
+  function toggleProveedorDireccion() {
+    const select = document.getElementById('clave-proveedor');
+    const panel = document.getElementById('proveedor-sin-direccion');
+    const button = document.getElementById('editar-proveedor-direccion');
+    if (!select || !panel || !button) return;
+
+    const option = select.selectedOptions?.[0];
+    const necesitaDireccion = !!option?.value && option.dataset.tieneDireccion !== '1';
+    panel.classList.toggle('hidden', !necesitaDireccion);
+    button.dataset.editUrl = option?.dataset.editUrl || '';
+  }
+
   document.addEventListener('change', (e) => {
     if (e.target?.name === 'tipo_control') toggleBloques(e.target.value);
     if (e.target?.name === 'forma_ingreso') toggleFormaIngreso();
+    if (e.target?.name === 'clave_proveedor') toggleProveedorDireccion();
   });
 
   document.addEventListener('DOMContentLoaded', () => {
+    restoreDraft();
+
     // ✅ toma el radio que Blade dejó checked (ya viene del último tipo_control)
     const checked = document.querySelector('input[name="tipo_control"]:checked');
     toggleBloques(checked ? checked.value : 'PIEZAS');
     toggleFormaIngreso();
+    toggleProveedorDireccion();
+
+    document.getElementById('editar-proveedor-direccion')?.addEventListener('click', (event) => {
+      const url = event.currentTarget.dataset.editUrl;
+      if (!url) return;
+
+      saveDraft();
+      window.location.href = url;
+    });
+
+    document.getElementById('inventario-entrada-form')?.addEventListener('submit', clearDraft);
   });
 })();
 </script>

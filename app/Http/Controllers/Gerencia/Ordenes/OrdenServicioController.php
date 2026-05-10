@@ -12,15 +12,19 @@ use App\Models\DetalleOrdenProducto;
 use App\Models\DetalleOrdenProductoSerie;
 use App\Models\OrdenServicio;
 use App\Models\User;
+use App\Services\DocumentEmailService;
 use App\Services\GoogleCalendar\GoogleCalendarService;
 use App\Services\Logistica\LogisticaService;
 use App\Services\Ordenes\OrdenServicioService;
+use App\Support\AppSettings;
 use Carbon\Carbon;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Maatwebsite\Excel\Facades\Excel;
 
 class OrdenServicioController extends Controller
@@ -95,8 +99,9 @@ class OrdenServicioController extends Controller
             ->withQueryString();
 
         $tecnicos = User::where('puesto', 'tecnico')->orderBy('name')->get(['id', 'name']);
+        $emailOrdenesEnabled = AppSettings::emailOrdenesEnabled();
 
-        return view('gerencia.ordenes.index', compact('ordenes', 'tecnicos', 'facturacionCounts', 'facturadoFilter'));
+        return view('gerencia.ordenes.index', compact('ordenes', 'tecnicos', 'facturacionCounts', 'facturadoFilter', 'emailOrdenesEnabled'));
     }
 
     private function normalizeFacturadoFilter(mixed $value): ?int
@@ -163,6 +168,34 @@ class OrdenServicioController extends Controller
         $orden->save();
 
         return back()->with('success', 'Estado de facturacion actualizado correctamente.');
+    }
+
+    public function enviarCorreo($id, DocumentEmailService $emailService)
+    {
+        $orden = OrdenServicio::with('cliente')->findOrFail($id);
+
+        try {
+            if (empty($orden->archivo_pdf) || ! Storage::disk('public')->exists($orden->archivo_pdf)) {
+                $this->svc->generarYGuardarPdfOrden((int) $orden->getKey());
+                $orden->refresh();
+                $orden->load('cliente');
+            }
+
+            $emailService->sendPdfToClient(
+                $orden->cliente,
+                'Orden de Servicio ' . $orden->folio . ' - E-Support Mexico',
+                "Buen dia,\n\nAdjuntamos la orden de servicio {$orden->folio}.\n\nQuedamos atentos a cualquier comentario.\n\nSaludos,\nE-Support Mexico",
+                Storage::disk('public')->get($orden->archivo_pdf),
+                'orden_servicio_' . $orden->getKey() . '.pdf',
+                'ordenes'
+            );
+        } catch (ValidationException $e) {
+            return back()->with('error', collect($e->errors())->flatten()->first() ?: 'No fue posible enviar la orden.');
+        } catch (\Throwable $e) {
+            return back()->with('error', 'No fue posible enviar la orden por correo: ' . $e->getMessage());
+        }
+
+        return back()->with('success', 'Orden enviada por correo a ' . $orden->cliente->correo_electronico . '.');
     }
 
     public function create()

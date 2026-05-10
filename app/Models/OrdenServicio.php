@@ -140,6 +140,12 @@ class OrdenServicio extends Model
             ->orderBy('orden');
     }
 
+    public function maintenanceHistories()
+    {
+        return $this->hasMany(OrderMaintenanceHistory::class, 'orden_id', 'id_orden_servicio')
+            ->latest();
+    }
+
     public function movimientosLogisticos()
     {
         return $this->hasMany(MovimientoLogistico::class, 'orden_servicio_id', 'id_orden_servicio');

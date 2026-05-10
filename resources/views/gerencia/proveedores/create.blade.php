@@ -1,6 +1,18 @@
 @extends('layouts.sidebar-navigation')
 
 @section('content')
+@php
+    $proveedorDireccionInicial = [
+        'direccion_logistica' => old('direccion_logistica', old('direccion')),
+        'direccion_logistica_place_id' => old('direccion_logistica_place_id'),
+        'direccion_logistica_latitud' => old('direccion_logistica_latitud'),
+        'direccion_logistica_longitud' => old('direccion_logistica_longitud'),
+        'direccion_logistica_referencia' => old('direccion_logistica_referencia'),
+        'direccion_logistica_verificada_en_mapa' => old('direccion_logistica_verificada_en_mapa'),
+        'direccion_logistica_metodo' => old('direccion_logistica_metodo'),
+    ];
+@endphp
+
 <div class="relative mb-10">
     <h2 class="text-xl sm:text-2xl font-bold text-black-600 text-center">Registrar emisor (Proveedor)</h2>
     <x-boton-volver />
@@ -8,15 +20,7 @@
 
 <div class="max-w-7xl mx-auto">
     <form action="{{ route('proveedores.guardar') }}" method="POST" class="bg-white border border-gray-200 shadow-xl rounded-xl p-6 space-y-5"
-          x-data="proveedorDireccionManager(@js([
-            'direccion_logistica' => old('direccion_logistica', old('direccion')),
-            'direccion_logistica_place_id' => old('direccion_logistica_place_id'),
-            'direccion_logistica_latitud' => old('direccion_logistica_latitud'),
-            'direccion_logistica_longitud' => old('direccion_logistica_longitud'),
-            'direccion_logistica_referencia' => old('direccion_logistica_referencia'),
-            'direccion_logistica_verificada_en_mapa' => old('direccion_logistica_verificada_en_mapa'),
-            'direccion_logistica_metodo' => old('direccion_logistica_metodo'),
-          ]))"
+          x-data="window.proveedorDireccionManager(window.proveedorDireccionInicial || {})"
           x-init="init()">
         @csrf
         <input type="hidden" name="direccion" x-model="direccion_formateada">
@@ -116,11 +120,14 @@
         </div>
     </form>
 </div>
-@endsection
 
 @include('partials.logistica.address-picker-modal')
+@endsection
+
 @push('scripts')
 <script>
+window.proveedorDireccionInicial = @json($proveedorDireccionInicial);
+
 function proveedorDireccionManager(initial) {
     return {
         direccion_formateada: '',
@@ -164,5 +171,7 @@ function proveedorDireccionManager(initial) {
         },
     };
 }
+
+window.proveedorDireccionManager = proveedorDireccionManager;
 </script>
 @endpush

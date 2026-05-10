@@ -105,7 +105,7 @@ class ClienteController extends Controller
             'datos_fiscales'     => 'nullable|string|max:13',
             'contacto'           => 'nullable|string|max:255',
             'redirect_to'        => 'nullable|string',
-            'direcciones_logisticas' => 'required|array|min:1',
+            'direcciones_logisticas' => 'nullable|array',
             'direcciones_logisticas.*.id' => 'nullable|integer',
             'direcciones_logisticas.*.alias' => 'nullable|string|max:120',
             'direcciones_logisticas.*.direccion_formateada' => 'nullable|string|max:255',
@@ -166,10 +166,18 @@ class ClienteController extends Controller
         return redirect()->to($redirectTo)->with($flash);
     }
 
-    public function edit($id)
+    public function edit(Request $request, $id)
     {
+        $redirectTo = $request->input('redirect');
+        if ($redirectTo) {
+            $request->session()->put('clientes.redirect_to', $redirectTo);
+        }
+
         $cliente = Cliente::with('direccionesLogisticas')->findOrFail($id);
-        return view('gerencia.clientes.edit', compact('cliente'));
+        return view('gerencia.clientes.edit', [
+            'cliente' => $cliente,
+            'redirectTo' => $redirectTo ?: $request->session()->get('clientes.redirect_to'),
+        ]);
     }
 
     public function update(Request $request, $id)
@@ -187,7 +195,8 @@ class ClienteController extends Controller
             'direccion_fiscal'   => 'required|string|max:255',
             'datos_fiscales'     => 'nullable|string|max:13',
             'contacto'           => 'nullable|string|max:255',
-            'direcciones_logisticas' => 'required|array|min:1',
+            'redirect_to'        => 'nullable|string',
+            'direcciones_logisticas' => 'nullable|array',
             'direcciones_logisticas.*.id' => 'nullable|integer',
             'direcciones_logisticas.*.alias' => 'nullable|string|max:120',
             'direcciones_logisticas.*.direccion_formateada' => 'nullable|string|max:255',
@@ -224,7 +233,20 @@ class ClienteController extends Controller
         $this->syncDireccionesLogisticas($cliente, $direcciones);
         $this->syncUbicacionLegacy($cliente, $request);
 
-        return redirect()->route('clientes')->with('success', 'Cliente actualizado correctamente.');
+        $redirectTo = $request->input('redirect_to')
+            ?: $request->session()->pull('clientes.redirect_to')
+            ?: route('clientes');
+
+        $redirectTo = trim((string) $redirectTo);
+        $hostActual  = $request->getSchemeAndHttpHost();
+        $esRelativa  = Str::startsWith($redirectTo, '/');
+        $esMismoHost = Str::startsWith($redirectTo, $hostActual);
+
+        if (!$esRelativa && !$esMismoHost) {
+            $redirectTo = route('clientes');
+        }
+
+        return redirect()->to($redirectTo)->with('success', 'Cliente actualizado correctamente.');
     }
 
     public function destroy($id)
@@ -384,22 +406,29 @@ class ClienteController extends Controller
     {
         return collect($request->input('direcciones_logisticas', []))
             ->map(function ($row) {
+                $metodoVerificacion = trim((string) ($row['metodo_verificacion'] ?? '')) ?: null;
+                $verificadaEnMapa = !empty($row['verificada_en_mapa']);
+                $placeId = trim((string) ($row['place_id'] ?? '')) ?: null;
+
+                if ($metodoVerificacion === null && $verificadaEnMapa) {
+                    $metodoVerificacion = $placeId ? 'autocomplete' : 'mapa';
+                }
+
                 return [
                     'id' => !empty($row['id']) ? (int) $row['id'] : null,
                     'alias' => trim((string) ($row['alias'] ?? '')),
                     'direccion_formateada' => trim((string) ($row['direccion_formateada'] ?? '')),
-                    'place_id' => trim((string) ($row['place_id'] ?? '')) ?: null,
-                    'latitud' => $row['latitud'] !== null && $row['latitud'] !== '' ? (float) $row['latitud'] : null,
-                    'longitud' => $row['longitud'] !== null && $row['longitud'] !== '' ? (float) $row['longitud'] : null,
+                    'place_id' => $placeId,
+                    'latitud' => isset($row['latitud']) && $row['latitud'] !== '' ? (float) $row['latitud'] : null,
+                    'longitud' => isset($row['longitud']) && $row['longitud'] !== '' ? (float) $row['longitud'] : null,
                     'referencia' => trim((string) ($row['referencia'] ?? '')) ?: null,
                     'predeterminada' => !empty($row['predeterminada']),
-                    'verificada_en_mapa' => !empty($row['verificada_en_mapa']),
-                    'metodo_verificacion' => trim((string) ($row['metodo_verificacion'] ?? '')) ?: null,
+                    'verificada_en_mapa' => $verificadaEnMapa,
+                    'metodo_verificacion' => $metodoVerificacion,
                 ];
             })
             ->filter(function (array $row) {
-                return $row['alias'] !== ''
-                    || $row['direccion_formateada'] !== ''
+                return $row['direccion_formateada'] !== ''
                     || $row['place_id'] !== null
                     || $row['latitud'] !== null
                     || $row['longitud'] !== null;
@@ -452,9 +481,7 @@ class ClienteController extends Controller
     protected function validarDireccionesLogisticas(Collection $rows): void
     {
         if ($rows->isEmpty()) {
-            throw \Illuminate\Validation\ValidationException::withMessages([
-                'direcciones_logisticas' => 'Registra al menos una dirección logística del cliente.',
-            ]);
+            return;
         }
 
         $errors = [];
@@ -480,7 +507,7 @@ class ClienteController extends Controller
                 $errors["direcciones_logisticas.$index.direccion_formateada"] = 'Selecciona la dirección desde el mapa.';
             }
 
-            if ($row['place_id'] === null || $row['latitud'] === null || $row['longitud'] === null) {
+            if ($row['latitud'] === null || $row['longitud'] === null) {
                 $errors["direcciones_logisticas.$index.place_id"] = 'La dirección debe incluir coordenadas válidas.';
             }
 

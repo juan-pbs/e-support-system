@@ -9,6 +9,7 @@ use App\Models\User;
 use App\Services\GoogleCalendar\GoogleCalendarService;
 use Illuminate\Support\Facades\Config;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Storage;
 
 beforeEach(function () {
     Config::set('services.google_calendar.client_id', 'test-client-id');
@@ -53,7 +54,7 @@ it('guarda la conexion de google calendar despues del callback oauth', function 
 
     $account = GoogleCalendarAccount::query()->where('user_id', $tecnico->id)->firstOrFail();
 
-    expect($account->google_email)->toBe('tecnico.calendar@example.com')
+    expect($account->google_email)->toBe('tecnico.local@example.com')
         ->and($account->refresh_token)->toBe('refresh-123')
         ->and($account->sync_enabled)->toBeTrue()
         ->and($account->is_connected)->toBeTrue();
@@ -135,6 +136,66 @@ it('sincroniza una orden asignada al google calendar del tecnico conectado', fun
     });
 });
 
+it('permite al gerente sincronizar las ordenes de tecnicos conectados', function () {
+    Http::fake([
+        'https://www.googleapis.com/calendar/v3/calendars/primary/events' => Http::response([
+            'id' => 'google-event-manager-sync',
+        ], 200),
+    ]);
+
+    $gerente = User::factory()->create([
+        'puesto' => 'gerente',
+    ]);
+
+    $tecnico = User::factory()->create([
+        'puesto' => 'tecnico',
+        'name' => 'Tecnico sincronizable',
+    ]);
+
+    GoogleCalendarAccount::query()->create([
+        'user_id' => $tecnico->id,
+        'google_email' => 'tecnico.sync@example.com',
+        'calendar_id' => 'primary',
+        'access_token' => 'access-token-manager-sync',
+        'refresh_token' => 'refresh-token-manager-sync',
+        'token_expires_at' => now()->addHour(),
+        'sync_enabled' => true,
+        'connected_at' => now(),
+    ]);
+
+    $cliente = crearClienteCalendario();
+    $orden = OrdenServicio::query()->create([
+        'id_cliente' => $cliente->clave_cliente,
+        'id_tecnico' => $tecnico->id,
+        'fecha_orden' => now()->toDateString(),
+        'estado' => 'Pendiente',
+        'prioridad' => 'Alta',
+        'servicio' => 'Servicio calendar desde gerente',
+        'precio' => 0,
+        'costo_operativo' => 0,
+        'tipo_pago' => 'efectivo',
+        'tipo_orden' => 'servicio_simple',
+        'moneda' => 'MXN',
+        'tasa_cambio' => 1,
+        'impuestos' => 0,
+        'requiere_logistica' => false,
+    ]);
+    $orden->tecnicos()->sync([$tecnico->id]);
+
+    $this
+        ->actingAs($gerente)
+        ->post(route('google-calendar.sync-now'))
+        ->assertRedirect()
+        ->assertSessionHas('success');
+
+    expect(GoogleCalendarOrderEvent::query()
+        ->where('orden_servicio_id', $orden->id_orden_servicio)
+        ->where('user_id', $tecnico->id)
+        ->exists())->toBeTrue();
+
+    Http::assertSent(fn ($request) => $request->url() === 'https://www.googleapis.com/calendar/v3/calendars/primary/events');
+});
+
 it('elimina el evento remoto cuando se retira la orden del calendario', function () {
     Http::fake([
         'https://www.googleapis.com/calendar/v3/calendars/primary/events/google-event-123' => Http::response('', 204),
@@ -192,6 +253,149 @@ it('elimina el evento remoto cuando se retira la orden del calendario', function
 
     Http::assertSent(fn ($request) => $request->method() === 'DELETE'
         && $request->url() === 'https://www.googleapis.com/calendar/v3/calendars/primary/events/google-event-123');
+});
+
+it('elimina la asignacion de google calendar al confirmar el acta y finalizar la os', function () {
+    Storage::fake('public');
+
+    Http::fake([
+        'https://www.googleapis.com/calendar/v3/calendars/primary/events/google-event-acta' => Http::response('', 204),
+    ]);
+
+    $gerente = User::factory()->create([
+        'puesto' => 'gerente',
+    ]);
+
+    $tecnico = User::factory()->create([
+        'puesto' => 'tecnico',
+        'name' => 'Tecnico Acta Calendar',
+    ]);
+
+    $account = GoogleCalendarAccount::query()->create([
+        'user_id' => $tecnico->id,
+        'google_email' => $tecnico->email,
+        'calendar_id' => 'primary',
+        'access_token' => 'access-token-acta',
+        'refresh_token' => 'refresh-token-acta',
+        'token_expires_at' => now()->addHour(),
+        'sync_enabled' => true,
+        'connected_at' => now(),
+    ]);
+
+    $cliente = crearClienteCalendario();
+    $orden = OrdenServicio::query()->create([
+        'id_cliente' => $cliente->clave_cliente,
+        'id_tecnico' => $tecnico->id,
+        'fecha_orden' => now()->toDateString(),
+        'estado' => 'Pendiente',
+        'prioridad' => 'Media',
+        'servicio' => 'Servicio con acta calendar',
+        'precio' => 100,
+        'costo_operativo' => 0,
+        'tipo_pago' => 'efectivo',
+        'tipo_orden' => 'servicio_simple',
+        'moneda' => 'MXN',
+        'tasa_cambio' => 1,
+        'impuestos' => 0,
+        'requiere_logistica' => false,
+    ]);
+
+    $mapping = GoogleCalendarOrderEvent::query()->create([
+        'google_calendar_account_id' => $account->id,
+        'user_id' => $tecnico->id,
+        'orden_servicio_id' => $orden->id_orden_servicio,
+        'calendar_id' => 'primary',
+        'event_id' => 'google-event-acta',
+        'payload_hash' => 'hash-acta',
+        'synced_at' => now(),
+    ]);
+
+    $firmaPng = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
+
+    $this
+        ->actingAs($gerente)
+        ->postJson(route('ordenes.acta.confirmar', $orden->id_orden_servicio), [
+            'responsable' => 'Cliente conforme',
+            'trabajo_realizado' => 'Servicio terminado',
+            'fecha' => now()->toDateString(),
+            'hora' => '10:30',
+            'conforme' => 'si',
+            'cerrar_os' => '1',
+            'firma_responsable' => $firmaPng,
+            'cantidad_escrita' => '',
+        ])
+        ->assertOk()
+        ->assertJson(['ok' => true]);
+
+    $orden->refresh();
+
+    expect($orden->acta_estado)->toBe('firmada')
+        ->and($orden->estado)->toBe('Completada')
+        ->and(GoogleCalendarOrderEvent::query()->find($mapping->id))->toBeNull();
+
+    Http::assertSent(fn ($request) => $request->method() === 'DELETE'
+        && $request->url() === 'https://www.googleapis.com/calendar/v3/calendars/primary/events/google-event-acta');
+});
+
+it('limpia eventos antiguos de os finalizadas al sincronizar calendario', function () {
+    Http::fake([
+        'https://www.googleapis.com/calendar/v3/calendars/primary/events/google-event-finalizada' => Http::response('', 204),
+    ]);
+
+    $tecnico = User::factory()->create([
+        'puesto' => 'tecnico',
+        'name' => 'Tecnico Limpieza Calendar',
+    ]);
+
+    $account = GoogleCalendarAccount::query()->create([
+        'user_id' => $tecnico->id,
+        'google_email' => $tecnico->email,
+        'calendar_id' => 'primary',
+        'access_token' => 'access-token-clean',
+        'refresh_token' => 'refresh-token-clean',
+        'token_expires_at' => now()->addHour(),
+        'sync_enabled' => true,
+        'connected_at' => now(),
+    ]);
+
+    $cliente = crearClienteCalendario();
+    $ordenFinalizada = OrdenServicio::query()->create([
+        'id_cliente' => $cliente->clave_cliente,
+        'id_tecnico' => $tecnico->id,
+        'fecha_orden' => now()->subDays(7)->toDateString(),
+        'estado' => 'Completada',
+        'prioridad' => 'Baja',
+        'servicio' => 'OS finalizada antigua',
+        'precio' => 0,
+        'costo_operativo' => 0,
+        'tipo_pago' => 'efectivo',
+        'tipo_orden' => 'servicio_simple',
+        'moneda' => 'MXN',
+        'tasa_cambio' => 1,
+        'impuestos' => 0,
+        'acta_estado' => 'firmada',
+        'requiere_logistica' => false,
+    ]);
+
+    $mapping = GoogleCalendarOrderEvent::query()->create([
+        'google_calendar_account_id' => $account->id,
+        'user_id' => $tecnico->id,
+        'orden_servicio_id' => $ordenFinalizada->id_orden_servicio,
+        'calendar_id' => 'primary',
+        'event_id' => 'google-event-finalizada',
+        'payload_hash' => 'hash-finalizada',
+        'synced_at' => now()->subDays(7),
+    ]);
+
+    /** @var GoogleCalendarService $service */
+    $service = app(GoogleCalendarService::class);
+    $synced = $service->syncAssignedOrdersForUser($tecnico);
+
+    expect($synced)->toBe(0)
+        ->and(GoogleCalendarOrderEvent::query()->find($mapping->id))->toBeNull();
+
+    Http::assertSent(fn ($request) => $request->method() === 'DELETE'
+        && $request->url() === 'https://www.googleapis.com/calendar/v3/calendars/primary/events/google-event-finalizada');
 });
 
 function crearClienteCalendario(array $attributes = []): Cliente

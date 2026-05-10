@@ -5,6 +5,7 @@ use App\Models\ClienteDireccionLogistica;
 use App\Models\Inventario;
 use App\Models\JornadaLogistica;
 use App\Models\MovimientoLogistico;
+use App\Models\OrderMaintenanceHistory;
 use App\Models\OrdenServicio;
 use App\Models\Producto;
 use App\Models\Proveedor;
@@ -73,6 +74,34 @@ it('guarda varias direcciones logisticas del cliente y sincroniza la principal a
     ]);
 });
 
+it('permite guardar clientes sin direccion logistica', function () {
+    $gerente = User::factory()->create([
+        'puesto' => 'gerente',
+    ]);
+
+    $response = $this
+        ->actingAs($gerente)
+        ->post(route('clientes.store'), [
+            'codigo_cliente' => 'CLI-SIN-LOG',
+            'nombre' => 'Cliente Sin Logistica',
+            'empresa' => 'Cliente Sin Logistica SA',
+            'telefono' => '4421234999',
+            'correo' => 'cliente.sin.logistica@example.com',
+            'direccion_fiscal' => 'Av. Tecnologico 30',
+            'contacto' => 'Persona Cliente',
+            'redirect_to' => route('clientes'),
+        ]);
+
+    $response
+        ->assertRedirect(route('clientes'))
+        ->assertSessionHas('success', 'Cliente registrado correctamente.');
+
+    $cliente = Cliente::query()->where('codigo_cliente', 'CLI-SIN-LOG')->firstOrFail();
+
+    expect($cliente->direccionesLogisticas()->count())->toBe(0)
+        ->and($cliente->ubicacion)->toBeNull();
+});
+
 it('guarda la direccion logistica verificada del proveedor', function () {
     $gerente = User::factory()->create([
         'puesto' => 'gerente',
@@ -106,6 +135,151 @@ it('guarda la direccion logistica verificada del proveedor', function () {
     expect($proveedor->direccion_logistica)->toBe('Av. Universidad 200, Queretaro, Qro.')
         ->and($proveedor->direccion)->toBe('Av. Universidad 200, Queretaro, Qro.')
         ->and($proveedor->direccion_logistica_verificada_en_mapa)->toBeTrue();
+});
+
+it('permite guardar proveedores sin direccion logistica', function () {
+    $gerente = User::factory()->create([
+        'puesto' => 'gerente',
+    ]);
+
+    $response = $this
+        ->actingAs($gerente)
+        ->post(route('proveedores.guardar'), [
+            'nombre' => 'Proveedor Sin Logistica',
+            'rfc' => 'XAXX010101001',
+            'alias' => 'Sin logistica',
+            'contacto' => 'Persona Proveedor',
+            'telefono' => '4427654999',
+            'correo' => 'proveedor.sin.logistica@example.com',
+        ]);
+
+    $response
+        ->assertRedirect(route('proveedores.index'))
+        ->assertSessionHas('success', 'Proveedor registrado correctamente.');
+
+    $proveedor = Proveedor::query()->where('rfc', 'XAXX010101001')->firstOrFail();
+
+    expect($proveedor->direccion_logistica)->toBeNull()
+        ->and($proveedor->direccion)->toBeNull()
+        ->and($proveedor->direccion_logistica_verificada_en_mapa)->toBeFalse();
+});
+
+it('permite ir de inventario a editar proveedor sin direccion y regresar a la entrada', function () {
+    $gerente = User::factory()->create([
+        'puesto' => 'gerente',
+    ]);
+
+    $producto = crearProductoLogistico();
+    $proveedor = crearProveedorLogistico([
+        'direccion' => null,
+        'direccion_logistica' => null,
+        'direccion_logistica_place_id' => null,
+        'direccion_logistica_latitud' => null,
+        'direccion_logistica_longitud' => null,
+        'direccion_logistica_referencia' => null,
+        'direccion_logistica_verificada_en_mapa' => false,
+        'direccion_logistica_metodo' => null,
+    ]);
+
+    $entradaUrl = route('inventario.entrada', $producto->codigo_producto);
+
+    $this
+        ->actingAs($gerente)
+        ->get($entradaUrl)
+        ->assertOk()
+        ->assertSee('Este proveedor no tiene direcci', false)
+        ->assertSee(route('proveedores.editar', [
+            'id' => $proveedor->clave_proveedor,
+            'redirect' => $entradaUrl,
+        ]), false);
+
+    $this
+        ->actingAs($gerente)
+        ->put(route('proveedores.actualizar', $proveedor->clave_proveedor), [
+            'redirect_to' => $entradaUrl,
+            'nombre' => $proveedor->nombre,
+            'rfc' => $proveedor->rfc,
+            'alias' => $proveedor->alias,
+            'direccion_logistica' => 'Av. Inventario 100, Queretaro, Qro.',
+            'direccion_logistica_place_id' => 'inventario-prov-place',
+            'direccion_logistica_latitud' => 20.601,
+            'direccion_logistica_longitud' => -100.401,
+            'direccion_logistica_referencia' => 'Acceso de almacen',
+            'direccion_logistica_verificada_en_mapa' => 1,
+            'direccion_logistica_metodo' => 'autocomplete',
+            'contacto' => $proveedor->contacto,
+            'telefono' => $proveedor->telefono,
+            'correo' => $proveedor->correo,
+        ])
+        ->assertRedirect($entradaUrl)
+        ->assertSessionHas('success', 'Proveedor actualizado correctamente.');
+
+    expect($proveedor->fresh()->direccion_logistica_verificada_en_mapa)->toBeTrue();
+});
+
+it('registra historial al reabrir y permite cerrar de nuevo conservando firmas de la orden', function () {
+    $sistema = User::factory()->create([
+        'puesto' => 'sistema',
+    ]);
+
+    $cliente = crearClienteLogistico();
+    $firmaFecha = now()->subDay();
+
+    $orden = OrdenServicio::query()->create([
+        'id_cliente' => $cliente->clave_cliente,
+        'fecha_orden' => now()->toDateString(),
+        'estado' => 'Completada',
+        'prioridad' => 'Media',
+        'servicio' => 'Servicio con acta',
+        'descripcion_servicio' => 'Servicio cerrado para prueba',
+        'precio' => 100,
+        'costo_operativo' => 10,
+        'tipo_pago' => 'efectivo',
+        'tipo_orden' => 'servicio_simple',
+        'acta_estado' => 'firmada',
+        'acta_firmada_at' => $firmaFecha,
+        'acta_pdf_path' => 'actas/acta_prueba.pdf',
+        'acta_pdf_hash' => 'hash-prueba',
+        'firma_conformidad' => 'firma-conformidad-previa',
+        'firma_resp_path' => 'firmas/responsable.png',
+        'firma_emp_path' => 'firmas/empresa.png',
+    ]);
+
+    $this
+        ->actingAs($sistema)
+        ->post(route('sistema.mantenimiento.ordenes.reabrir'), [
+            'orden_id' => $orden->id_orden_servicio,
+            'reason' => 'Corregir datos',
+        ])
+        ->assertRedirect(route('sistema.mantenimiento'));
+
+    $orden->refresh();
+
+    expect($orden->estado)->toBe('En proceso')
+        ->and($orden->acta_estado)->toBe('borrador')
+        ->and($orden->acta_firmada_at?->toDateTimeString())->toBe($firmaFecha->toDateTimeString())
+        ->and($orden->firma_conformidad)->toBe('firma-conformidad-previa')
+        ->and($orden->firma_resp_path)->toBe('firmas/responsable.png')
+        ->and(OrderMaintenanceHistory::query()->where('orden_id', $orden->id_orden_servicio)->where('action', 'reopen_order')->count())->toBe(1);
+
+    $this
+        ->actingAs($sistema)
+        ->post(route('sistema.mantenimiento.ordenes.cerrar'), [
+            'orden_id' => $orden->id_orden_servicio,
+            'reason' => 'Correccion terminada',
+        ])
+        ->assertRedirect(route('sistema.mantenimiento'));
+
+    $orden->refresh();
+
+    expect($orden->estado)->toBe('Completada')
+        ->and($orden->acta_estado)->toBe('firmada')
+        ->and($orden->acta_pdf_path)->toBe('actas/acta_prueba.pdf')
+        ->and($orden->acta_pdf_hash)->toBe('hash-prueba')
+        ->and($orden->firma_conformidad)->toBe('firma-conformidad-previa')
+        ->and($orden->firma_resp_path)->toBe('firmas/responsable.png')
+        ->and($orden->firma_emp_path)->toBe('firmas/empresa.png')
+        ->and(OrderMaintenanceHistory::query()->where('orden_id', $orden->id_orden_servicio)->count())->toBe(2);
 });
 
 it('rechaza direcciones de cliente que no quedaron verificadas en mapa', function () {
@@ -599,7 +773,7 @@ it('crea automaticamente un movimiento de entrega cuando la orden requiere logis
     expect($movimiento->estado)->toBe('pendiente')
         ->and($movimiento->clave_cliente)->toBe($cliente->clave_cliente)
         ->and($movimiento->cliente_direccion_id)->toBe($direccion->id)
-        ->and($movimiento->tecnico_id)->toBe($tecnico->id)
+        ->and($movimiento->tecnico_id)->toBeNull()
         ->and($movimiento->detalles)->toHaveCount(1)
         ->and((float) $movimiento->detalles->first()->cantidad)->toBe(2.0);
 
@@ -610,6 +784,22 @@ it('crea automaticamente un movimiento de entrega cuando la orden requiere logis
         ->assertSee('Logística')
         ->assertSee('Sucursal Centro')
         ->assertSee('Entrega');
+
+    $this
+        ->actingAs($tecnico)
+        ->get(route('tecnico.logistica.index'))
+        ->assertOk()
+        ->assertSee('Disponible para tomar')
+        ->assertSee('Sucursal Centro');
+
+    $this
+        ->actingAs($tecnico)
+        ->post(route('tecnico.logistica.estado', $movimiento), [
+            'estado' => 'en_ruta',
+        ])
+        ->assertRedirect(route('tecnico.logistica.show', $movimiento));
+
+    expect($movimiento->fresh()->tecnico_id)->toBe($tecnico->id);
 });
 
 it('no crea movimientos de entrega para ordenes que no son entrega venta aunque marquen logistica', function () {

@@ -30,7 +30,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{{ $code }} - {{ $title }}</title>
-    <link rel="icon" href="{{ asset('images/ico.png') }}" type="image/x-icon">
+    <link rel="icon" href="{{ asset('images/ico.png') }}" type="image/png">
+    <link rel="shortcut icon" href="{{ asset('images/ico.png') }}" type="image/png">
     <style>
         * { box-sizing: border-box; }
         html, body { margin: 0; min-height: 100%; font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #0f172a; }

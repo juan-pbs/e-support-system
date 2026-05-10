@@ -110,7 +110,9 @@ class LogisticaService
         $movimiento->orden_servicio_id = $orden->id_orden_servicio;
         $movimiento->clave_cliente = $cliente?->clave_cliente;
         $movimiento->cliente_direccion_id = $direccion->id;
-        $movimiento->tecnico_id = $orden->id_tecnico ?: $orden->tecnicos->pluck('id')->first();
+        if (!$movimiento->exists) {
+            $movimiento->tecnico_id = null;
+        }
         $movimiento->contacto = $cliente?->contacto ?: $cliente?->nombre;
         $movimiento->telefono = $cliente?->telefono;
         $movimiento->alias_direccion = $direccion->alias;
@@ -551,10 +553,17 @@ class LogisticaService
 
     protected function movimientoDisponibleParaCualquierTecnico(MovimientoLogistico $movimiento): bool
     {
-        return is_null($movimiento->tecnico_id)
-            && $movimiento->tipo === 'recoleccion'
+        if (!is_null($movimiento->tecnico_id) || !in_array($movimiento->estado, ['pendiente', 'asignado'], true)) {
+            return false;
+        }
+
+        return (
+            $movimiento->tipo === 'recoleccion'
             && $movimiento->origen_tipo === 'inventario_programado'
-            && in_array($movimiento->estado, ['pendiente', 'asignado'], true);
+        ) || (
+            $movimiento->tipo === 'entrega'
+            && $movimiento->origen_tipo === 'orden_servicio'
+        );
     }
 
     protected function cantidadMovimientoDesdePayload(array $payload): float

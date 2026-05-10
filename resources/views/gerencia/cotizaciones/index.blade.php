@@ -77,7 +77,7 @@
             </div>
 
             <div class="flex flex-col sm:flex-row gap-2 md:justify-end">
-                <button class="w-full sm:w-auto px-4 py-2 rounded-lg bg-gray-800 text-white">Filtrar</button>
+                <button class="w-full sm:w-auto px-4 py-2 rounded-lg bg-gray-800 text-white">Buscar</button>
 
                 <a href="{{ route('cotizaciones.vista') }}"
                    class="w-full sm:w-auto text-center px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50">
@@ -193,6 +193,24 @@
                        class="col-span-2 text-center px-3 py-2 text-sm rounded-lg bg-green-600 text-white hover:bg-green-700">
                         Procesar a OS
                     </a>
+
+                    @if($c->cliente && empty($c->cliente->correo_electronico))
+                        <a href="{{ route('clientes.edit', ['id' => $c->cliente->clave_cliente, 'redirect' => url()->full()]) }}"
+                           class="col-span-2 text-center px-3 py-2 text-sm rounded-lg bg-amber-500 text-white hover:bg-amber-600">
+                            Agregar correo
+                        </a>
+                    @else
+                        <form action="{{ route('cotizaciones.enviarCorreo', $c->id_cotizacion) }}" method="POST"
+                              class="col-span-2"
+                              onsubmit="return confirm('Enviar la cotizacion {{ $c->folio }} por correo al cliente?')">
+                            @csrf
+                            <button type="submit"
+                                    class="w-full px-3 py-2 text-sm rounded-lg {{ $emailCotizacionesEnabled ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-gray-200 text-gray-500 cursor-not-allowed' }}"
+                                    @disabled(! $emailCotizacionesEnabled)>
+                                Enviar por correo
+                            </button>
+                        </form>
+                    @endif
 
                     <form action="{{ route('cotizaciones.eliminar', $c->id_cotizacion) }}" method="POST"
                           class="col-span-2"
@@ -310,6 +328,20 @@
                                 <a href="{{ route('cotizaciones.procesar', $c->id_cotizacion) }}"
                                    class="px-2 py-1 text-xs rounded bg-green-600 text-white hover:bg-green-700"
                                    title="Procesar a OS">Procesar</a>
+
+                                @if($c->cliente && empty($c->cliente->correo_electronico))
+                                    <a href="{{ route('clientes.edit', ['id' => $c->cliente->clave_cliente, 'redirect' => url()->full()]) }}"
+                                       class="px-2 py-1 text-xs rounded bg-amber-500 text-white hover:bg-amber-600"
+                                       title="Agregar correo al cliente">Agregar correo</a>
+                                @else
+                                    <form action="{{ route('cotizaciones.enviarCorreo', $c->id_cotizacion) }}" method="POST"
+                                          onsubmit="return confirm('Enviar la cotizacion {{ $c->folio }} por correo al cliente?')">
+                                        @csrf
+                                        <button class="px-2 py-1 text-xs rounded {{ $emailCotizacionesEnabled ? 'bg-indigo-600 text-white hover:bg-indigo-700' : 'bg-gray-200 text-gray-500 cursor-not-allowed' }}"
+                                                @disabled(! $emailCotizacionesEnabled)
+                                                title="Enviar por correo">Correo</button>
+                                    </form>
+                                @endif
 
                                 <form action="{{ route('cotizaciones.eliminar', $c->id_cotizacion) }}" method="POST"
                                       onsubmit="return confirm('¿Eliminar la cotización {{ $c->folio }}?')">

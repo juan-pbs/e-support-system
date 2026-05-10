@@ -15,6 +15,8 @@ class LogisticaController extends Controller
 
     public function index(Request $request)
     {
+        $q = trim((string) $request->input('q', ''));
+        $movimientoId = $request->input('movimiento_id');
         $estado = trim((string) $request->input('estado', ''));
         $tipo = trim((string) $request->input('tipo', ''));
         $tecnicoId = $request->input('tecnico_id');
@@ -30,6 +32,31 @@ class LogisticaController extends Controller
                 'detalles',
                 'evidencias',
             ])
+            ->when($movimientoId, fn ($query) => $query->whereKey((int) $movimientoId))
+            ->when(! $movimientoId && $q !== '', function ($query) use ($q) {
+                $like = "%{$q}%";
+                $num = preg_replace('/\D+/', '', $q);
+
+                $query->where(function ($sub) use ($like, $num) {
+                    if ($num !== '') {
+                        $sub->orWhere('id', (int) $num)
+                            ->orWhere('orden_servicio_id', (int) $num)
+                            ->orWhere('origen_id', (int) $num);
+                    }
+
+                    $sub->orWhere('contacto', 'like', $like)
+                        ->orWhere('telefono', 'like', $like)
+                        ->orWhere('alias_direccion', 'like', $like)
+                        ->orWhere('direccion_formateada', 'like', $like)
+                        ->orWhere('referencia', 'like', $like)
+                        ->orWhere('observaciones', 'like', $like)
+                        ->orWhereHas('jornada', fn ($j) => $j->where('folio', 'like', $like)->orWhere('nombre', 'like', $like))
+                        ->orWhereHas('cliente', fn ($c) => $c->where('nombre', 'like', $like)->orWhere('nombre_empresa', 'like', $like)->orWhere('codigo_cliente', 'like', $like))
+                        ->orWhereHas('proveedor', fn ($p) => $p->where('nombre', 'like', $like)->orWhere('alias', 'like', $like)->orWhere('rfc', 'like', $like))
+                        ->orWhereHas('tecnico', fn ($t) => $t->where('name', 'like', $like))
+                        ->orWhereHas('ordenServicio', fn ($o) => $o->where('servicio', 'like', $like)->orWhere('descripcion', 'like', $like)->orWhere('descripcion_servicio', 'like', $like));
+                });
+            })
             ->when($estado !== '', fn ($q) => $q->where('estado', $estado))
             ->when($tipo !== '', fn ($q) => $q->where('tipo', $tipo))
             ->when($tecnicoId, fn ($q) => $q->where('tecnico_id', (int) $tecnicoId))
@@ -58,11 +85,66 @@ class LogisticaController extends Controller
             'jornadas' => $jornadas,
             'tecnicos' => $tecnicos,
             'filtros' => [
+                'q' => $q,
+                'movimiento_id' => $movimientoId,
                 'estado' => $estado,
                 'tipo' => $tipo,
                 'tecnico_id' => $tecnicoId,
             ],
         ]);
+    }
+
+    public function autocomplete(Request $request)
+    {
+        $term = trim((string) $request->input('term', ''));
+
+        if ($term === '') {
+            return response()->json([]);
+        }
+
+        $like = "%{$term}%";
+        $num = preg_replace('/\D+/', '', $term);
+
+        $rows = MovimientoLogistico::query()
+            ->with(['jornada', 'cliente', 'proveedor', 'tecnico', 'ordenServicio'])
+            ->where(function ($query) use ($like, $num) {
+                if ($num !== '') {
+                    $query->orWhere('id', (int) $num)
+                        ->orWhere('orden_servicio_id', (int) $num)
+                        ->orWhere('origen_id', (int) $num);
+                }
+
+                $query->orWhere('contacto', 'like', $like)
+                    ->orWhere('alias_direccion', 'like', $like)
+                    ->orWhere('direccion_formateada', 'like', $like)
+                    ->orWhereHas('jornada', fn ($j) => $j->where('folio', 'like', $like)->orWhere('nombre', 'like', $like))
+                    ->orWhereHas('cliente', fn ($c) => $c->where('nombre', 'like', $like)->orWhere('nombre_empresa', 'like', $like)->orWhere('codigo_cliente', 'like', $like))
+                    ->orWhereHas('proveedor', fn ($p) => $p->where('nombre', 'like', $like)->orWhere('alias', 'like', $like))
+                    ->orWhereHas('tecnico', fn ($t) => $t->where('name', 'like', $like));
+            })
+            ->latest('id')
+            ->limit(10)
+            ->get();
+
+        return response()->json($rows->map(function (MovimientoLogistico $movimiento) {
+            $folio = 'MOV-' . str_pad((string) $movimiento->id, 5, '0', STR_PAD_LEFT);
+            $target = $movimiento->cliente?->nombre
+                ?: $movimiento->proveedor?->nombre
+                ?: $movimiento->contacto
+                ?: 'Movimiento logistico';
+
+            $meta = array_filter([
+                $movimiento->tipo_label,
+                $movimiento->estado_label,
+                $movimiento->jornada?->folio,
+                $movimiento->ordenServicio?->folio,
+            ]);
+
+            return [
+                'id' => $movimiento->id,
+                'label' => $folio . ' - ' . $target . (count($meta) ? ' (' . implode(' / ', $meta) . ')' : ''),
+            ];
+        })->values());
     }
 
     public function storeJornada(Request $request)

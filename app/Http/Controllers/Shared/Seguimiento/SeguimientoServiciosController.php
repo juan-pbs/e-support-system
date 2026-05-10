@@ -9,6 +9,7 @@ use App\Models\SeguimientoServicio;
 use App\Models\SeguimientoImagen;
 use App\Models\DetalleOrdenProducto;
 use App\Models\OrdenMaterialExtra;
+use App\Support\AppSettings;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\DB;
@@ -20,7 +21,9 @@ class SeguimientoServiciosController extends Controller
      */
     public function index()
     {
-        return view('gerencia.seguimiento.index');
+        return view('gerencia.seguimiento.index', [
+            'emailActasEnabled' => AppSettings::emailActasEnabled(),
+        ]);
     }
 
     /**
@@ -293,6 +296,10 @@ class SeguimientoServiciosController extends Controller
                 'orderId'             => 'OS-' . $o->id_orden_servicio,
                 'cliente'             => $clienteNombre,
                 'client'              => $clienteNombre,
+                'clienteId'           => $o->cliente?->clave_cliente,
+                'clientId'            => $o->cliente?->clave_cliente,
+                'clienteCorreo'       => optional($o->cliente)->correo_electronico,
+                'clientEmail'         => optional($o->cliente)->correo_electronico,
                 'technician'          => $tec,
                 'status'              => $estadoSeguimiento,
                 'acta_estado'         => $o->acta_estado,

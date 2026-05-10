@@ -37,6 +37,10 @@ Route::middleware(['auth', 'gerente'])->group(function () {
         ->name('sistema.mantenimiento');
     Route::put('/sistema/mantenimiento', [MantenimientoController::class, 'update'])
         ->name('sistema.mantenimiento.update');
+    Route::post('/sistema/mantenimiento/ordenes/reabrir', [MantenimientoController::class, 'reopenOrder'])
+        ->name('sistema.mantenimiento.ordenes.reabrir');
+    Route::post('/sistema/mantenimiento/ordenes/cerrar', [MantenimientoController::class, 'closeOrder'])
+        ->name('sistema.mantenimiento.ordenes.cerrar');
 
     Route::get('/empleados', [EmpleadoController::class, 'index'])->name('empleados.index');
     Route::post('/empleados', [EmpleadoController::class, 'store'])->name('empleados.store');
@@ -88,6 +92,7 @@ Route::middleware(['auth', 'gerente'])->group(function () {
 
     Route::prefix('logistica')->name('logistica.')->group(function () {
         Route::get('/', [LogisticaController::class, 'index'])->name('index');
+        Route::get('/autocomplete', [LogisticaController::class, 'autocomplete'])->name('autocomplete');
         Route::get('/direcciones/search', [AddressLookupController::class, 'search'])->name('direcciones.search');
         Route::get('/direcciones/reverse', [AddressLookupController::class, 'reverse'])->name('direcciones.reverse');
         Route::post('/jornadas', [LogisticaController::class, 'storeJornada'])->name('jornadas.store');
@@ -166,6 +171,7 @@ Route::middleware(['auth', 'gerente'])->group(function () {
         Route::post('/preview', [CotizacionController::class, 'preview'])->name('cotizaciones.preview');
         Route::get('/{id}/ver-pdf', [CotizacionController::class, 'verPDF'])->name('cotizaciones.verPDF');
         Route::get('/{id}/descargar-pdf', [CotizacionController::class, 'descargarPDF'])->name('cotizaciones.descargarPDF');
+        Route::post('/{id}/enviar-correo', [CotizacionController::class, 'enviarCorreo'])->name('cotizaciones.enviarCorreo');
         Route::get('/editar/{id}', [CotizacionController::class, 'editar'])->name('cotizaciones.editar');
         Route::put('/actualizar/{id}', [CotizacionController::class, 'actualizar'])->name('cotizaciones.actualizar');
         Route::get('/autocomplete', [CotizacionController::class, 'autocomplete'])->name('cotizaciones.autocomplete');
@@ -220,6 +226,7 @@ Route::middleware(['auth', 'gerente'])->group(function () {
         Route::patch('/{id}/facturacion', [OrdenServicioController::class, 'updateFacturacion'])->name('facturacion.update');
         Route::post('/preview', [OrdenServicioPdfController::class, 'previewPdf'])->name('preview');
         Route::get('/{id}/pdf', [OrdenServicioPdfController::class, 'pdf'])->name('pdf');
+        Route::post('/{id}/enviar-correo', [OrdenServicioController::class, 'enviarCorreo'])->name('enviarCorreo');
 
         Route::post('/guardar', [OrdenServicioController::class, 'store'])->name('store');
         Route::get('/{id}/editar', [OrdenServicioController::class, 'edit'])->name('edit');
@@ -247,6 +254,7 @@ Route::middleware(['auth', 'gerente'])->group(function () {
         Route::post('/{id}/acta/draft', [ActaConformidadController::class, 'actaGuardarBorrador'])->name('acta.borrador');
         Route::post('/{id}/acta/preview', [ActaConformidadController::class, 'actaPreview'])->name('acta.preview');
         Route::post('/{id}/acta/confirm', [ActaConformidadController::class, 'actaConfirmar'])->name('acta.confirmar');
+        Route::post('/{id}/acta/enviar-correo', [ActaConformidadController::class, 'enviarActaCorreo'])->name('acta.enviarCorreo');
         Route::get('/{id}/acta/pdf', [ActaConformidadController::class, 'actaPdf'])->name('acta.pdf');
     });
 

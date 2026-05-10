@@ -20,9 +20,12 @@ use App\Models\DetalleOrdenProducto;
 use App\Models\DetalleOrdenProductoSerie;
 use App\Models\Cliente;
 use App\Models\Firma;
+use App\Services\DocumentEmailService;
+use App\Services\GoogleCalendar\GoogleCalendarService;
 use App\Services\Ordenes\OrdenServicioService;
 
 use Barryvdh\DomPDF\Facade\Pdf;
+use Illuminate\Validation\ValidationException;
 
 class ActaConformidadController extends Controller
 {
@@ -161,7 +164,7 @@ class ActaConformidadController extends Controller
      * - Guarda PDF físico en storage/public/actas
      * - Guarda acta_pdf_path para que el PDF NO cambie aunque cambien relaciones después
      */
-    public function actaConfirmar(Request $request, $id)
+    public function actaConfirmar(Request $request, $id, GoogleCalendarService $googleCalendar)
     {
         $orden = OrdenServicio::with(['cliente'])->findOrFail($id);
 
@@ -192,7 +195,9 @@ class ActaConformidadController extends Controller
         $this->saveFirmaDefaultFromRequest($request);
 
         // Cerrar OS si está conforme y se marcó la casilla
-        if (($acta['cerrar_os'] ?? false) && ($acta['conforme'] ?? 'si') === 'si') {
+        $cerrarOrden = ($acta['cerrar_os'] ?? false) && ($acta['conforme'] ?? 'si') === 'si';
+
+        if ($cerrarOrden) {
             $table = $orden->getTable();
             if (Schema::hasColumn($table, 'estatus')) {
                 $orden->estatus = 'Completada';
@@ -222,6 +227,10 @@ class ActaConformidadController extends Controller
         $orden->acta_pdf_hash   = hash('sha256', $binary); // <- TU CAMPO
 
         $orden->save();
+
+        if ($cerrarOrden) {
+            $googleCalendar->removeOrderFromCalendars($orden);
+        }
 
         // Detectar contexto (técnico vs gerente)
         $routeName = $request->route() ? $request->route()->getName() : '';
@@ -279,6 +288,50 @@ class ActaConformidadController extends Controller
                 ->setPaper('letter', 'portrait');
 
         return $pdf->stream("acta_conformidad_{$orden->id_orden_servicio}.pdf");
+    }
+
+    public function enviarActaCorreo($id, DocumentEmailService $emailService)
+    {
+        $orden = OrdenServicio::with('cliente')->findOrFail($id);
+
+        try {
+            if ($orden->acta_estado !== 'firmada') {
+                throw ValidationException::withMessages([
+                    'acta' => 'Solo se pueden enviar actas de conformidad firmadas.',
+                ]);
+            }
+
+            $disk = Storage::disk('public');
+            $binary = null;
+
+            if (!empty($orden->acta_pdf_path) && $disk->exists($orden->acta_pdf_path)) {
+                $binary = $disk->get($orden->acta_pdf_path);
+            } else {
+                $acta = is_array($orden->acta_data)
+                    ? $orden->acta_data
+                    : (json_decode($orden->acta_data ?? '[]', true) ?: []);
+
+                $payload = $this->buildPdfPayload($orden, $acta, false);
+                $binary = Pdf::loadView('pdf.acta_conformidad', $payload)
+                    ->setPaper('letter', 'portrait')
+                    ->output();
+            }
+
+            $emailService->sendPdfToClient(
+                $orden->cliente,
+                'Acta de Conformidad OS-' . $orden->id_orden_servicio . ' - E-Support Mexico',
+                "Buen dia,\n\nAdjuntamos el acta de conformidad firmada de la orden OS-{$orden->id_orden_servicio}.\n\nQuedamos atentos a cualquier comentario.\n\nSaludos,\nE-Support Mexico",
+                $binary,
+                'acta_conformidad_' . $orden->id_orden_servicio . '.pdf',
+                'actas'
+            );
+        } catch (ValidationException $e) {
+            return back()->with('error', collect($e->errors())->flatten()->first() ?: 'No fue posible enviar el acta.');
+        } catch (\Throwable $e) {
+            return back()->with('error', 'No fue posible enviar el acta por correo: ' . $e->getMessage());
+        }
+
+        return back()->with('success', 'Acta de conformidad enviada por correo a ' . $orden->cliente->correo_electronico . '.');
     }
 
     /**

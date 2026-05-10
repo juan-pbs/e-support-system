@@ -136,8 +136,21 @@
         thead{ display: table-header-group; }
         tfoot{ display: table-footer-group; }
         tr, img{ page-break-inside: avoid; }
-        @include('pdf.partials.corporate-theme')
-</style>
+            @include('pdf.partials.corporate-theme')
+
+        @page { margin: 20px 35px; }
+
+        .container,
+        .desc,
+        .table-wrap,
+        .totales,
+        .gutter {
+            padding-left: 0 !important;
+            padding-right: 0 !important;
+            margin-left: 0 !important;
+            margin-right: 0 !important;
+        }
+    </style>
 </head>
 <body>
 @php
@@ -310,4 +323,3 @@
 
 </body>
 </html>
-

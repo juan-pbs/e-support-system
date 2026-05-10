@@ -141,7 +141,21 @@
     </div>
 
     <form method="GET" action="{{ route('logistica.index') }}" class="mb-6 rounded-2xl border border-gray-200 bg-white p-4 shadow-sm">
-        <div class="grid grid-cols-1 gap-4 md:grid-cols-4">
+        <div class="grid grid-cols-1 gap-4 md:grid-cols-6">
+            <div class="md:col-span-2">
+                <label class="mb-1 block text-sm font-medium text-gray-700">Buscar</label>
+                <x-ordenes-autocomplete-bar
+                    :autocompleteUrl="route('logistica.autocomplete')"
+                    placeholder="Movimiento, jornada, cliente, proveedor, direccion u orden..."
+                    inputId="buscar-logistica"
+                    resultId="resultados-logistica"
+                    name="q"
+                    idName="movimiento_id"
+                    :value="$filtros['q'] ?? request('q')"
+                    :idValue="$filtros['movimiento_id'] ?? request('movimiento_id')"
+                    :submitOnSelect="true"
+                />
+            </div>
             <div>
                 <label class="mb-1 block text-sm font-medium text-gray-700">Estado</label>
                 <select name="estado" class="w-full rounded-xl border border-gray-300 px-4 py-3">
@@ -169,7 +183,7 @@
                 </select>
             </div>
             <div class="flex items-end gap-2">
-                <button class="flex-1 rounded-xl bg-blue-600 px-4 py-3 text-sm font-medium text-white hover:bg-blue-700">Aplicar</button>
+                <button class="flex-1 rounded-xl bg-blue-600 px-4 py-3 text-sm font-medium text-white hover:bg-blue-700">Buscar</button>
                 <a href="{{ route('logistica.index') }}" class="rounded-xl border border-gray-300 px-4 py-3 text-sm font-medium text-gray-700 hover:bg-gray-100">Limpiar</a>
             </div>
         </div>
@@ -185,7 +199,7 @@
                             <span class="rounded-full {{ $movimiento->tipo === 'recoleccion' ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700' }} px-3 py-1 text-xs font-semibold">
                                 {{ $movimiento->tipo_label }}
                             </span>
-                            @if (is_null($movimiento->tecnico_id) && $movimiento->tipo === 'recoleccion' && $movimiento->origen_tipo === 'inventario_programado')
+                            @if (is_null($movimiento->tecnico_id) && in_array($movimiento->estado, ['pendiente', 'asignado'], true) && (($movimiento->tipo === 'recoleccion' && $movimiento->origen_tipo === 'inventario_programado') || ($movimiento->tipo === 'entrega' && $movimiento->origen_tipo === 'orden_servicio')))
                                 <span class="rounded-full bg-violet-100 px-3 py-1 text-xs font-semibold text-violet-700">
                                     Disponible para cualquier técnico
                                 </span>

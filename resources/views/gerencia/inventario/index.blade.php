@@ -133,7 +133,7 @@
 
             <div class="flex flex-col sm:flex-row gap-2 lg:justify-end">
                 <button class="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
-                    Aplicar
+                    Buscar
                 </button>
 
                 <a href="{{ route('inventario') }}"

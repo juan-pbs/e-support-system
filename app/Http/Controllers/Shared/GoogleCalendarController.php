@@ -97,7 +97,16 @@ class GoogleCalendarController extends Controller
 
     public function syncNow(Request $request)
     {
-        $synced = $this->googleCalendar->syncAssignedOrdersForUser($request->user());
+        $user = $request->user();
+        $syncTechnicians = ! $user->hasRole('tecnico');
+
+        $synced = $syncTechnicians
+            ? $this->googleCalendar->syncConnectedTechnicians()
+            : $this->googleCalendar->syncAssignedOrdersForUser($user);
+
+        if ($syncTechnicians) {
+            return back()->with('success', "Se revisaron {$synced} ordenes de los tecnicos conectados para sincronizarlas con Google Calendar.");
+        }
 
         return back()->with('success', "Se revisaron {$synced} órdenes asignadas para sincronizarlas con Google Calendar.");
     }
@@ -121,7 +130,7 @@ class GoogleCalendarController extends Controller
                         'id' => $tecnico->id,
                         'name' => $tecnico->name,
                         'email' => $tecnico->email,
-                        'google_email' => $account?->google_email,
+                        'calendar_email' => $account?->google_email ?: $tecnico->email,
                         'connected' => (bool) ($account?->is_connected),
                         'sync_enabled' => (bool) ($account?->sync_enabled),
                         'assigned_orders' => $tecnico->ordenesAsignadas->count(),
@@ -133,6 +142,7 @@ class GoogleCalendarController extends Controller
         return view('shared.google-calendar.index', [
             'layout' => $layout,
             'account' => $account,
+            'employeeEmail' => $user->email,
             'googleCalendarConfigured' => $this->googleCalendar->isConfigured(),
             'showTechStatuses' => $showTechStatuses,
             'techStatuses' => $techStatuses,

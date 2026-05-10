@@ -1,6 +1,21 @@
 @extends('layouts.sidebar-navigation')
 
 @section('content')
+@php
+    $clienteDireccionesIniciales = old('direcciones_logisticas', ($cliente->direccionesLogisticas ?? collect())->map(fn($d) => [
+        'id' => $d->id,
+        'alias' => $d->alias,
+        'direccion_formateada' => $d->direccion_formateada,
+        'place_id' => $d->place_id,
+        'latitud' => $d->latitud,
+        'longitud' => $d->longitud,
+        'referencia' => $d->referencia,
+        'predeterminada' => (bool) $d->predeterminada,
+        'verificada_en_mapa' => (bool) $d->verificada_en_mapa,
+        'metodo_verificacion' => $d->metodo_verificacion,
+    ])->values()->all());
+@endphp
+
 <div class="relative mb-10">
     <h2 class="text-xl sm:text-2xl font-bold text-black-600 text-center">Editar cliente</h2>
     <x-boton-volver />
@@ -38,23 +53,12 @@
     @endif
 
     <form action="{{ route('clientes.update', $cliente->clave_cliente) }}" method="POST"
-          class="bg-white border border-gray-200 shadow-xl rounded-xl p-6 space-y-5"
-          x-data="clienteDireccionesManager(@js(old('direcciones_logisticas', ($cliente->direccionesLogisticas ?? collect())->map(fn($d) => [
-                'id' => $d->id,
-                'alias' => $d->alias,
-                'direccion_formateada' => $d->direccion_formateada,
-                'place_id' => $d->place_id,
-                'latitud' => $d->latitud,
-                'longitud' => $d->longitud,
-                'referencia' => $d->referencia,
-                'predeterminada' => (bool) $d->predeterminada,
-                'verificada_en_mapa' => (bool) $d->verificada_en_mapa,
-                'metodo_verificacion' => $d->metodo_verificacion,
-            ])->values()->all()))"
-          x-init="init()">
+          class="bg-white border border-gray-200 shadow-xl rounded-xl p-6 space-y-5">
         @csrf
         @method('PUT')
-        <input type="hidden" name="ubicacion" x-model="ubicacionResumen">
+        @if(!empty($redirectTo))
+            <input type="hidden" name="redirect_to" value="{{ $redirectTo }}">
+        @endif
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <!-- Código cliente -->
@@ -124,7 +128,10 @@
                 @enderror
             </div>
 
-            <div class="sm:col-span-2 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <div class="sm:col-span-2 rounded-2xl border border-slate-200 bg-slate-50 p-4"
+                 x-data="window.clienteDireccionesManager(window.clienteDireccionesIniciales || [])"
+                 x-init="init()">
+                <input type="hidden" name="ubicacion" x-model="ubicacionResumen">
                 <div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
                         <label class="block text-sm font-medium text-gray-700">Direcciones logísticas</label>
@@ -240,16 +247,19 @@
         </div>
 
         <div class="flex justify-end gap-3 pt-4">
-            <a href="{{ route('clientes') }}" class="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100">Cancelar</a>
+            <a href="{{ $redirectTo ?? route('clientes') }}" class="px-4 py-2 rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-100">Cancelar</a>
             <button type="submit" class="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-700 text-white">Actualizar</button>
         </div>
     </form>
 </div>
-@endsection
 
 @include('partials.logistica.address-picker-modal')
+@endsection
+
 @push('scripts')
 <script>
+window.clienteDireccionesIniciales = @json($clienteDireccionesIniciales);
+
 function clienteDireccionesManager(initialDirecciones) {
     return {
         direcciones: [],
@@ -267,7 +277,7 @@ function clienteDireccionesManager(initialDirecciones) {
         },
         makeDireccion(item = {}, fallbackPrimary = false) {
             return {
-                uid: crypto.randomUUID ? crypto.randomUUID() : String(Date.now() + Math.random()),
+                uid: this.makeUid(),
                 id: item.id || '',
                 alias: item.alias || '',
                 direccion_formateada: item.direccion_formateada || '',
@@ -280,8 +290,18 @@ function clienteDireccionesManager(initialDirecciones) {
                 metodo_verificacion: item.metodo_verificacion || '',
             };
         },
+        makeUid() {
+            if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+                return window.crypto.randomUUID();
+            }
+
+            return `dir-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+        },
         addDireccion() {
-            this.direcciones.push(this.makeDireccion({ alias: '', predeterminada: false }, false));
+            this.direcciones.push(this.makeDireccion({
+                alias: `Direccion ${this.direcciones.length + 1}`,
+                predeterminada: false,
+            }, false));
         },
         removeDireccion(index) {
             this.direcciones.splice(index, 1);
@@ -298,10 +318,24 @@ function clienteDireccionesManager(initialDirecciones) {
             const direccion = this.direcciones[index];
             if (!direccion || !window.LogisticaAddressPicker) return;
             window.LogisticaAddressPicker.open(direccion, (payload) => {
-                Object.assign(direccion, payload);
+                const normalized = this.normalizePickerPayload(payload);
+                Object.assign(direccion, payload, normalized);
                 direccion.verificada_en_mapa = true;
                 this.syncUbicacion();
             });
+        },
+        normalizePickerPayload(payload = {}) {
+            const placeId = payload.place_id || payload.placeId || '';
+            const latitud = payload.latitud ?? payload.lat ?? '';
+            const longitud = payload.longitud ?? payload.lng ?? payload.lon ?? '';
+
+            return {
+                direccion_formateada: payload.direccion_formateada || payload.formatted_address || payload.address || '',
+                place_id: placeId,
+                latitud,
+                longitud,
+                metodo_verificacion: payload.metodo_verificacion || payload.metodo || payload.method || (placeId ? 'autocomplete' : 'mapa'),
+            };
         },
         syncUbicacion() {
             const principal = this.direcciones.find(d => d.predeterminada) || this.direcciones[0];
@@ -309,5 +343,10 @@ function clienteDireccionesManager(initialDirecciones) {
         },
     };
 }
+
+window.clienteDireccionesManager = clienteDireccionesManager;
+document.addEventListener('alpine:init', () => {
+    window.Alpine.data('clienteDireccionesManager', clienteDireccionesManager);
+});
 </script>
 @endpush

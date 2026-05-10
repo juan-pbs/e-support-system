@@ -9,6 +9,8 @@ use App\Models\Cliente;
 use App\Models\Producto;
 use App\Models\CotizacionServicio;
 use App\Models\DetalleCotizacionProducto;
+use App\Services\DocumentEmailService;
+use App\Support\AppSettings;
 
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -91,6 +93,7 @@ class CotizacionController extends Controller
             'cotizaciones' => $cotizaciones,
             'buscar'       => $buscar,
             'cotizacion_id'=> $cotizacionIdRaw,
+            'emailCotizacionesEnabled' => AppSettings::emailCotizacionesEnabled(),
         ]);
     }
 
@@ -664,6 +667,30 @@ class CotizacionController extends Controller
             'Content-Type'        => 'application/pdf',
             'Content-Disposition' => 'attachment; filename="'.$this->pdfFileName($realId).'"',
         ]);
+    }
+
+    public function enviarCorreo($id, DocumentEmailService $emailService)
+    {
+        $cotizacion = Cotizacion::with('cliente')->findOrFail($id);
+
+        try {
+            $path = $this->getOrCreatePdfPath((int) $cotizacion->id_cotizacion, true);
+
+            $emailService->sendPdfToClient(
+                $cotizacion->cliente,
+                'Cotizacion ' . $cotizacion->folio . ' - E-Support Mexico',
+                "Buen dia,\n\nAdjuntamos la cotizacion {$cotizacion->folio}.\n\nQuedamos atentos a cualquier comentario.\n\nSaludos,\nE-Support Mexico",
+                Storage::get($path),
+                $this->pdfFileName((int) $cotizacion->id_cotizacion),
+                'cotizaciones'
+            );
+        } catch (ValidationException $e) {
+            return back()->with('error', collect($e->errors())->flatten()->first() ?: 'No fue posible enviar la cotizacion.');
+        } catch (\Throwable $e) {
+            return back()->with('error', 'No fue posible enviar la cotizacion por correo: ' . $e->getMessage());
+        }
+
+        return back()->with('success', 'Cotizacion enviada por correo a ' . $cotizacion->cliente->correo_electronico . '.');
     }
 
     /* ============================ HELPERS PDF ============================ */
