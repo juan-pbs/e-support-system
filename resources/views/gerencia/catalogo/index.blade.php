@@ -108,10 +108,12 @@
                             <input type="checkbox" name="inactivos" value="1" {{ request('inactivos')?'checked':'' }}>
                             <span class="leading-tight">Ver inactivos</span>
                         </label>
-                        <label class="inline-flex min-w-0 items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm">
-                            <input type="checkbox" name="papelera" value="1" {{ !empty($papelera)?'checked':'' }}>
-                            <span class="leading-tight">Papelera</span>
-                        </label>
+                        @if($isSystem)
+                            <label class="inline-flex min-w-0 items-center gap-2 rounded-lg border border-gray-200 px-3 py-2 text-sm">
+                                <input type="checkbox" name="papelera" value="1" {{ !empty($papelera)?'checked':'' }}>
+                                <span class="leading-tight">Papelera</span>
+                            </label>
+                        @endif
                     </div>
                 </div>
 
@@ -126,16 +128,18 @@
 
     {{-- Acciones principales --}}
     <div class="grid grid-cols-1 sm:flex sm:justify-end mb-4 gap-2">
-        @if(!empty($papelera))
-            <a href="{{ route('catalogo.index') }}"
-               class="bg-gray-100 hover:bg-gray-200 text-gray-800 px-4 py-2 rounded-lg flex items-center justify-center gap-2">
-                Volver al catálogo
-            </a>
-        @else
-            <a href="{{ route('catalogo.index', ['papelera' => 1]) }}"
-               class="bg-gray-100 hover:bg-gray-200 text-gray-800 px-4 py-2 rounded-lg flex items-center justify-center gap-2">
-                Papelera
-            </a>
+        @if($isSystem)
+            @if(!empty($papelera))
+                <a href="{{ route('catalogo.index') }}"
+                   class="bg-gray-100 hover:bg-gray-200 text-gray-800 px-4 py-2 rounded-lg flex items-center justify-center gap-2">
+                    Volver al catálogo
+                </a>
+            @else
+                <a href="{{ route('catalogo.index', ['papelera' => 1]) }}"
+                   class="bg-gray-100 hover:bg-gray-200 text-gray-800 px-4 py-2 rounded-lg flex items-center justify-center gap-2">
+                    Papelera
+                </a>
+            @endif
         @endif
         <a href="{{ route('producto.crear') }}"
            class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center justify-center gap-2">
@@ -310,7 +314,7 @@
                             </a>
                         @endif
 
-                        @if(!empty($papelera))
+                        @if($isSystem && !empty($papelera))
                             <button class="rounded bg-green-600 px-2 py-1 text-xs text-white hover:bg-green-700"
                                     @click.stop="abrirConfirm('Recuperar producto','Se restaurara este producto.',
                                             '{{ route('producto.restaurar', $p->codigo_producto) }}','PUT')">
@@ -328,11 +332,13 @@
                                             '{{ route('producto.activar', $p->codigo_producto) }}','PUT')">
                                 Activar
                             </button>
-                            <button class="rounded bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-700"
-                                    @click.stop="abrirConfirm('Enviar a papelera','Podras recuperar este producto durante 20 dias.',
-                                            '{{ route('producto.eliminar', $p->codigo_producto) }}','DELETE')">
-                                Eliminar
-                            </button>
+                            @if($isSystem)
+                                <button class="rounded bg-red-600 px-2 py-1 text-xs text-white hover:bg-red-700"
+                                        @click.stop="abrirConfirm('Enviar a papelera','Podras recuperar este producto durante 20 dias.',
+                                                '{{ route('producto.eliminar', $p->codigo_producto) }}','DELETE')">
+                                    Eliminar
+                                </button>
+                            @endif
                         @endif
                     </div>
                 </div>
@@ -454,7 +460,7 @@
                             @endif
                         </div>
 
-                        @if(!empty($papelera))
+                        @if($isSystem && !empty($papelera))
                             <button
                                 class="text-sm bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 rounded-lg"
                                 :class="viewMode === 'list' ? 'text-xs px-2 py-1 rounded-md' : ''"
@@ -479,13 +485,15 @@
                                             '{{ route('producto.activar', $p->codigo_producto) }}','PUT')">
                                     Activar
                                 </button>
-                                <button
-                                    class="text-sm bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg"
-                                    :class="viewMode === 'list' ? 'text-xs px-2 py-1 rounded-md' : ''"
-                                    @click.stop="abrirConfirm('Enviar a papelera','Podrás recuperar este producto durante 20 días.',
-                                            '{{ route('producto.eliminar', $p->codigo_producto) }}','DELETE')">
-                                    Eliminar
-                                </button>
+                                @if($isSystem)
+                                    <button
+                                        class="text-sm bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 rounded-lg"
+                                        :class="viewMode === 'list' ? 'text-xs px-2 py-1 rounded-md' : ''"
+                                        @click.stop="abrirConfirm('Enviar a papelera','Podrás recuperar este producto durante 20 días.',
+                                                '{{ route('producto.eliminar', $p->codigo_producto) }}','DELETE')">
+                                        Eliminar
+                                    </button>
+                                @endif
                             </div>
                         @endif
                     </div>

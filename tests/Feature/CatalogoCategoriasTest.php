@@ -142,6 +142,87 @@ it('solo permite al rol sistema cambiar cuantos productos aparecen por pagina', 
     expect($response->viewData('productos')->perPage())->toBe(12);
 });
 
+it('oculta la papelera para gerente y admin aunque intenten entrar por url', function (string $rol) {
+    $usuario = User::factory()->create([
+        'puesto' => $rol,
+    ]);
+
+    Producto::query()->create([
+        'nombre' => 'Producto visible sin papelera',
+        'numero_parte' => 'NO-TRASH-001',
+        'categoria' => 'General',
+        'clave_prodserv' => '43222600',
+        'unidad' => 'PZA',
+        'stock_seguridad' => 0,
+        'descripcion' => 'Producto para validar papelera oculta',
+        'activo' => true,
+        'stock_total' => 0,
+        'stock_paquetes' => 0,
+        'stock_piezas_sueltas' => 0,
+    ]);
+
+    $response = $this
+        ->actingAs($usuario)
+        ->get(route('catalogo.index', ['papelera' => 1]))
+        ->assertOk()
+        ->assertDontSee('name="papelera"', false)
+        ->assertDontSee('Volver al catálogo')
+        ->assertDontSee('Recuperar')
+        ->assertDontSee('Enviar a papelera');
+
+    expect($response->viewData('papelera'))->toBeFalse();
+})->with(['gerente', 'admin']);
+
+it('impide a gerente y admin enviar productos a papelera o restaurarlos', function (string $rol) {
+    $usuario = User::factory()->create([
+        'puesto' => $rol,
+    ]);
+
+    $activo = Producto::query()->create([
+        'nombre' => 'Producto protegido activo',
+        'numero_parte' => 'NO-DEL-001',
+        'categoria' => 'General',
+        'clave_prodserv' => '43222600',
+        'unidad' => 'PZA',
+        'stock_seguridad' => 0,
+        'descripcion' => 'Producto que no debe ir a papelera',
+        'activo' => false,
+        'stock_total' => 0,
+        'stock_paquetes' => 0,
+        'stock_piezas_sueltas' => 0,
+    ]);
+
+    $trashed = Producto::query()->create([
+        'nombre' => 'Producto protegido papelera',
+        'numero_parte' => 'NO-RES-001',
+        'categoria' => 'General',
+        'clave_prodserv' => '43222600',
+        'unidad' => 'PZA',
+        'stock_seguridad' => 0,
+        'descripcion' => 'Producto que no debe restaurarse',
+        'activo' => false,
+        'stock_total' => 0,
+        'stock_paquetes' => 0,
+        'stock_piezas_sueltas' => 0,
+    ]);
+
+    $trashed->delete();
+
+    $this
+        ->actingAs($usuario)
+        ->delete(route('producto.eliminar', $activo->codigo_producto))
+        ->assertForbidden();
+
+    $this
+        ->actingAs($usuario)
+        ->put(route('producto.restaurar', $trashed->codigo_producto))
+        ->assertForbidden();
+
+    expect(Producto::query()->whereKey($activo->codigo_producto)->exists())->toBeTrue()
+        ->and(Producto::onlyTrashed()->whereKey($activo->codigo_producto)->exists())->toBeFalse()
+        ->and(Producto::onlyTrashed()->whereKey($trashed->codigo_producto)->exists())->toBeTrue();
+})->with(['gerente', 'admin']);
+
 it('permite recuperar productos de papelera antes de 20 dias y purga vencidos', function () {
     $sistema = User::factory()->create([
         'puesto' => 'sistema',

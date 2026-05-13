@@ -35,7 +35,8 @@ class CatalogoProductoController extends Controller
     {
         $this->purgeExpiredTrash();
         $this->syncCategoriasDesdeProductos();
-        $papelera = $request->boolean('papelera');
+        $isSystemUser = $this->isSystemUser($request);
+        $papelera = $isSystemUser && $request->boolean('papelera');
 
         $subStock = '(SELECT COALESCE(SUM(paquetes_restantes * COALESCE(piezas_por_paquete,1) + COALESCE(piezas_sueltas,0)),0)
                       FROM inventario WHERE inventario.codigo_producto = productos.codigo_producto)';
@@ -105,7 +106,7 @@ class CatalogoProductoController extends Controller
             $query->whereRaw("$subStock <= COALESCE(productos.stock_seguridad,0)");
         }
 
-        $perPage = $this->isSystemUser($request)
+        $perPage = $isSystemUser
             ? (int) $request->input('per_page', 12)
             : 12;
 
@@ -327,8 +328,10 @@ class CatalogoProductoController extends Controller
         return back()->with('success', 'Producto activado.');
     }
 
-    public function eliminar($id)
+    public function eliminar(Request $request, $id)
     {
+        abort_unless($this->isSystemUser($request), 403);
+
         $p = Producto::findOrFail($id);
 
         $p->activo = false;
@@ -339,8 +342,10 @@ class CatalogoProductoController extends Controller
         return redirect()->route('catalogo.index')->with('success', 'Producto enviado a papelera. Se puede recuperar durante 20 dias.');
     }
 
-    public function restaurar($id)
+    public function restaurar(Request $request, $id)
     {
+        abort_unless($this->isSystemUser($request), 403);
+
         $producto = Producto::onlyTrashed()->findOrFail($id);
 
         if ($producto->deleted_at && $producto->deleted_at->lt(now()->subDays(20))) {
