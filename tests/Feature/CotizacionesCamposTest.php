@@ -4,6 +4,7 @@ use App\Models\Cliente;
 use App\Models\Cotizacion;
 use App\Models\DetalleCotizacionProducto;
 use App\Models\User;
+use Illuminate\Support\Facades\DB;
 
 it('guarda condiciones de pago, tiempo de entrega y cantidad con letra editable en cotizaciones', function () {
     $gerente = User::factory()->create([
@@ -75,6 +76,85 @@ it('genera cantidad con letra automaticamente cuando no se captura manualmente',
     expect($cotizacion)->not->toBeNull()
         ->and($cotizacion->cantidad_escrita)->toContain('PESOS')
         ->and($cotizacion->cantidad_escrita)->toContain('M.N.');
+});
+
+it('permite guardar y descargar la cotizacion en una sola accion', function () {
+    $gerente = User::factory()->create([
+        'puesto' => 'gerente',
+    ]);
+
+    $cliente = crearClienteCotizacion([
+        'codigo_cliente' => 'CLI-COT-DL',
+        'correo_electronico' => 'cotizacion-descarga@example.com',
+    ]);
+
+    $response = $this
+        ->actingAs($gerente)
+        ->post(route('cotizaciones.guardar'), [
+            'accion' => 'guardar_descargar',
+            'tipo_solicitud' => 'servicio',
+            'moneda' => 'MXN',
+            'cliente_id' => $cliente->clave_cliente,
+            'vigencia' => now()->addDays(7)->format('Y-m-d'),
+            'costo_operativo' => 0,
+            'precio_servicio' => 250,
+            'descripcion' => 'Cotizacion con descarga inmediata',
+            'descripcion_servicio' => 'Servicio con PDF',
+            'productos_json' => '[]',
+        ]);
+
+    $response->assertRedirect(route('cotizaciones.vista'));
+
+    $cotizacion = Cotizacion::latest('id_cotizacion')->first();
+
+    $response->assertSessionHas('download_pdf_url', route('cotizaciones.descargarPDF', $cotizacion->id_cotizacion));
+});
+
+it('permite actualizar y descargar la cotizacion redirigiendo al indice', function () {
+    $gerente = User::factory()->create([
+        'puesto' => 'gerente',
+    ]);
+
+    $cliente = crearClienteCotizacion([
+        'codigo_cliente' => 'CLI-COT-UPD',
+        'correo_electronico' => 'cotizacion-update@example.com',
+    ]);
+
+    $cotizacion = Cotizacion::query()->create([
+        'fecha' => now(),
+        'vigencia' => now()->addDays(5),
+        'moneda' => 'MXN',
+        'tipo_solicitud' => 'servicio',
+        'registro_cliente' => $cliente->clave_cliente,
+        'descripcion' => 'Cotizacion base',
+        'costo_operativo' => 0,
+        'iva' => 0,
+        'total' => 100,
+        'cantidad_escrita' => 'CIEN PESOS 00/100 M.N.',
+        'condiciones_pago' => 'efectivo',
+        'tiempo_entrega' => 'Inmediato',
+        'edit_count' => 0,
+        'process_count' => 0,
+        'estado_cotizacion' => 'borrador',
+    ]);
+
+    $response = $this
+        ->actingAs($gerente)
+        ->put(route('cotizaciones.actualizar', $cotizacion->id_cotizacion), [
+            'accion' => 'guardar_descargar',
+            'tipo_solicitud' => 'servicio',
+            'moneda' => 'MXN',
+            'cliente_id' => $cliente->clave_cliente,
+            'vigencia' => now()->addDays(7)->format('Y-m-d'),
+            'costo_operativo' => 0,
+            'precio_servicio' => 350,
+            'descripcion' => 'Cotizacion actualizada con descarga',
+            'descripcion_servicio' => 'Servicio actualizado',
+            'productos_json' => '[]',
+        ]);
+
+    $response->assertRedirect(route('cotizaciones.vista'));
+    $response->assertSessionHas('download_pdf_url', route('cotizaciones.descargarPDF', $cotizacion->id_cotizacion));
 });
 
 it('guarda observaciones por producto dentro del detalle de cotizacion', function () {
@@ -320,6 +400,15 @@ it('renderiza la tabla del pdf de cotizacion con columnas fijas para descripcion
         ->toContain('<col style="width: 11%;">')
         ->toContain('<col style="width: 57%;">')
         ->toContain('<col style="width: 16%;">');
+});
+
+it('incluye la migracion que amplia la precision del iva de cotizaciones', function () {
+    $migration = '2026_05_13_120000_expand_iva_precision_on_cotizaciones_table';
+    $migrationPath = database_path("migrations/{$migration}.php");
+
+    expect(DB::table('migrations')->where('migration', $migration)->exists())->toBeTrue()
+        ->and($migrationPath)->toBeFile()
+        ->and(file_get_contents($migrationPath))->toContain("\$table->decimal('iva', 10, 2)->default(0)->change();");
 });
 
 function crearClienteCotizacion(array $attributes = []): Cliente

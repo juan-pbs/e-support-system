@@ -363,6 +363,17 @@
 @push('scripts')
 <script>
 document.addEventListener('DOMContentLoaded', () => {
+    const downloadPdfUrl = @json(session('download_pdf_url'));
+    if (downloadPdfUrl) {
+        const downloadFrame = document.createElement('iframe');
+        downloadFrame.style.display = 'none';
+        downloadFrame.src = downloadPdfUrl;
+        document.body.appendChild(downloadFrame);
+
+        setTimeout(() => {
+            downloadFrame.remove();
+        }, 60000);
+    }
 
     // ===== PDF MODAL =====
     const modal      = document.getElementById('pdfModal');

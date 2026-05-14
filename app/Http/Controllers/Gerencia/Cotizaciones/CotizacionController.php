@@ -240,7 +240,10 @@ class CotizacionController extends Controller
 
         // Descargar inmediatamente si la vista lo pidió
         if ($accion === 'guardar_descargar') {
-            return $this->descargarPDF($cotizacionId);
+            return $this->redirectToCotizacionesIndexWithDownload(
+                $cotizacionId,
+                'Cotización creada correctamente. La descarga iniciará en un momento.'
+            );
         }
 
         return redirect()
@@ -405,7 +408,10 @@ class CotizacionController extends Controller
         }
 
         if ($request->input('accion') === 'guardar_descargar') {
-            return $this->descargarPDF($request, (int) $cotizacion->id_cotizacion);
+            return $this->redirectToCotizacionesIndexWithDownload(
+                (int) $cotizacion->id_cotizacion,
+                'Cotización actualizada correctamente. La descarga iniciará en un momento.'
+            );
         }
 
         return redirect()
@@ -664,6 +670,14 @@ class CotizacionController extends Controller
             'Content-Type'        => 'application/pdf',
             'Content-Disposition' => 'attachment; filename="'.$this->pdfFileName($realId).'"',
         ]);
+    }
+
+    private function redirectToCotizacionesIndexWithDownload(int $id, string $successMessage)
+    {
+        return redirect()
+            ->route('cotizaciones.vista')
+            ->with('success', $successMessage)
+            ->with('download_pdf_url', route('cotizaciones.descargarPDF', $id));
     }
 
     /* ============================ HELPERS PDF ============================ */
